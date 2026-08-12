@@ -1,0 +1,154 @@
+/* ============================================================
+   斜杠命令菜单（Notion 风格弹出面板）
+   ============================================================ */
+
+#slash-menu {
+  position: fixed;
+  z-index: 5000;
+  width: 300px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  display: none;
+  animation: pop 0.12s ease;
+}
+#slash-menu.open { display: block; }
+
+.slash-group-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 8px 10px 4px;
+  user-select: none;
+}
+
+.slash-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.slash-item.active {
+  background: var(--primary-bg);
+}
+.slash-item .si-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+}
+.slash-item.active .si-icon {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.slash-item .si-icon svg { width: 17px; height: 17px; }
+.slash-item .si-body { flex: 1; min-width: 0; }
+.slash-item .si-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.slash-item .si-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slash-item .si-keys {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  background: var(--sidebar-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.slash-item.active .si-keys {
+  color: var(--primary-deep);
+  background: var(--bg-elevated);
+}
+
+.slash-empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Vditor 原生 hint 面板（键入 "/" 触发）
+   ============================================================ */
+.vditor-hint {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  padding: 6px !important;
+  max-height: 340px !important;
+  min-width: 240px !important;
+  overflow-y: auto !important;
+}
+.vditor-hint button {
+  border-radius: var(--radius-sm) !important;
+  padding: 0 !important;
+  margin: 1px 0 !important;
+  background: transparent !important;
+  line-height: normal !important;
+}
+.vditor-hint button:hover,
+.vditor-hint button.vditor-hint--current {
+  background: var(--primary-bg) !important;
+}
+.hint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+}
+.hint-row .hint-ic {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+}
+.vditor-hint button.vditor-hint--current .hint-row .hint-ic {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.hint-row .hint-ic svg { width: 15px; height: 15px; }
+.hint-row .hint-tt {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+}
+.hint-row .hint-kk {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  background: var(--sidebar-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
+}

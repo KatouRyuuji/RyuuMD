@@ -1,0 +1,438 @@
+/* ============================================================
+   RyuuMD 编辑区主题 —— 忠实移植 phycat（Typora 主题）设计语言
+   亮色: phycat sky   暗色: phycat vampire
+   选择器从 Typora 的 #write 映射到 Vditor IR 的 .vditor-reset。
+   配色随 :root[data-theme] 切换。
+   ============================================================ */
+
+/* —— phycat 元素色（亮色 sky） —— */
+:root {
+  --el: #3498db;            /* element-color 核心蓝 */
+  --el-deep: #2980b9;       /* element-color-deep */
+  --el-shallow: #aed6f1;    /* element-color-shallow */
+  --el-so-shallow: #eaf2f8; /* element-color-so-shallow */
+  --el-soo-shallow: #f4faff;/* element-color-soo-shallow */
+  --h2-bg: #3498db;         /* 标题强调色（固态，不用渐变） */
+  --h2-fg: #fff;
+  --code-head-bg: #f8f8f8;
+  --code-body-bg: #fbfdff;
+  --code-fg: #4f5467;
+  --quote-emoji: "\2728"; /* ✨ */
+}
+:root[data-theme="dark"] {
+  --el: #ff5555;            /* vampire 吸血鬼红 */
+  --el-deep: #ff3b3b;
+  --el-shallow: #bd93f9;    /* 神秘紫 */
+  --el-so-shallow: rgba(255,85,85,0.12);
+  --el-soo-shallow: rgba(255,85,85,0.07);
+  --h2-bg: #ff5555;         /* 标题强调色（固态，不用渐变） */
+  --h2-fg: #fff;
+  --code-head-bg: rgba(0,0,0,0.30);
+  --code-body-bg: rgba(0,0,0,0.22);
+  --code-fg: #f8f8f2;
+  --quote-emoji: "\1F319"; /* 🌙 */
+}
+
+.vditor {
+  border: none !important;
+  background: var(--bg) !important;
+  font-family: var(--font-ui) !important;
+}
+.vditor-reset {
+  color: var(--text) !important;
+  font-family: "LXGW WenKai", var(--font-ui) !important;
+  font-size: 16px !important;
+  line-height: 2.0 !important;
+  letter-spacing: 0.4px;
+}
+
+/* 内容区自适应主视图宽度（不再限制最大宽度 / 不区分紧凑·宽松） */
+.vditor-ir,
+.vditor-wysiwyg,
+.vditor-sv { background: var(--bg) !important; }
+.vditor-ir .vditor-reset,
+.vditor-wysiwyg .vditor-reset,
+.vditor-sv {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 24px 48px 40vh !important;
+}
+
+.vditor-toolbar { display: none !important; }
+
+/* —— 源码模式：等宽字体显示纯 md，markdown 标记可见但弱化（参考 GitHub 源码体验） —— */
+.vditor-sv {
+  font-family: var(--font-mono) !important;
+  font-size: 14.5px !important;
+  line-height: 1.9 !important;
+  color: var(--text) !important;
+  letter-spacing: 0 !important;
+  /* Vditor 默认 pre-wrap + break-word 会把表格源码行（| 列 | 列 |）折断错位。
+     源码即真源码：不软换行，长行横向滚动查看（VSCode 不开 wrap 的体验） */
+  white-space: pre !important;
+  word-break: normal !important;
+  word-wrap: normal !important;
+}
+/* 源码标记（# / ** / [] 等）统一弱化为次要色，仅作排版提示 */
+.vditor-sv .vditor-sv__marker,
+.vditor-sv .vditor-sv__marker--heading,
+.vditor-sv .vditor-sv__marker--bi,
+.vditor-sv .vditor-sv__marker--link,
+.vditor-sv .vditor-sv__marker--title,
+.vditor-sv .vditor-sv__marker--bracket,
+.vditor-sv .vditor-sv__marker--paren,
+.vditor-sv .vditor-sv__marker--info {
+  color: var(--text-muted) !important;
+  font-weight: 400 !important;
+}
+/* 源码模式标题：仅做基础字号 / 加粗层次，不套用渲染态装饰 */
+.vditor-sv .h1,
+.vditor-sv .h2,
+.vditor-sv .h3,
+.vditor-sv .h4,
+.vditor-sv .h5,
+.vditor-sv .h6 {
+  color: var(--text) !important;
+  font-weight: 700 !important;
+}
+.vditor-sv .em { color: var(--text-secondary); }
+.vditor-sv .strong { color: var(--text); }
+
+/* ===========================================================
+   标题（phycat：H1 居中实色下划线 / H2 固态色胶囊 / H3 左竖条 / H4 圆点）
+   =========================================================== */
+.vditor-reset h1,
+.vditor-reset h2,
+.vditor-reset h3,
+.vditor-reset h4,
+.vditor-reset h5,
+.vditor-reset h6 {
+  border: none !important;
+  font-weight: 700 !important;
+  color: var(--text);
+  position: relative;
+}
+
+/* H1：居中，底部实色短线（聚焦/悬停拉满） */
+.vditor-reset h1 {
+  text-align: center;
+  font-size: 1.8em !important;
+  margin: 1em auto 0.8em !important;
+  padding-bottom: 12px !important;
+  width: fit-content;
+  min-width: 120px;
+}
+.vditor-reset h1::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 50%;
+  width: 40px; height: 4px;
+  border-radius: 4px;
+  background: var(--h2-bg);
+  transform: translateX(-50%);
+  transition: width .4s cubic-bezier(.25,.8,.25,1);
+}
+.vditor-reset h1:hover::after,
+.vditor-ir__node--expand h1::after { width: 100%; }
+
+/* H2：固态色胶囊（不用渐变） */
+.vditor-reset h2 {
+  color: var(--h2-fg) !important;
+  font-size: 1.4em !important;
+  width: fit-content;
+  margin: 1em 0 !important;
+  padding: 5px 14px !important;
+  border-radius: 8px;
+  background: var(--h2-bg);
+  box-shadow: 0 2px 5px rgba(52,152,219,.18);
+  transition: transform .3s ease, box-shadow .3s ease, background .3s ease;
+}
+.vditor-reset h2:hover {
+  background: var(--el-deep);
+  transform: scale(1.01);
+  box-shadow: 0 8px 20px rgba(52,152,219,.30);
+}
+:root[data-theme="dark"] .vditor-reset h2 { box-shadow: 0 0 8px rgba(255,85,85,.4); }
+
+/* H3：左侧竖条，悬停内缩 */
+.vditor-reset h3 {
+  font-size: 1.25em !important;
+  width: fit-content;
+  margin: 1em 0 !important;
+  padding-left: 12px !important;
+}
+.vditor-reset h3::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 5px; height: 62%;
+  border-radius: 4px;
+  background: var(--el);
+}
+
+/* H4：前置圆点 */
+.vditor-reset h4 {
+  font-size: 1.1em !important;
+  margin: 0.9em 0 !important;
+}
+.vditor-reset h4::before {
+  content: "";
+  display: inline-block;
+  width: 9px; height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--el);
+  vertical-align: middle;
+}
+.vditor-reset h5, .vditor-reset h6 { font-size: 1em !important; opacity: .9; }
+
+/* ===========================================================
+   链接 / 行内代码 / 强调
+   =========================================================== */
+.vditor-reset a {
+  color: var(--el-deep) !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid var(--el-shallow);
+  transition: all .2s ease;
+}
+.vditor-reset a:hover {
+  color: var(--el) !important;
+  border-bottom-color: var(--el);
+}
+.vditor-reset code:not(.hljs):not([class*="language-"]) {
+  background: var(--el-so-shallow) !important;
+  color: var(--el-deep) !important;
+  border-radius: 5px !important;
+  padding: 2px 6px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.88em !important;
+}
+
+/* ===========================================================
+   代码块（phycat：顶部 macOS 三色点 + 语言名 / 圆角）
+   =========================================================== */
+.vditor-reset pre {
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--code-body-bg) !important;
+}
+.vditor-reset pre > code {
+  font-family: var(--font-mono) !important;
+  background: transparent !important;
+  color: var(--code-fg) !important;
+  line-height: 1.7 !important;
+}
+/* IR 代码块预览容器加 macOS 圆点头条 */
+.vditor-ir__marker--pre + .vditor-ir__preview pre::before,
+.vditor-reset .vditor-ir__preview pre::before {
+  content: "";
+  display: block;
+  height: 12px;
+  margin: -4px -4px 8px;
+}
+
+/* ===========================================================
+   引用（phycat：圆角气泡 + 角标 emoji，悬停放大）
+   =========================================================== */
+.vditor-reset blockquote {
+  position: relative;
+  margin: 1.2em 0 !important;
+  padding: 14px 18px 14px 44px !important;
+  background: var(--el-soo-shallow) !important;
+  border: none !important;
+  border-left: none !important;
+  border-radius: 14px !important;
+  color: var(--text-secondary) !important;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.vditor-reset blockquote::before {
+  content: var(--quote-emoji);
+  position: absolute;
+  left: 14px; top: 12px;
+  font-size: 18px; line-height: 1.4;
+  font-family: "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
+}
+.vditor-reset blockquote:hover { transform: scale(1.01); }
+:root[data-theme="dark"] .vditor-reset blockquote {
+  box-shadow: 0 0 0 1px rgba(255,255,255,.05);
+}
+
+/* ===========================================================
+   表格（自适应宽度：窄表随内容、宽表先换行压缩、仍装不下才横向滚动，永不裁切）
+   =========================================================== */
+.vditor-reset table {
+  display: block;            /* GitHub 同款：表格自身为横向滚动容器 */
+  width: max-content;        /* 内容决定宽度，窄表不被强制拉满 */
+  max-width: 100%;           /* 不超过主视图，超出部分滚动而非裁切 */
+  overflow-x: auto;
+  word-break: normal !important; /* 覆盖 Vditor 默认 keep-all，消除对中文换行的继承干扰 */
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  margin: 1.2em 0 !important;
+  border: 1px solid var(--el-shallow) !important;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.vditor-reset table th,
+.vditor-reset table td {
+  border: none !important;
+  border-bottom: 1px solid var(--el-so-shallow) !important;
+  border-right: 1px solid var(--el-so-shallow) !important;
+  padding: 8px 12px !important;
+  /* Vditor 默认 white-space:nowrap 使单元格永不换行、宽表整体溢出（显示不全的根因），
+     必须显式覆盖：先在单元格内换行，实在装不下才触发整表横向滚动 */
+  white-space: normal !important;
+  word-break: normal;
+  overflow-wrap: break-word;     /* 超长英文/URL 可断行；不用 anywhere，避免列宽被过度压缩 */
+  min-width: 4em;                /* 列宽下限，防止多列挤压成一字一行 */
+}
+.vditor-reset table th:last-child,
+.vditor-reset table td:last-child { border-right: none !important; }
+.vditor-reset table tr:last-child td { border-bottom: none !important; }
+.vditor-reset table th {
+  background: var(--el-so-shallow) !important;
+  color: var(--el-deep) !important;
+  font-weight: 700 !important;
+  text-align: left;
+}
+/* 行背景必须显式声明：Vditor 运行时把 content-theme（light/dark.css）注入到
+   <head> 末尾，其 GitHub 灰白/深灰斑马纹排位在本文件之后，会盖掉 phycat 配色 */
+.vditor-reset table tr {
+  background: var(--bg-elevated) !important;
+  border-top: none !important;
+}
+.vditor-reset table tbody tr:nth-child(2n) { background: var(--bg-elevated) !important; }
+.vditor-reset table tbody tr:hover td { background: var(--el-soo-shallow) !important; }
+
+/* ===========================================================
+   分割线
+   =========================================================== */
+.vditor-reset hr {
+  border: none !important;
+  height: 2px !important;
+  background: var(--el-shallow) !important;
+  margin: 2em 0 !important;
+}
+
+/* ===========================================================
+   列表 / TODO（phycat：自定义圆形勾选框 + 完成动画 + 删除线渐显）
+   =========================================================== */
+.vditor-reset ul, .vditor-reset ol { padding-left: 1.7em !important; }
+
+/* 任务项：隐藏原生框，自绘圆形 */
+.vditor-reset li.vditor-task { list-style: none !important; position: relative; }
+.vditor-reset li.vditor-task input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  left: -1.5em; top: 0.45em;
+  width: 1.15rem; height: 1.15rem;
+  margin: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--el-deep);
+  background: var(--bg-elevated);
+  outline: 0; cursor: pointer;
+  transition: all .35s cubic-bezier(.5,1.6,.4,.7);
+}
+.vditor-reset li.vditor-task input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 46%;
+  width: .32rem; height: .6rem;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: translate(-50%,-60%) rotate(45deg) scale(0);
+  transition: transform .25s cubic-bezier(.5,1.6,.4,.7);
+}
+.vditor-reset li.vditor-task input[type="checkbox"]:checked {
+  background: var(--el);
+  border-color: var(--el);
+  animation: ryuu-task-pulse .4s forwards;
+}
+.vditor-reset li.vditor-task input[type="checkbox"]:checked::after {
+  transform: translate(-50%,-60%) rotate(45deg) scale(1);
+}
+@keyframes ryuu-task-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+/* 完成项文字：渐隐 + 删除线 */
+.vditor-reset li.vditor-task.vditor-task--done,
+.vditor-reset li.vditor-task input[type="checkbox"]:checked ~ * {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--el-shallow);
+}
+
+/* ===========================================================
+   图片 / 公式 / 选区
+   =========================================================== */
+.vditor-reset img {
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  max-width: 100%;
+}
+.vditor-reset .language-math,
+.vditor-reset .vditor-math {
+  background: var(--el-soo-shallow) !important;
+  border-radius: 8px;
+}
+/* 超宽公式 / SVG 图表：横向滚动而非溢出破版（Vditor 默认与 vnote 均未处理）。
+   echarts / mindmap 是固定高度交互图，维持 Vditor 默认 overflow:hidden 不动 */
+.vditor-reset .language-math,
+.vditor-reset .language-mermaid,
+.vditor-reset .language-flowchart,
+.vditor-reset .language-graphviz,
+.vditor-reset .language-markmap,
+.vditor-reset .language-abc,
+.vditor-reset .language-plantuml {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0; /* 防 KaTeX 上下标贴边被裁 */
+}
+.vditor-ir { caret-color: var(--el); }
+.vditor-reset::selection,
+.vditor-reset *::selection { background: var(--el-so-shallow); }
+
+/* IR 标记符号：未聚焦节点隐藏（Vditor 默认），聚焦节点淡显 */
+.vditor-ir__node--expand .vditor-ir__marker {
+  color: var(--text-muted) !important;
+}
+
+/* 标题「类型标识」(#, ##…)：聚焦时移到正文左侧栏外，
+   不再压在标题底色 / 竖条 / 圆点等渲染装饰上，避免重叠、便于阅读。
+   标题本身 position:relative，标记为其直接子节点，故按标题定位。 */
+.vditor-ir__node--expand .vditor-ir__marker--heading {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 10px;
+  padding: 0 !important;
+  color: var(--text-muted) !important;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ===========================================================
+   Vditor 弹层（提示/面板）配色
+   =========================================================== */
+.vditor-panel,
+.vditor-hint {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--text) !important;
+}
+.vditor-hint button:hover,
+.vditor-hint button.vditor-hint--current {
+  background: var(--el-so-shallow) !important;
+  color: var(--el-deep) !important;
+}
