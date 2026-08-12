@@ -44,7 +44,7 @@
 | A1 | 应用启动 | 窗口创建、boot 完成、全局对象就绪（App/Editor/Sidebar/Welcome/Settings/SlashMenu)、日志无错误 | E2E | ✅ T01 |
 | A2 | 配置持久化 | get/set/update 往返；损坏 JSON 回退默认值不阻断 | 单测 | ✅ config_* |
 | A3 | 会话记忆 | last_file/last_folder 有效路径 → restore_session 返回 folder+file；失效路径忽略 | 单测 | ✅ test_restore_session |
-| A4 | 命令行/拖图标传路径 | argv 注入 `__INITIAL_PATH__` 后打开 | 手动 | ⬜ 右键「打开方式」/拖到 exe 验证 |
+| A4 | 命令行/拖图标传路径 | argv 解析为初始路径，前端 boot 时经 `get_initial_path()` 主动拉取后打开 | 手动 | ⬜ 右键「打开方式」/拖到 exe 验证 |
 | A5 | 窗口尺寸记忆 | 关闭时写回 window_width/height | 手动 | ⬜ |
 
 ## B. 文件与文件夹 API(Python)

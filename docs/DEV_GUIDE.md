@@ -187,6 +187,7 @@ build.bat            # onefile（默认）
 build.bat onedir     # onedir
 ```
 
+- 脚本会先跑单元测试作门禁（`[2/5]` 步），单测不过则中止构建，E2E 需手动 `python run_tests.py`；
 - 新增的 `app/web` 静态资源自动随 `('app/web','app/web')` datas 打包；
 - 新增 Python 模块经 import 自动分析，无需改 spec；
 - 若引入新的动态 import → 加 `hiddenimports`；

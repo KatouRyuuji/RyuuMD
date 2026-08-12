@@ -469,9 +469,9 @@ def main() -> int:
     api = Api(config)
     index = str(ROOT / "app" / "web" / "index.html")
     # 说明:Vditor 渲染依赖窗口 rAF/焦点,E2E 须真实窗口运行;跑前请关闭其他 RyuuMD/
-    # WebView2 实例(残留进程会致首用例即败)。当前 24 项中 T10(待办勾选守卫)、
-    # T19(字数统计)在后台连续驱动下存在已知的边缘时序失败,属待查项而非回归,
-    # 其功能在前台手动操作正常(见 docs/TEST_PLAN.md 手动验证清单)。
+    # WebView2 实例(残留进程会致首用例即败)。历史待查项已清零:T10(待办勾选)经
+    # 移除自绘守卫改走 Vditor 原生处理修复;T19(字数统计)改走 loadDoc 可达路径,
+    # 合成 InputEvent 无法驱动 Vditor 内部 input 回调属测试方法限制(见 docs/TEST_PLAN.md)。
     window = webview.create_window(
         title="RyuuMD E2E", url=index, js_api=api, width=1200, height=800
     )

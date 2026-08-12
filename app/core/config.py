@@ -19,7 +19,7 @@ DEFAULTS: dict[str, Any] = {
     # 操作风格：notion = typora+notion（/h1 等英文/符号触发）
     #          wolai  = typora+wolai（/bt1、/dmk 等拼音缩写触发）
     "operation_style": "notion",
-    # 主题：light = phycat sky，dark = phycat vampire，system 跟随系统
+    # 主题：light = phycat sky，dark = phycat vampire
     "theme": "light",
     # 显示模式：ir = 渲染模式（Typora 式即时渲染），sv = 源码模式
     "display_mode": "ir",
