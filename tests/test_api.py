@@ -326,6 +326,281 @@ class TestRecentFiles(unittest.TestCase):
         self.assertEqual(self.api.get_recent()["items"], [])
 
 
+class TestProjects(unittest.TestCase):
+    """仓库（项目）管理：添加/去重/重命名/置顶/排序/移除/打开计时。"""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-proj-")
+        self.root = Path(self.dir.name)
+        self.api = make_api()
+        self.api.config.set("projects", [])
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def _mkrepo(self, name: str, files: int = 2) -> Path:
+        d = self.root / name
+        for i in range(files):
+            touch(d / f"n{i}.md")
+        return d
+
+    def test_add_and_list_with_stats(self):
+        d = self._mkrepo("noteA", files=3)
+        res = self.api.add_project(str(d), "")
+        self.assertTrue(res["ok"])
+        self.assertFalse(res["existed"])
+        self.assertEqual(res["project"]["name"], "noteA")
+        items = self.api.list_projects()["items"]
+        self.assertEqual(len(items), 1)
+        self.assertTrue(items[0]["exists"])
+        self.assertEqual(items[0]["md_count"], 3)
+        self.assertFalse(items[0]["md_count_capped"])
+
+    def test_add_dedupe_same_path(self):
+        d = self._mkrepo("noteB")
+        self.api.add_project(str(d), "")
+        # 同路径不同大小写（Windows 同一目录）→ 判定已存在
+        res = self.api.add_project(str(d).upper(), "")
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["existed"])
+        self.assertEqual(len(self.api.list_projects()["items"]), 1)
+
+    def test_add_missing_folder(self):
+        res = self.api.add_project(str(self.root / "ghost"), "")
+        self.assertFalse(res["ok"])
+
+    def test_custom_name_and_rename(self):
+        d = self._mkrepo("noteC")
+        pid = self.api.add_project(str(d), "工作笔记")["project"]["id"]
+        self.assertEqual(self.api.list_projects()["items"][0]["name"], "工作笔记")
+        res = self.api.rename_project(pid, "生活笔记")
+        self.assertTrue(res["ok"])
+        self.assertEqual(self.api.list_projects()["items"][0]["name"], "生活笔记")
+        # 空名拒绝
+        self.assertFalse(self.api.rename_project(pid, "  ")["ok"])
+        # 不存在的 id
+        self.assertFalse(self.api.rename_project("nope", "x")["ok"])
+
+    def test_pin_and_sort_order(self):
+        import time as _t
+
+        a = self.api.add_project(str(self._mkrepo("a")), "")["project"]["id"]
+        b = self.api.add_project(str(self._mkrepo("b")), "")["project"]["id"]
+        c = self.api.add_project(str(self._mkrepo("c")), "")["project"]["id"]
+        # b 最近打开过 → 非置顶组内应排最前
+        self.api.projects.touch(b)
+        # c 置顶 → 全局最前
+        self.api.pin_project(c, True)
+        names = [it["id"] for it in self.api.list_projects()["items"]]
+        self.assertEqual(names[0], c)
+        self.assertEqual(names[1], b)
+        self.assertEqual(names[2], a)
+        # 取消置顶后 c 无打开记录 → 落到最后（按名称）
+        self.api.pin_project(c, False)
+        _ = _t  # 保留导入占位（touch 已覆盖时间戳路径）
+        ids = [it["id"] for it in self.api.list_projects()["items"]]
+        self.assertEqual(ids[0], b)
+
+    def test_open_project_touches_and_returns_tree(self):
+        d = self._mkrepo("noteD")
+        pid = self.api.add_project(str(d), "")["project"]["id"]
+        res = self.api.open_project(pid)
+        self.assertTrue(res["ok"])
+        self.assertIn("tree", res)
+        item = self.api.list_projects()["items"][0]
+        self.assertGreater(item["last_opened_at"], 0)
+        # 不存在的仓库
+        self.assertFalse(self.api.open_project("nope")["ok"])
+
+    def test_remove_project(self):
+        d = self._mkrepo("noteE")
+        pid = self.api.add_project(str(d), "")["project"]["id"]
+        self.assertTrue(self.api.remove_project(pid)["ok"])
+        self.assertEqual(self.api.list_projects()["items"], [])
+
+    def test_missing_dir_flagged_not_dropped(self):
+        d = self._mkrepo("noteF")
+        self.api.add_project(str(d), "")
+        import shutil
+
+        shutil.rmtree(d)
+        items = self.api.list_projects()["items"]
+        self.assertEqual(len(items), 1)
+        self.assertFalse(items[0]["exists"])
+        self.assertIsNone(items[0]["md_count"])
+
+
+class TestFsutil(unittest.TestCase):
+    """count_md_files：计数、忽略目录、预算截断。"""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-fsu-")
+        self.root = Path(self.dir.name)
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_count_and_ignore(self):
+        from app.core.fsutil import count_md_files
+
+        touch(self.root / "a.md")
+        touch(self.root / "sub" / "b.md")
+        touch(self.root / "c.txt")
+        touch(self.root / ".git" / "d.md")
+        touch(self.root / "node_modules" / "e.md")
+        n, capped = count_md_files(str(self.root))
+        self.assertEqual(n, 2)
+        self.assertFalse(capped)
+
+    def test_budget_cap(self):
+        from app.core.fsutil import count_md_files
+
+        for i in range(30):
+            touch(self.root / f"f{i}.md")
+        n, capped = count_md_files(str(self.root), budget=10)
+        self.assertEqual(n, 10)
+        self.assertTrue(capped)
+
+
+class TestFileAssoc(unittest.TestCase):
+    """文件关联：命令行构造与状态查询（不实际写注册表/弹系统对话框）。"""
+
+    def test_launch_command_quotes_and_placeholder(self):
+        from app.core import file_assoc
+
+        cmd = file_assoc._launch_command()
+        self.assertIn('"%1"', cmd)
+        # 开发态：解释器与 main.py 都要带引号（路径可能含空格）
+        self.assertTrue(cmd.startswith('"'))
+        self.assertIn("main.py", cmd)
+
+    def test_status_shape(self):
+        from app.core import file_assoc
+
+        st = file_assoc.status()
+        self.assertTrue(st["ok"])
+        for key in ("supported", "registered", "is_default"):
+            self.assertIn(key, st)
+        if sys.platform == "win32":
+            self.assertTrue(st["supported"])
+
+
+class TestMultiWindowApi(unittest.TestCase):
+    """多窗口 API：经 window_manager 转发；无 manager 环境下明确报错。"""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-mw-")
+        self.root = Path(self.dir.name)
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_initial_path_roundtrip(self):
+        from app.core.config import Config as _C
+
+        api = Api(_C(), initial_path=str(self.root / "x.md"))
+        self.assertEqual(api.get_initial_path(), str(self.root / "x.md"))
+        self.assertEqual(make_api().get_initial_path(), "")
+
+    def test_open_new_window_without_manager(self):
+        api = make_api()
+        self.assertFalse(api.open_new_window("")["ok"])
+
+    def test_open_new_window_with_manager(self):
+        calls: list[str] = []
+
+        class FakeManager:
+            def create(self, path):  # noqa: ANN001
+                calls.append(path)
+
+        from app.core.config import Config as _C
+
+        api = Api(_C(), window_manager=FakeManager())
+        self.assertTrue(api.open_new_window(str(self.root))["ok"])
+        self.assertEqual(calls, [str(self.root)])
+
+    def test_open_project_new_window(self):
+        calls: list[str] = []
+
+        class FakeManager:
+            def create(self, path):  # noqa: ANN001
+                calls.append(path)
+
+        from app.core.config import Config as _C
+
+        api = Api(_C(), window_manager=FakeManager())
+        api.config.set("projects", [])
+        d = self.root / "repo"
+        touch(d / "a.md")
+        pid = api.add_project(str(d), "")["project"]["id"]
+        self.assertTrue(api.open_project_new_window(pid)["ok"])
+        self.assertEqual(calls, [str(d)])
+        # 打开即视为使用过：last_opened_at 更新
+        self.assertGreater(api.list_projects()["items"][0]["last_opened_at"], 0)
+        # 目录被删除后拒绝并报错
+        import shutil
+
+        shutil.rmtree(d)
+        self.assertFalse(api.open_project_new_window(pid)["ok"])
+        # 不存在的 id
+        self.assertFalse(api.open_project_new_window("nope")["ok"])
+
+
+class TestSingleton(unittest.TestCase):
+    """单实例：server 启停、转发成功/失败、token 校验。"""
+
+    def test_forward_roundtrip(self):
+        from app.core.config import Config as _C
+        from app.core.singleton import InstanceServer, try_forward
+
+        cfg = _C()
+        received: list[str] = []
+        server = InstanceServer(cfg, on_open=received.append)
+        self.assertTrue(server.start())
+        try:
+            self.assertTrue(try_forward(cfg, "C:/some/path.md"))
+            self.assertTrue(try_forward(cfg, ""))  # 空路径 = 唤起新窗口
+            import time as _t
+
+            deadline = _t.time() + 3
+            while len(received) < 2 and _t.time() < deadline:
+                _t.sleep(0.05)
+            self.assertEqual(received, ["C:/some/path.md", ""])
+        finally:
+            server.stop()
+        # server 停止（lock 移除）后转发失败
+        self.assertFalse(try_forward(cfg, "x.md"))
+
+    def test_forward_no_instance(self):
+        from app.core.config import Config as _C
+        from app.core.singleton import try_forward
+
+        cfg = _C()
+        (cfg.data_dir / "instance.json").unlink(missing_ok=True)
+        self.assertFalse(try_forward(cfg, "a.md"))
+
+    def test_bad_token_denied(self):
+        import json as _json
+        import socket as _socket
+
+        from app.core.config import Config as _C
+        from app.core.singleton import InstanceServer
+
+        cfg = _C()
+        received: list[str] = []
+        server = InstanceServer(cfg, on_open=received.append)
+        self.assertTrue(server.start())
+        try:
+            info = _json.loads((cfg.data_dir / "instance.json").read_text(encoding="utf-8"))
+            with _socket.create_connection(("127.0.0.1", info["port"]), timeout=2) as s:
+                s.sendall(_json.dumps({"token": "wrong", "action": "open", "path": "x"}).encode() + b"\n")
+                s.settimeout(2.0)
+                self.assertTrue(s.recv(16).startswith(b"denied"))
+            self.assertEqual(received, [])
+        finally:
+            server.stop()
+
+
 class TestConfig(unittest.TestCase):
     def test_defaults_and_update(self):
         cfg = Config()

@@ -63,6 +63,13 @@ assert BIG_MD.stat().st_size > 512 * 1024, "夹具大文档必须超过 512KB �
 SMALL_JS = str(SMALL_MD).replace("\\", "\\\\")
 BIG_JS = str(BIG_MD).replace("\\", "\\\\")
 
+# 首页用例夹具：临时仓库目录（含 md 文件）
+REPO_DIR = TMP / "e2e-repo"
+(REPO_DIR / "sub").mkdir(parents=True, exist_ok=True)
+(REPO_DIR / "readme.md").write_text("# 仓库文档\n", encoding="utf-8")
+(REPO_DIR / "sub" / "note.md").write_text("# 子目录\n", encoding="utf-8")
+REPO_JS = str(REPO_DIR).replace("\\", "\\\\")
+
 # T08 用 Markdown(含代码围栏,验证 sv 大纲忽略 ``` 内标题)
 T08_MD = "# 模式测试\n\n```\n# 注释不是标题\n```\n\n## 真标题\n"
 
@@ -88,8 +95,18 @@ def JV(s: str) -> str:
 #   js: 断言表达式,返回布尔真即通过(在超时窗口内轮询)
 # ----------------------------------------------------------------------------
 CASES = [
+    dict(name="T00 首启无会话:显示首页(空态+快速操作)", sleep=0,
+         # 临时 APPDATA 下无上次会话,welcome 关闭后应落到首页;验毕隐藏首页继续编辑器用例
+         js=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
+             "if(document.querySelectorAll('#home .quick-card').length!==3)return 'quick cards';"
+             "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'repo empty hidden';"
+             "return true;})()"),
+         timeout=12,
+         setup2="window.Home.hide()", sleep2=0.3,
+         js2="!window.Home.isOpen()"),
+
     dict(name="T01 启动:全局对象就绪、编辑器 ready", sleep=0,
-         js="!!(window.App&&window.Editor&&window.Sidebar&&window.Welcome&&window.Settings&&window.SlashMenu&&window.Editor.isReady())"),
+         js="!!(window.App&&window.Editor&&window.Sidebar&&window.Welcome&&window.Settings&&window.SlashMenu&&window.Home&&window.Editor.isReady())"),
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
          js="(function(){var bs=document.querySelectorAll('#toolbar .icon-btn');return bs.length>=7&&Array.from(bs).every(function(b){var l=b.querySelector('.ib-label');return l&&l.textContent.trim().length>0;});})()"),
@@ -172,10 +189,10 @@ CASES = [
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js="document.documentElement.getAttribute('data-theme')==='light'"),
 
-    dict(name="T12 设置弹窗:打开三行设置并可关闭",
+    dict(name="T12 设置弹窗:打开五行设置并可关闭",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
          js=("(function(){var m=document.getElementById('settings-mask');"
-             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===3;})()"),
+             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===5;})()"),
          setup2="document.getElementById('set-close').click()", sleep2=0.4,
          js2="!document.getElementById('settings-mask').classList.contains('open')"),
 
@@ -309,6 +326,74 @@ CASES = [
          sleep2=1.2,
          js2=("(function(){var dn=document.getElementById('doc-name').textContent;"
               "return dn.indexOf('small.md')>=0?true:'doc='+dn;})()")),
+
+    # —— 首页 / 仓库管理(本次新增功能) ——
+    dict(name="T24 添加仓库并在首页渲染卡片(计数/头像)",
+         setup=("window.__t24=0;"
+                "window.pywebview.api.add_project('" + REPO_JS + "','').then(function(r){window.__t24=r.ok?1:-1;});"),
+         sleep=0.5,
+         js="window.__t24===1?true:'add='+window.__t24",
+         timeout=10,
+         setup2="window.Home.show()", sleep2=0.6,
+         js2=("(function(){var cards=document.querySelectorAll('#repo-container .repo-card');"
+              "if(cards.length!==1)return 'cards='+cards.length;"
+              "var c=cards[0];"
+              "if(getComputedStyle(document.getElementById('repo-empty')).display!=='none')return 'empty visible';"
+              "if(!c.querySelector('.repo-avatar').textContent.trim())return 'avatar empty';"
+              "var meta=c.querySelector('.repo-meta').textContent;"
+              "if(meta.indexOf('2')<0)return 'meta='+meta;"
+              "return true;})()")),
+
+    dict(name="T25 仓库视图切换:列表<->卡片,偏好持久化",
+         setup="document.querySelector('#repo-view-toggle button[data-view=\"list\"]').click()", sleep=0.4,
+         js=("(function(){var rows=document.querySelectorAll('#repo-container .repo-row');"
+             "if(rows.length!==1)return 'rows='+rows.length;"
+             "if(!document.getElementById('repo-container').classList.contains('repo-list'))return 'class';"
+             "return true;})()"),
+         setup2="document.querySelector('#repo-view-toggle button[data-view=\"card\"]').click()", sleep2=0.4,
+         js2="document.querySelectorAll('#repo-container .repo-card').length===1"),
+
+    dict(name="T26 重命名仓库:小弹窗改名并刷新",
+         setup=("document.querySelector('#repo-container .repo-actions button[data-act=\"rename\"]').click();"
+                "document.getElementById('mm-name').value=" + JV("E2E笔记仓") + ";"
+                "document.getElementById('mm-ok').click();"),
+         sleep=0.8,
+         js=("(function(){if(document.getElementById('home-modal-mask').classList.contains('open'))return 'modal open';"
+             "var n=document.querySelector('#repo-container .repo-name');"
+             "return n&&n.textContent.indexOf(" + JV("E2E笔记仓") + ")>=0?true:'name='+(n?n.textContent:'null');})()"),
+         timeout=10),
+
+    dict(name="T27 置顶仓库:pin 标记出现",
+         setup="document.querySelector('#repo-container .repo-actions button[data-act=\"pin\"]').click()",
+         sleep=0.8,
+         js=("(function(){var f=document.querySelector('#repo-container .repo-name .pin-flag');"
+             "return f?true:'no pin flag';})()"),
+         timeout=10),
+
+    dict(name="T28 点击仓库卡片:进入编辑器视图并渲染文件树",
+         setup="document.querySelector('#repo-container .repo-card').click()",
+         sleep=1.0,
+         js=("(function(){if(window.Home.isOpen())return 'home still open';"
+             "var files=document.querySelectorAll('#file-tree .tree-item');"
+             "if(files.length<2)return 'tree='+files.length;"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T29 首页最近区:渲染并支持存为仓库按钮",
+         setup="window.Home.show()", sleep=0.8,
+         js=("(function(){var rows=document.querySelectorAll('#home-recent .recent-row');"
+             "if(rows.length<1)return 'rows='+rows.length;"
+             "var save=document.querySelectorAll('#home-recent .rr-save');"
+             "if(save.length<1)return 'no save btn';"  # 最近含文件夹(e2e-repo),应有存为仓库按钮
+             "return true;})()"),
+         timeout=10,
+         # 第二阶段:移除仓库(confirm 已恒真),列表回到空态
+         setup2="document.querySelector('#repo-container .repo-actions button[data-act=\"remove\"]').click()",
+         sleep2=0.8,
+         js2=("(function(){var cards=document.querySelectorAll('#repo-container .repo-card,#repo-container .repo-row');"
+              "if(cards.length!==0)return 'cards='+cards.length;"
+              "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'empty hidden';"
+              "window.Home.hide();return true;})()")),
 ]
 
 
