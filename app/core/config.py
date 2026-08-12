@@ -31,6 +31,12 @@ DEFAULTS: dict[str, Any] = {
     "last_folder": "",
     # 最近打开列表（最新在前）：[{path, kind}]，kind = file | folder
     "recent_files": [],
+    # 仓库列表：[{id, name, path, pinned, created_at, last_opened_at}]
+    "projects": [],
+    # 首页仓库视图：card = 卡片，list = 列表
+    "home_view": "card",
+    # 启动页：restore = 恢复上次会话（无会话则进首页），home = 始终显示首页
+    "startup_page": "restore",
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,

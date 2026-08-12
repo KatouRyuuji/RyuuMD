@@ -7,22 +7,19 @@ pywebview 会把 Api 实例的公开方法挂到 window.pywebview.api.* 上，
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import urllib.parse
 from pathlib import Path
 from typing import Any, Optional
 
 import webview
 
+from . import file_assoc
 from .config import Config
+from .fsutil import IGNORE_DIRS, MD_EXTS  # noqa: F401  （re-export，main/tests 引用）
+from .projects import ProjectStore
 
-# 视为 markdown 的扩展名
-MD_EXTS = {".md", ".markdown", ".mdown", ".mkd", ".mdx"}
-# 文件夹树忽略项：隐藏目录（以 . 开头）一律跳过，这里列出的是
-# 不带点前缀的常见依赖/构建产物目录（可能包含数万文件，扫描即卡死）
-IGNORE_DIRS = {
-    ".git", ".obsidian", ".idea", ".vscode", ".venv",
-    "node_modules", "__pycache__", "venv", "dist", "build", "target",
-}
 # 文件夹树扫描上限：层级与总条目数，超出即截断并在返回数据中标注
 MAX_TREE_DEPTH = 8
 MAX_TREE_ENTRIES = 2000
@@ -31,12 +28,29 @@ RECENT_MAX = 15
 
 
 class Api:
-    def __init__(self, config: Config) -> None:
+    def __init__(
+        self,
+        config: Config,
+        window_manager: Any = None,
+        initial_path: str = "",
+    ) -> None:
         self.config = config
+        self.projects = ProjectStore(config)
         self._window: Optional["webview.Window"] = None
+        # 多窗口管理器（main.WindowManager）；测试/单窗口环境可为 None
+        self._window_manager = window_manager
+        # 本窗口的初始打开路径（命令行 / 单实例转发 / 新窗口传入），前端启动时拉取
+        self._initial_path = initial_path
 
     def bind_window(self, window: "webview.Window") -> None:
         self._window = window
+
+    # ------------------------------------------------------------------
+    # 窗口启动参数
+    # ------------------------------------------------------------------
+    def get_initial_path(self) -> str:
+        """前端 boot 时主动拉取本窗口初始路径（替代 evaluate_js 注入，无竞态）。"""
+        return self._initial_path or ""
 
     # ------------------------------------------------------------------
     # 配置
@@ -316,3 +330,92 @@ class Api:
         if last and Path(last).is_file():
             out["file"] = self.read_file(last)
         return out
+
+    # ------------------------------------------------------------------
+    # 仓库（项目）管理：首页仓库列表的数据源
+    # ------------------------------------------------------------------
+    def list_projects(self) -> dict[str, Any]:
+        return {"ok": True, "items": self.projects.list()}
+
+    def add_project(self, path: str, name: str = "") -> dict[str, Any]:
+        return self.projects.add(path, name)
+
+    def add_project_dialog(self) -> dict[str, Any]:
+        """弹文件夹选择框，把所选目录添加为仓库。"""
+        if not self._window:
+            return {"ok": False, "error": "窗口未就绪"}
+        result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        if not result:
+            return {"ok": False, "cancelled": True}
+        return self.projects.add(result[0])
+
+    def remove_project(self, project_id: str) -> dict[str, Any]:
+        return self.projects.remove(project_id)
+
+    def rename_project(self, project_id: str, name: str) -> dict[str, Any]:
+        return self.projects.rename(project_id, name)
+
+    def pin_project(self, project_id: str, pinned: bool) -> dict[str, Any]:
+        return self.projects.set_pinned(project_id, pinned)
+
+    def open_project(self, project_id: str) -> dict[str, Any]:
+        """在当前窗口打开仓库（返回文件夹树，前端切入编辑器视图）。"""
+        proj = self.projects.get(project_id)
+        if not proj:
+            return {"ok": False, "error": "仓库不存在"}
+        res = self.list_folder(proj["path"])
+        if res.get("ok"):
+            self.projects.touch(project_id)
+        return res
+
+    # ------------------------------------------------------------------
+    # 多窗口
+    # ------------------------------------------------------------------
+    def open_new_window(self, path: str = "") -> dict[str, Any]:
+        """开新窗口；path 为空时新窗口显示首页。"""
+        if not self._window_manager:
+            return {"ok": False, "error": "当前环境不支持多窗口"}
+        self._window_manager.create(path or "")
+        return {"ok": True}
+
+    def open_project_new_window(self, project_id: str) -> dict[str, Any]:
+        proj = self.projects.get(project_id)
+        if not proj:
+            return {"ok": False, "error": "仓库不存在"}
+        if not Path(proj["path"]).is_dir():
+            return {"ok": False, "error": "仓库目录不存在（可能已移动或删除）"}
+        res = self.open_new_window(proj["path"])
+        if res.get("ok"):
+            self.projects.touch(project_id)
+        return res
+
+    # ------------------------------------------------------------------
+    # Markdown 默认应用（Windows 文件关联）
+    # ------------------------------------------------------------------
+    def get_md_assoc_status(self) -> dict[str, Any]:
+        return file_assoc.status()
+
+    def set_default_md_app(self) -> dict[str, Any]:
+        return file_assoc.prompt_set_default(self.config)
+
+    # ------------------------------------------------------------------
+    # 系统集成
+    # ------------------------------------------------------------------
+    def reveal_in_explorer(self, path: str) -> dict[str, Any]:
+        """在资源管理器中显示目录/文件（首页仓库卡片操作）。"""
+        p = Path(path)
+        if not p.exists():
+            return {"ok": False, "error": "路径不存在"}
+        try:
+            if sys.platform == "win32":
+                if p.is_dir():
+                    os.startfile(str(p))  # noqa: S606
+                else:
+                    subprocess.Popen(["explorer", "/select,", str(p)])  # noqa: S603
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", str(p)])  # noqa: S603
+            else:
+                subprocess.Popen(["xdg-open", str(p.parent if p.is_file() else p)])  # noqa: S603
+            return {"ok": True}
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
