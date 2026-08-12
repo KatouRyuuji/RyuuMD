@@ -1,0 +1,399 @@
+/* ============================================================
+   RyuuMD 首页 —— 仓库列表（卡片/列表视图）+ 快速操作 + 最近打开
+   覆盖在编辑器之上（#body 内 absolute），与 phycat 主题变量联动
+   ============================================================ */
+
+#home {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: none;
+  overflow-y: auto;
+  background:
+    radial-gradient(1200px 500px at 85% -10%, var(--primary-bg) 0%, transparent 60%),
+    var(--bg);
+}
+#home.show {
+  display: block;
+  animation: home-in 0.22s ease;
+}
+@keyframes home-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.home-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 40px 40px 64px;
+}
+
+/* —— Hero：问候 + 快速操作 —— */
+.home-hero {
+  margin-bottom: 30px;
+}
+#home-greet {
+  margin: 0 0 6px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.home-sub {
+  margin: 0 0 22px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.home-quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.quick-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  text-align: left;
+}
+.quick-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary-shallow);
+}
+.quick-card .qc-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+.quick-card .qc-icon svg { width: 19px; height: 19px; }
+.quick-card .qc-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* —— 区块标题行 —— */
+.home-section { margin-top: 34px; }
+.home-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.home-sec-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-sec-head h2 svg { width: 17px; height: 17px; color: var(--primary); }
+.home-sec-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.home-sec-spacer { flex: 1; }
+
+/* 视图切换（卡片/列表） */
+.view-toggle {
+  display: inline-flex;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.view-toggle button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.view-toggle button svg { width: 15px; height: 15px; }
+.view-toggle button:hover { color: var(--text); }
+.view-toggle button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* —— 仓库卡片视图 —— */
+.repo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.repo-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.repo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary-shallow);
+}
+.repo-card.missing { opacity: 0.55; }
+.repo-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.repo-avatar {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: hsl(var(--repo-hue, 205) 62% 52%);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  user-select: none;
+}
+:root[data-theme="dark"] .repo-avatar {
+  background: hsl(var(--repo-hue, 205) 48% 42%);
+}
+.repo-name {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repo-name .pin-flag {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--primary);
+}
+.repo-name .pin-flag svg { width: 13px; height: 13px; }
+.repo-path {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;         /* 长路径显示尾部（盘符在前不重要，目录名重要） */
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+.repo-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.repo-meta .dot { color: var(--text-muted); }
+.repo-missing-tag {
+  color: #e67e22;
+  font-size: 12px;
+}
+
+/* 卡片操作按钮（hover 浮现） */
+.repo-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  backdrop-filter: blur(4px);
+}
+.repo-card:hover .repo-actions,
+.repo-row:hover .repo-actions { opacity: 1; }
+.repo-actions button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.repo-actions button:hover {
+  background: var(--hover-bg);
+  color: var(--primary);
+}
+.repo-actions button.danger:hover { color: #e74c3c; }
+.repo-actions button svg { width: 14px; height: 14px; }
+.repo-actions button.pinned { color: var(--primary); }
+
+/* —— 仓库列表视图 —— */
+.repo-list { display: flex; flex-direction: column; gap: 6px; }
+.repo-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.repo-row:hover {
+  border-color: var(--primary-shallow);
+  box-shadow: var(--shadow-sm);
+}
+.repo-row.missing { opacity: 0.55; }
+.repo-row .repo-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  border-radius: 7px;
+  flex: none;
+}
+.repo-row .repo-name { flex: 0 1 auto; min-width: 90px; }
+.repo-row .repo-path { flex: 1 1 200px; }
+.repo-row .repo-meta { flex: none; }
+.repo-row .repo-actions {
+  position: static;
+  flex: none;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+  padding: 0;
+}
+
+/* —— 空态 —— */
+.home-empty {
+  padding: 36px 20px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 2;
+}
+.home-empty .btn { margin-top: 8px; }
+
+/* —— 最近打开 —— */
+.home-recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 6px 14px;
+}
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-width: 0;
+}
+.recent-row:hover { background: var(--hover-bg); }
+.recent-row.missing { opacity: 0.5; }
+.recent-row .rr-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+.recent-row .rr-icon svg { width: 15px; height: 15px; }
+.recent-row .rr-name {
+  flex: none;
+  max-width: 46%;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-row .rr-path {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+.recent-row .rr-save {
+  flex: none;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.recent-row:hover .rr-save { display: inline-flex; }
+.recent-row .rr-save svg { width: 12px; height: 12px; }
+
+/* —— 首页内联小弹窗（重命名） —— */
+.mini-modal {
+  width: min(420px, 92vw);
+}
+.mini-modal .mm-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.mini-modal .mm-input:focus { border-color: var(--primary); }
+
+/* 工具栏首页按钮激活态 */
+#btn-home.active {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+/* 窄窗口适配 */
+@media (max-width: 760px) {
+  .home-inner { padding: 24px 20px 48px; }
+  #home-greet { font-size: 24px; }
+  .repo-row .repo-path { display: none; }
+}

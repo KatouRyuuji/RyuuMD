@@ -51,6 +51,16 @@
       openRecent: openRecentItem,
     });
 
+    window.Home.init({
+      getConfig: () => state.config,
+      applyConfig,
+      openFolderResult: (res) => applyFolder(res, true),
+      openPath: openRecentItem,
+      newDoc,
+      openFileDialog: openFile,
+      toast,
+    });
+
     window.Editor.init({
       theme: themeMode(),
       mode: state.config.display_mode,
@@ -92,13 +102,26 @@
       // 首次启动 -> 欢迎窗口
       if (!state.config.welcome_shown) await runWelcome();
 
-      // 命令行/拖到图标传入的初始路径优先
-      if (window.__INITIAL_PATH__) {
-        await openPath(window.__INITIAL_PATH__);
+      // 命令行/拖到图标/单实例转发/新窗口传入的初始路径优先。
+      // 改为向后端主动拉取（每窗口独立），消除 evaluate_js 注入的时序竞态。
+      let initial = "";
+      try {
+        const a = api();
+        if (a && a.get_initial_path) initial = await a.get_initial_path();
+      } catch (e) { /* 后端不可用时走常规启动流程 */ }
+      if (!initial && window.__INITIAL_PATH__) initial = window.__INITIAL_PATH__;
+      if (initial) {
+        await openPath(initial);
         return;
       }
-      // 否则恢复上次会话
-      await restoreSession();
+
+      // 启动页策略：home = 始终首页；restore = 恢复上次会话（无会话则进首页）
+      if (state.config.startup_page === "home") {
+        window.Home.show();
+        return;
+      }
+      const restored = await restoreSession();
+      if (!restored) window.Home.show();
     } catch (e) {
       // 恢复失败不致命：确保欢迎/弹窗 mask 不残留，编辑器可用
       document.querySelectorAll(".modal-mask.open").forEach((m) => m.classList.remove("open"));
@@ -117,16 +140,19 @@
 
   async function restoreSession() {
     const a = apiOrToast();
-    if (!a) return;
+    if (!a) return false;
     const res = await a.restore_session();
-    if (res && res.folder && res.folder.ok) applyFolder(res.folder, false);
-    if (res && res.file && res.file.ok) loadDoc(res.file);
+    let restored = false;
+    if (res && res.folder && res.folder.ok) { applyFolder(res.folder, false); restored = true; }
+    if (res && res.file && res.file.ok) { loadDoc(res.file); restored = true; }
+    return restored;
   }
 
   // ---------------------------------------------------------------
   // 文档加载 / 保存
   // ---------------------------------------------------------------
   function loadDoc(fileRes) {
+    if (window.Home && window.Home.isOpen()) window.Home.hide(); // 打开文档即回编辑器
     state.currentPath = fileRes.path;
     state.lastSaved = fileRes.content;
     state.dirty = false;
@@ -176,6 +202,7 @@
 
   // 文件夹打开/刷新的统一处理；后端超限截断时明确提示（隐藏/巨型目录已被后端过滤）
   function applyFolder(res, announce) {
+    if (announce && window.Home && window.Home.isOpen()) window.Home.hide();
     state.currentFolder = res.root;
     window.Sidebar.renderTree(res.tree, res.name);
     if (state.currentPath) window.Sidebar.markActive(state.currentPath);
@@ -308,6 +335,7 @@
   // 工具栏 / 快捷键
   // ---------------------------------------------------------------
   function bindToolbar() {
+    on("btn-home", () => window.Home.toggle());
     on("btn-sidebar", () => {
       document.getElementById("sidebar").classList.toggle("collapsed");
     });
@@ -351,6 +379,7 @@
 
   async function newDoc() {
     if (!(await maybeConfirmDiscard())) return;
+    if (window.Home && window.Home.isOpen()) window.Home.hide();
     state.currentPath = null;
     state.lastSaved = "";
     state.dirty = false;
@@ -380,6 +409,12 @@
 
   function bindShortcuts() {
     window.addEventListener("keydown", (e) => {
+      // Esc 关闭首页（弹窗打开时让弹窗自己处理）
+      if (e.key === "Escape" && window.Home.isOpen()
+          && !document.querySelector(".modal-mask.open")) {
+        window.Home.hide();
+        return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
@@ -389,6 +424,10 @@
       else if (k === "b" && e.shiftKey) {
         e.preventDefault();
         document.getElementById("sidebar").classList.toggle("collapsed");
+      }
+      else if (k === "h" && e.shiftKey) {
+        e.preventDefault();
+        window.Home.toggle();
       }
     });
   }
