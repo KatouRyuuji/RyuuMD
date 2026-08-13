@@ -8,7 +8,8 @@
 
 | 路径 | 内容 | 可否删除 |
 | --- | --- | --- |
-| `%APPDATA%\RyuuMD\config.json` | 全部配置：偏好、仓库列表、最近记录、会话、窗口尺寸 | 可，删后回默认（不影响笔记文件） |
+| `%APPDATA%\RyuuMD\config.json` | 全部配置：偏好、仓库列表、最近记录、会话、窗口尺寸、**云同步账号（含密码）** | 可，删后回默认（不影响笔记文件） |
+| `%APPDATA%\RyuuMD\cloud-state.json` | 云同步指纹（相对路径 → sha/mtime），用于三路比对 | 可，删后下次按内容重新对齐 |
 | `%APPDATA%\RyuuMD\instance.json` | 单实例锁（端口+token），运行时存在 | 运行中勿删；异常残留可删 |
 | `%APPDATA%\RyuuMD\默认应用验证.md` | 「设为默认」流程生成的验证文档 | 可随时删 |
 
@@ -73,10 +74,21 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 
 目录被移动/重命名/删除。移除该仓库重新添加，或把目录恢复原位。
 
+### 3.7 云同步失败 / 不想再同步
+
+- 「未启用」：设置里总开关仍是关的，这是默认状态；
+- 「未填写 WebDAV 地址」：只开了开关没填服务器；
+- 「该仓库未开启云同步」：未勾选「同步全部仓库」，也未在首页点云朵；
+- 401/403：用户名或应用密码错误（坚果云必须用应用密码）；
+- SSL 错误：内网 NAS 自签证书可勾选「忽略 SSL」，公网不要勾；
+- 冲突文件 `*.conflict-*.md`：两边同时改过，打开对比后自行合并；
+- 关闭同步：关掉总开关即可，本地文件不受影响。可再删
+  `cloud-state.json` 与 config 里的 `cloud_sync.password`。
+
 ## 4. 测试与质量门禁
 
 ```bash
-python run_tests.py     # 单测 55 + E2E 43，全绿才可发布
+python run_tests.py     # 单测 76 + E2E 44，全绿才可发布
 ```
 
 E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。

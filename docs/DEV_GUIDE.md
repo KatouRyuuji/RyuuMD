@@ -14,7 +14,7 @@
 | 后端 | Python 3.10+，仅 pywebview 一个三方依赖 | JS ↔ Python 经 js_api 桥 |
 | 持久化 | JSON（%APPDATA%/RyuuMD/config.json） | 线程安全，损坏自动回退默认 |
 
-原则：**轻量、全本地、极速**。不引框架、不加构建步骤、不联网；
+原则：**轻量、本地优先、极速**。不引框架、不加构建步骤；默认同步关闭无需联网。
 新功能优先复用现有模式（事件委托、innerHTML 单次赋值、配置即状态）。
 
 ## 2. 目录与模块职责
@@ -28,6 +28,8 @@ app/core/
   projects.py               ProjectStore：仓库增删改查/置顶/排序/打开计时
   file_assoc.py             Windows 文件关联：注册 + SHOpenWithDialog + 状态查询
   singleton.py              单实例：try_forward（客户端）/ InstanceServer（服务端）
+  webdav.py                 轻量 WebDAV（PROPFIND/GET/PUT/MKCOL，仅标准库）
+  cloud_sync.py             可选云同步引擎：门闩 + 三路比对 + 冲突副本
 app/web/
   index.html                单页外壳：工具栏/侧栏/编辑器/首页/弹窗挂载点
   css/app.css               主题变量（:root / [data-theme=dark]）+ 外壳样式
@@ -146,6 +148,20 @@ Vditor 面板 drop 处理器首行 `stopPropagation`，事件冒泡被截断：
 `count_md_files(budget=800, max_depth=5)`：迭代式 scandir，超预算即截断返回
 `capped=True`（前端显示 `N+`）—— 保证任意大小的仓库首页秒开。
 
+### 4.6 可选云同步（用户自备 WebDAV）
+
+默认全关。生效须同时满足：`cloud_sync.enabled`、填好 url/username、以及
+`sync_all_projects` 或仓库 `cloud_enabled`。
+
+- 客户端：`WebDavClient` 预发 Basic（兼容坚果云/群晖不先 401 的实现）；
+- 引擎：`CloudEngine` 按数据目录进程内单例，多窗口共享锁；
+- 远端布局：`{url}/{remote_root}/{project_id}/相对路径`；
+- 三路比对（本地 / 远端 / `cloud-state.json` 指纹）；冲突时远端另存
+  `*.conflict-时间.md`，本地保留并上传；**不同步删除**；
+- `get_config` 脱敏密码；`applyConfig` 禁止把 `cloud_sync` 经 `update_config` 回写
+  （否则会冲掉密码）；
+- 保存后 `push_file` 后台线程，失败不影响本地保存。
+
 ## 5. 开发与调试
 
 ```bash
@@ -170,12 +186,12 @@ python main.py                        # 开发运行
 ## 6. 测试
 
 ```bash
-python run_tests.py                   # 单测(55) + E2E(43) 全量
-python -m unittest discover -s tests -p test_api.py   # 仅单测（快）
+python run_tests.py                   # 单测(76) + E2E(44) 全量
+python -m unittest tests.test_api tests.test_cloud -v   # 仅单测（快）
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```
 
-- 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API）；
+- 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API/云同步）；
 - E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为；
 - 新增功能必须配套用例；中文注入断言一律用 `JV()`（json.dumps）；
 - 详见 `docs/TEST_PLAN.md`（含手动验证清单）。

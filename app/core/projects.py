@@ -75,6 +75,19 @@ class ProjectStore:
                 return it
         return None
 
+    def find_by_containing_path(self, path: str) -> Optional[dict[str, Any]]:
+        """找包含该文件/目录的仓库（最长前缀，避免父子目录误匹配）。"""
+        target = _norm(path)
+        best: Optional[dict[str, Any]] = None
+        best_len = -1
+        sep = os.sep
+        for it in self._all():
+            root = _norm(it["path"])
+            if target == root or target.startswith(root + sep):
+                if len(root) > best_len:
+                    best, best_len = it, len(root)
+        return best
+
     # ------------------------------------------------------------------
     # 变更
     # ------------------------------------------------------------------
@@ -90,6 +103,7 @@ class ProjectStore:
             "name": (name or p.name or str(p)).strip(),
             "path": str(p),
             "pinned": False,
+            "cloud_enabled": False,
             "created_at": int(time.time()),
             "last_opened_at": 0,
         }
@@ -120,6 +134,15 @@ class ProjectStore:
         for it in items:
             if it["id"] == project_id:
                 it["pinned"] = bool(pinned)
+                self._save(items)
+                return {"ok": True, "project": it}
+        return {"ok": False, "error": "仓库不存在"}
+
+    def set_cloud_enabled(self, project_id: str, enabled: bool) -> dict[str, Any]:
+        items = self._all()
+        for it in items:
+            if it["id"] == project_id:
+                it["cloud_enabled"] = bool(enabled)
                 self._save(items)
                 return {"ok": True, "project": it}
         return {"ok": False, "error": "仓库不存在"}

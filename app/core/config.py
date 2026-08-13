@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import threading
@@ -40,6 +41,19 @@ DEFAULTS: dict[str, Any] = {
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,
+    # 云同步（默认关闭；官方不提供云，用户自备 WebDAV 后在设置中勾选启用）
+    "cloud_sync": {
+        "enabled": False,
+        "provider": "webdav",
+        "url": "",
+        "username": "",
+        "password": "",
+        "remote_root": "RyuuMD",
+        "auto_on_save": False,
+        "auto_on_start": False,
+        "insecure_ssl": False,
+        "sync_all_projects": False,
+    },
 }
 
 
@@ -56,7 +70,7 @@ class Config:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._path = _data_dir() / "config.json"
-        self._data: dict[str, Any] = dict(DEFAULTS)
+        self._data: dict[str, Any] = copy.deepcopy(DEFAULTS)
         self._load()
 
     def _load(self) -> None:

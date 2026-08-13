@@ -132,6 +132,8 @@
       toast("会话恢复失败，已打开空白文档");
     } finally {
       loadRecent(); // 初始化「最近」列表（无会话恢复时也要拉一次）
+      refreshCloudBadge();
+      maybeStartCloudSync();
     }
   }
 
@@ -351,6 +353,7 @@
     on("btn-theme", toggleTheme);
     on("btn-settings", openSettings);
     on("btn-clear-recent", clearRecent);
+    on("sb-cloud", runCloudSync);
 
     // 侧栏标签切换（目录 / 大纲 / 最近）：tab 的 data-panel 对应 panel-<name> 面板
     document.querySelectorAll(".side-tab").forEach((tab) => {
@@ -404,12 +407,42 @@
   async function applyConfig(partial) {
     Object.assign(state.config, partial);
     const a = api();
-    if (a) await a.update_config(partial);
+    // cloud_sync 含脱敏字段，必须走 save_cloud_settings，禁止经 update_config 把密码冲掉
+    const persist = Object.assign({}, partial);
+    delete persist.cloud_sync;
+    if (a && Object.keys(persist).length) await a.update_config(persist);
     if ("theme" in partial) applyTheme(partial.theme);
     if ("operation_style" in partial) {
       window.SlashMenu.setStyle(partial.operation_style);
       window.Editor.setOpStyle(partial.operation_style);
     }
+    if ("cloud_sync" in partial) refreshCloudBadge();
+  }
+
+  function refreshCloudBadge() {
+    const el = document.getElementById("sb-cloud");
+    if (!el) return;
+    const cs = (state.config && state.config.cloud_sync) || {};
+    el.style.display = cs.enabled ? "" : "none";
+  }
+
+  async function runCloudSync() {
+    const a = apiOrToast();
+    if (!a || !a.sync_cloud) return;
+    const el = document.getElementById("sb-cloud");
+    if (el) { el.classList.add("busy"); el.textContent = "同步中…"; }
+    toast("正在云同步…");
+    try {
+      const res = await a.sync_cloud("");
+      toast(res.ok ? (res.message || "同步完成") : "同步失败：" + (res.error || ""));
+    } finally {
+      if (el) { el.classList.remove("busy"); el.textContent = "云同步"; }
+    }
+  }
+
+  function maybeStartCloudSync() {
+    const cs = (state.config && state.config.cloud_sync) || {};
+    if (cs.enabled && cs.auto_on_start) runCloudSync();
   }
 
   function bindShortcuts() {
@@ -686,6 +719,7 @@
     save,
     toast,
     showWelcome: runWelcome,
+    syncCloud: runCloudSync,
   };
 
   let booted = false;

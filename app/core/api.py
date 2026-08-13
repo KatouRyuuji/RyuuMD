@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import urllib.parse
 from pathlib import Path
 from typing import Any, Optional
@@ -17,6 +18,7 @@ from typing import Any, Optional
 import webview
 
 from . import file_assoc
+from .cloud_sync import get_engine, public_cloud, save_cloud
 from .config import Config
 from .fsutil import IGNORE_DIRS, MD_EXTS, recycle_file  # noqa: F401  （re-export，main/tests 引用）
 from .projects import ProjectStore
@@ -37,6 +39,7 @@ class Api:
     ) -> None:
         self.config = config
         self.projects = ProjectStore(config)
+        self._cloud = get_engine(config, self.projects)
         self._window: Optional["webview.Window"] = None
         # 多窗口管理器（main.WindowManager）；测试/单窗口环境可为 None
         self._window_manager = window_manager
@@ -57,7 +60,9 @@ class Api:
     # 配置
     # ------------------------------------------------------------------
     def get_config(self) -> dict[str, Any]:
-        return self.config.all()
+        data = self.config.all()
+        data["cloud_sync"] = public_cloud(data.get("cloud_sync"))
+        return data
 
     def set_config(self, key: str, value: Any) -> dict[str, Any]:
         self.config.set(key, value)
@@ -142,6 +147,7 @@ class Api:
             p.write_text(content, encoding="utf-8")
             self.config.set("last_file", str(p))
             self._add_recent(str(p), "file")
+            self._maybe_cloud_push(str(p))
             return {"ok": True, "path": str(p)}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -513,3 +519,36 @@ class Api:
             return {"ok": True}
         except OSError as e:
             return {"ok": False, "error": str(e)}
+
+    def _maybe_cloud_push(self, path: str) -> None:
+        """保存成功后按需后台上传；未启用时 push_file 立即 skipped，线程极短。"""
+        try:
+            threading.Thread(
+                target=lambda: self._cloud.push_file(path),
+                daemon=True,
+                name="ryuumd-cloud-push",
+            ).start()
+        except Exception:  # noqa: BLE001
+            pass
+
+    # ------------------------------------------------------------------
+    # 云同步（可选，用户自备 WebDAV）
+    # ------------------------------------------------------------------
+    def save_cloud_settings(self, values: dict[str, Any]) -> dict[str, Any]:
+        try:
+            pub = save_cloud(self.config, values or {})
+            return {"ok": True, "cloud_sync": pub}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def test_cloud(self) -> dict[str, Any]:
+        return self._cloud.test_connection()
+
+    def sync_cloud(self, project_id: str = "") -> dict[str, Any]:
+        return self._cloud.sync(project_id or "")
+
+    def get_cloud_status(self) -> dict[str, Any]:
+        return {"ok": True, **self._cloud.status()}
+
+    def set_project_cloud(self, project_id: str, enabled: bool) -> dict[str, Any]:
+        return self.projects.set_cloud_enabled(project_id, enabled)

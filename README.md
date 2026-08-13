@@ -14,6 +14,8 @@
 - **单实例秒开**：已运行时双击其他 md 文件，自动在已有实例中开新窗口，免冷启动等待。
 - **一键默认应用**：设置 → 「默认 Markdown 应用」，弹系统对话框勾选「始终」即可
   （Win10/11 合规方式，无需管理员权限）。
+- **可选云同步**：官方不提供云端。在设置中填写自己的 WebDAV（坚果云 / Nextcloud / 群晖 / AList 等），
+  勾选「启用云同步」后生效；可按仓库开启，或勾选「同步全部仓库」。笔记仍保存在本地。
 - **斜杠命令菜单**：按 `/` 唤起，上下箭头选择，`Tab`/`Enter` 插入（Notion 风格）；
   编辑区右键唤起同一面板，顶部带**剪贴板组**（复制/剪切/粘贴，无选区时前两项置灰）。
   支持 1~6 级标题、图片、脚注、链接、分割线、表格、代码块、公式块、内容目录、引用、加粗、斜体、有序/无序/待办列表。
@@ -26,7 +28,7 @@
   （移入回收站，误删可恢复）——直接操作磁盘上的真实文件。
 - **拖拽即开**：拖入 `.md` 文件或文件夹即可打开。
 - **启动即主页**：开机回到工作台，最近文件一触即达（可在设置改为「恢复上次会话」）。
-- **全本地**：无需联网，所有编辑器资源已内置（vendor/vditor）。
+- **本地优先**：编辑器资源全内置，默认同步关闭、无需联网；云同步为可选项。
 
 ## 运行
 
@@ -85,7 +87,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（55 项），再跑真实窗口端到端测试（43 项）。
+先跑 Python API 单元测试（76 项），再跑真实窗口端到端测试（44 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 
@@ -106,6 +108,8 @@ app/core/projects.py    仓库（项目）管理：增删改/置顶/重命名/�
 app/core/file_assoc.py  Windows 文件关联（ProgID 注册 + 一键设默认）
 app/core/singleton.py   单实例守护（端口+token 转发，新窗口秒开）
 app/core/fsutil.py      共享常量、md 计数与回收站删除（api/projects 共用）
+app/core/webdav.py      轻量 WebDAV 客户端（标准库，无额外依赖）
+app/core/cloud_sync.py  可选云同步引擎（默认关闭，用户自备 WebDAV）
 app/web/index.html      前端外壳（含首页 DOM）
 app/web/css/            主题（app / editor / slash / home）
 app/web/js/             icons / commands / slash / sidebar / welcome / settings / home / editor / app
@@ -121,11 +125,12 @@ app/web/vendor/vditor/  内置 Vditor 全量资源
 - `display_mode`：`ir`（渲染）| `sv`（源码）
 - `startup_page`：`home`（始终首页，默认）| `restore`（恢复上次会话）
 - `home_view`：`card`（卡片）| `list`（列表），首页仓库视图偏好
-- `projects`：仓库列表 `[{id, name, path, pinned, created_at, last_opened_at}]`
+- `projects`：仓库列表 `[{id, name, path, pinned, cloud_enabled, created_at, last_opened_at}]`
 - `last_file` / `last_folder`：会话记忆
 - `recent_files`：最近打开（最新在前，去重限长）
 - `welcome_shown`：是否已显示首次欢迎窗口
 - `window_width` / `window_height`：窗口尺寸（关闭时记忆）
+- `cloud_sync`：可选 WebDAV 同步（默认全关）。`enabled` 须勾选才生效；密码仅存本机，接口不回传明文。
 
 > 赞助二维码：将图片放到 `app/web/assets/QRCode.png` 即会在欢迎窗口显示，否则显示占位文字。
 > 欢迎窗口首次启动自动弹出，之后可从「设置 → 欢迎页」随时重开。

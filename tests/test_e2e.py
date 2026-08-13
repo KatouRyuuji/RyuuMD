@@ -198,12 +198,24 @@ CASES = [
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js="document.documentElement.getAttribute('data-theme')==='light'"),
 
-    dict(name="T12 设置弹窗:打开五行设置并可关闭",
+    dict(name="T12 设置弹窗:打开含云同步的六行设置并可关闭",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
          js=("(function(){var m=document.getElementById('settings-mask');"
-             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===5;})()"),
+             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===6"
+             "&&document.getElementById('cloud-enabled')&&!document.getElementById('cloud-panel').classList.contains('show');})()"),
          setup2="document.getElementById('set-close').click()", sleep2=0.4,
          js2="!document.getElementById('settings-mask').classList.contains('open')"),
+
+    dict(name="T42 云同步面板:默认关闭,勾选后展开表单",
+         setup="document.getElementById('btn-settings').click()", sleep=0.5,
+         js=("document.getElementById('settings-mask').classList.contains('open')"
+             "&&!document.getElementById('cloud-panel').classList.contains('show')"),
+         setup2="document.getElementById('cloud-enabled').click()", sleep2=0.4,
+         js2=("(function(){var p=document.getElementById('cloud-panel');"
+              "if(!p.classList.contains('show'))return 'panel hidden';"
+              "if(!document.getElementById('cloud-url')||!document.getElementById('cloud-sync-now'))return 'missing fields';"
+              "if(!document.getElementById('cloud-auto-save')||!document.getElementById('cloud-sync-all'))return 'missing checks';"
+              "document.getElementById('set-close').click();return true;})()")),
 
     dict(name="T13 欢迎页重开:结构完整、二维码加载、可关闭",
          setup="window.App.showWelcome()", sleep=1.2,

@@ -89,6 +89,7 @@
     return `
       <div class="repo-actions">
         <button data-act="pin" class="${r.pinned ? "pinned" : ""}" title="${r.pinned ? "取消置顶" : "置顶"}">${window.ICONS.pin}</button>
+        <button data-act="cloud" class="${cloudOn(r) ? "pinned" : ""}" title="${cloudOn(r) ? "关闭此仓库云同步" : "为此仓库开启云同步"}">${window.ICONS.cloud}</button>
         <button data-act="new-window" title="新窗口打开">${window.ICONS.newWindow}</button>
         <button data-act="rename" title="重命名">${window.ICONS.edit}</button>
         <button data-act="reveal" title="在资源管理器中显示">${window.ICONS.folderOpen}</button>
@@ -101,6 +102,7 @@
     if (!r.exists) parts.push('<span class="repo-missing-tag">目录不存在</span>');
     else if (r.md_count != null)
       parts.push(`<span>${r.md_count}${r.md_count_capped ? "+" : ""} 篇</span>`);
+    if (cloudOn(r)) parts.push('<span class="dot">·</span>', "<span>云同步</span>");
     const t = relTime(r.last_opened_at);
     if (t) parts.push('<span class="dot">·</span>', `<span>${t}</span>`);
     return parts.join("");
@@ -108,7 +110,18 @@
 
   function nameHTML(r) {
     const pin = r.pinned ? `<span class="pin-flag">${window.ICONS.pin}</span>` : "";
-    return `${pin}${esc(r.name)}`;
+    const cloud = cloudOn(r) ? `<span class="pin-flag">${window.ICONS.cloud}</span>` : "";
+    return `${pin}${cloud}${esc(r.name)}`;
+  }
+
+  function cloudCfg() {
+    return (handlers.getConfig && handlers.getConfig().cloud_sync) || {};
+  }
+
+  function cloudOn(r) {
+    const cs = cloudCfg();
+    if (!cs.enabled) return false;
+    return !!(cs.sync_all_projects || r.cloud_enabled);
   }
 
   function cardHTML(r) {
@@ -279,6 +292,14 @@
 
     if (act === "pin") {
       await a.pin_project(id, !repo.pinned);
+      refresh();
+    } else if (act === "cloud") {
+      const cs = cloudCfg();
+      if (!cs.enabled) { toast("请先在设置中启用并配置云同步"); return; }
+      if (cs.sync_all_projects) { toast("已勾选「同步全部仓库」，无需逐个开启"); return; }
+      const next = !repo.cloud_enabled;
+      await a.set_project_cloud(id, next);
+      toast(next ? "已开启该仓库云同步" : "已关闭该仓库云同步");
       refresh();
     } else if (act === "new-window") {
       const res = await a.open_project_new_window(id);

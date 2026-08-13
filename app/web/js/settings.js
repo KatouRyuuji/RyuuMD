@@ -60,6 +60,35 @@
             </div>
             <button class="btn" id="set-welcome">打开</button>
           </div>
+          <div class="setting-row">
+            <div>
+              <div class="label">启用云同步</div>
+              <div class="desc">官方不提供云端，勾选后使用你自己的 WebDAV</div>
+            </div>
+            <button type="button" class="toggle" id="cloud-enabled" title="启用云同步"></button>
+          </div>
+          <div class="cloud-panel" id="cloud-panel">
+            <p class="cloud-hint">适用于坚果云、Nextcloud、群晖、AList、Seafile 等 WebDAV。笔记仍保存在本地，云端只做同步副本。</p>
+            <div class="field-grid">
+              <label for="cloud-url">服务器地址</label>
+              <input class="field-input" id="cloud-url" placeholder="https://dav.jianguoyun.com/dav/" spellcheck="false" />
+              <label for="cloud-user">用户名</label>
+              <input class="field-input" id="cloud-user" placeholder="邮箱或账号" spellcheck="false" />
+              <label for="cloud-pass">密码</label>
+              <input class="field-input" id="cloud-pass" type="password" placeholder="" spellcheck="false" />
+              <label for="cloud-root">远端目录</label>
+              <input class="field-input" id="cloud-root" placeholder="RyuuMD" spellcheck="false" />
+            </div>
+            <label class="check-line"><input type="checkbox" id="cloud-auto-save" /> 保存后自动上传当前文件</label>
+            <label class="check-line"><input type="checkbox" id="cloud-auto-start" /> 启动时自动同步已开启的仓库</label>
+            <label class="check-line"><input type="checkbox" id="cloud-sync-all" /> 同步全部仓库（否则请在首页为单个仓库打开云同步）</label>
+            <label class="check-line"><input type="checkbox" id="cloud-insecure" /> 忽略 SSL 证书错误（仅内网 NAS 自签证书时勾选）</label>
+            <div class="cloud-actions">
+              <button class="btn" id="cloud-test">测试连接</button>
+              <button class="btn btn-primary" id="cloud-sync-now">立即同步</button>
+            </div>
+            <div id="cloud-status"></div>
+          </div>
         </div>
         <div class="modal-foot">
           <button class="btn btn-primary" id="set-close">完成</button>
@@ -76,6 +105,7 @@
       if (window.App && window.App.showWelcome) window.App.showWelcome();
     });
     bindDefaultApp();
+    bindCloud();
     syncActive();
   }
 
@@ -122,6 +152,105 @@
     });
 
     refreshState();
+  }
+
+  function cloudCfg() {
+    return cfg.cloud_sync || (cfg.cloud_sync = {
+      enabled: false, url: "", username: "", password: "", remote_root: "RyuuMD",
+      auto_on_save: false, auto_on_start: false, insecure_ssl: false,
+      sync_all_projects: false, password_set: false,
+    });
+  }
+
+  function bindCloud() {
+    const a = () => window.pywebview && window.pywebview.api;
+    const cs = cloudCfg();
+    const panel = document.getElementById("cloud-panel");
+    const tog = document.getElementById("cloud-enabled");
+    const status = document.getElementById("cloud-status");
+    const pass = document.getElementById("cloud-pass");
+
+    function setToggle(on) {
+      tog.classList.toggle("on", on);
+      tog.setAttribute("aria-pressed", on ? "true" : "false");
+      panel.classList.toggle("show", on);
+    }
+
+    document.getElementById("cloud-url").value = cs.url || "";
+    document.getElementById("cloud-user").value = cs.username || "";
+    document.getElementById("cloud-root").value = cs.remote_root || "RyuuMD";
+    pass.placeholder = cs.password_set ? "已保存，留空则不修改" : "应用密码或账号密码";
+    pass.value = "";
+    document.getElementById("cloud-auto-save").checked = !!cs.auto_on_save;
+    document.getElementById("cloud-auto-start").checked = !!cs.auto_on_start;
+    document.getElementById("cloud-sync-all").checked = !!cs.sync_all_projects;
+    document.getElementById("cloud-insecure").checked = !!cs.insecure_ssl;
+    setToggle(!!cs.enabled);
+
+    async function persist(extra) {
+      const payload = {
+        enabled: tog.classList.contains("on"),
+        url: document.getElementById("cloud-url").value.trim(),
+        username: document.getElementById("cloud-user").value.trim(),
+        remote_root: document.getElementById("cloud-root").value.trim() || "RyuuMD",
+        auto_on_save: document.getElementById("cloud-auto-save").checked,
+        auto_on_start: document.getElementById("cloud-auto-start").checked,
+        sync_all_projects: document.getElementById("cloud-sync-all").checked,
+        insecure_ssl: document.getElementById("cloud-insecure").checked,
+        provider: "webdav",
+      };
+      const pwd = pass.value;
+      if (pwd) payload.password = pwd;
+      Object.assign(payload, extra || {});
+      const api = a();
+      if (api && api.save_cloud_settings) {
+        const res = await api.save_cloud_settings(payload);
+        if (res && res.ok && res.cloud_sync) {
+          cfg.cloud_sync = res.cloud_sync;
+          if (onApply) onApply({ cloud_sync: res.cloud_sync });
+          if (pwd) { pass.value = ""; pass.placeholder = "已保存，留空则不修改"; }
+          return res.cloud_sync;
+        }
+        if (res && !res.ok) {
+          if (window.App) window.App.toast("保存云设置失败：" + (res.error || ""));
+        }
+        return null;
+      }
+      cfg.cloud_sync = Object.assign(cloudCfg(), payload, { password: "", password_set: !!(pwd || cs.password_set) });
+      if (onApply) onApply({ cloud_sync: cfg.cloud_sync });
+      return cfg.cloud_sync;
+    }
+
+    tog.addEventListener("click", () => {
+      setToggle(!tog.classList.contains("on"));
+      persist();
+    });
+    ["cloud-url", "cloud-user", "cloud-root", "cloud-pass",
+     "cloud-auto-save", "cloud-auto-start", "cloud-sync-all", "cloud-insecure"].forEach((id) => {
+      const el = document.getElementById(id);
+      const ev = el.type === "checkbox" || el.type === "password" ? "change" : "change";
+      el.addEventListener(ev, () => persist());
+    });
+
+    document.getElementById("cloud-test").addEventListener("click", async () => {
+      await persist();
+      const api = a();
+      if (!api || !api.test_cloud) return;
+      status.textContent = "正在测试连接…";
+      const res = await api.test_cloud();
+      status.textContent = res.ok ? (res.message || "连接成功") : ("失败：" + (res.error || ""));
+      if (window.App) window.App.toast(res.ok ? "WebDAV 连接成功" : "连接失败：" + (res.error || ""));
+    });
+
+    document.getElementById("cloud-sync-now").addEventListener("click", async () => {
+      await persist();
+      const api = a();
+      if (!api || !api.sync_cloud) return;
+      status.textContent = "正在同步…";
+      const res = await api.sync_cloud("");
+      status.textContent = res.message || (res.ok ? "同步完成" : (res.error || "同步失败"));
+      if (window.App) window.App.toast(res.ok ? (res.message || "同步完成") : "同步失败：" + (res.error || ""));
+    });
   }
 
   function bindSeg(id, key, numeric) {
