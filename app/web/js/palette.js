@@ -250,18 +250,20 @@
     openCommands: () => open("command"), openSearch: () => open("search") };
 })();
 
-/* 本文查找条：Ctrl+F 打开，Enter 下一个，Shift+Enter 上一个 */
+/* 本文查找条：Ctrl+F 打开，Ctrl+H 展开替换，Enter 下一个，Shift+Enter 上一个 */
 (function () {
   const bar = document.getElementById("find-bar");
   const input = document.getElementById("find-input");
+  const replaceInput = document.getElementById("replace-input");
   const countEl = document.getElementById("find-count");
 
   function isOpen() {
     return bar && bar.classList.contains("open");
   }
 
-  function open() {
+  function open(opts) {
     bar.classList.add("open");
+    if (opts && opts.replace) bar.classList.add("replace-open");
     input.focus();
     input.select();
     updateCount();
@@ -269,8 +271,16 @@
 
   function close() {
     bar.classList.remove("open");
+    bar.classList.remove("replace-open");
     input.value = "";
+    if (replaceInput) replaceInput.value = "";
     countEl.textContent = "";
+  }
+
+  function toggleReplace() {
+    if (!isOpen()) open({ replace: true });
+    else bar.classList.toggle("replace-open");
+    if (bar.classList.contains("replace-open") && replaceInput) replaceInput.focus();
   }
 
   function updateCount() {
@@ -298,9 +308,52 @@
     updateCount();
   }
 
+  function escapeRe(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function replaceOne() {
+    const q = input.value;
+    if (!q) return;
+    const repl = replaceInput ? replaceInput.value : "";
+    let found = false;
+    try { found = window.find(q, false, false, true, false, true, false); } catch (e) { found = false; }
+    if (found) {
+      try { document.execCommand("insertText", false, repl); found = true; } catch (e) { found = false; }
+    }
+    if (!found && window.Editor && window.Editor.getValue) {
+      const src = window.Editor.getValue();
+      const i = src.toLowerCase().indexOf(q.toLowerCase());
+      if (i < 0) { updateCount(); return; }
+      window.Editor.setValue(src.slice(0, i) + repl + src.slice(i + q.length));
+    }
+    updateCount();
+  }
+
+  function replaceAll() {
+    const q = input.value;
+    if (!q || !window.Editor || !window.Editor.getValue) return;
+    const repl = replaceInput ? replaceInput.value : "";
+    const src = window.Editor.getValue();
+    let next;
+    try {
+      next = src.replace(new RegExp(escapeRe(q), "gi"), repl);
+    } catch (e) {
+      next = src;
+    }
+    if (next !== src) window.Editor.setValue(next);
+    updateCount();
+  }
+
   document.getElementById("find-next").addEventListener("click", () => find(false));
   document.getElementById("find-prev").addEventListener("click", () => find(true));
   document.getElementById("find-close").addEventListener("click", close);
+  const toggleBtn = document.getElementById("find-toggle-replace");
+  if (toggleBtn) toggleBtn.addEventListener("click", toggleReplace);
+  const oneBtn = document.getElementById("replace-one");
+  if (oneBtn) oneBtn.addEventListener("click", replaceOne);
+  const allBtn = document.getElementById("replace-all");
+  if (allBtn) allBtn.addEventListener("click", replaceAll);
   input.addEventListener("input", updateCount);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -312,6 +365,19 @@
       close();
     }
   });
+  if (replaceInput) {
+    replaceInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) replaceAll();
+        else replaceOne();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    });
+  }
 
-  window.FindBar = { open, close, isOpen };
+  window.FindBar = { open, close, isOpen, toggleReplace, replaceAll };
 })();

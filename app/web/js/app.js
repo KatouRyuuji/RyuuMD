@@ -9,6 +9,7 @@
     dirty: false,
     lastSaved: "",
     svForced: false,     // 当前文档因超过大文档阈值被强制为源码模式
+    templates: [],
   };
 
   // 大文档阈值（字节）：Vditor 渲染(ir)模式全量渲染超长文档会卡死，
@@ -261,6 +262,7 @@
     if (res.truncated) toast("「" + res.name + "」条目过多或层级过深，文件树已截断显示");
     else if (announce) toast("已打开：" + res.name);
     loadRecent(); // 后端已在 list_folder 记录，刷新最近列表（fire-and-forget）
+    refreshTemplates();
   }
 
   async function save(opts) {
@@ -302,6 +304,7 @@
     if (!a) return;
     const res = await a.list_folder(state.currentFolder);
     if (res.ok) applyFolder(res, false);
+    refreshTemplates();
   }
 
   // ---------------------------------------------------------------
@@ -542,13 +545,18 @@
       else if (k === "n") { e.preventDefault(); newDoc(); }
       else if (k === "p") {
         e.preventDefault();
-        if (e.shiftKey) window.Palette.openCommands();
+        if (e.shiftKey) { refreshTemplates(); window.Palette.openCommands(); }
         else window.Palette.openFiles();
       }
       else if (k === "f") {
         e.preventDefault();
         if (e.shiftKey) window.Palette.openSearch();
         else window.FindBar.open();
+      }
+      else if (k === "h") {
+        e.preventDefault();
+        if (e.shiftKey) window.Home.toggle();
+        else window.FindBar.open({ replace: true });
       }
       else if (k === "d" && e.shiftKey) {
         e.preventDefault();
@@ -557,10 +565,6 @@
       else if (k === "b" && e.shiftKey) {
         e.preventDefault();
         document.getElementById("sidebar").classList.toggle("collapsed");
-      }
-      else if (k === "h" && e.shiftKey) {
-        e.preventDefault();
-        window.Home.toggle();
       }
       else if (k === "=" || k === "+" || e.key === "Add") {
         e.preventDefault();
@@ -828,8 +832,16 @@
       { id: "open-folder", title: "打开文件夹", keys: "", group: "文件", run: openFolder },
       { id: "daily", title: "今日日记", keys: "Ctrl+Shift+D", group: "文件", run: openDailyNote },
       { id: "export", title: "导出 HTML", keys: "", group: "文件", run: exportHtml },
+      { id: "duplicate", title: "复制当前笔记", keys: "", group: "文件", run: duplicateCurrent },
+      { id: "copy-path", title: "复制当前路径", keys: "", group: "文件", run: copyCurrentPath },
+      { id: "copy-wiki", title: "复制双链", keys: "", group: "文件", run: copyCurrentWiki },
+      { id: "copy-html", title: "复制为 HTML", keys: "", group: "文件", run: copyAsHtml },
+      { id: "copy-md", title: "复制为 Markdown", keys: "", group: "文件", run: copyAsMarkdown },
       { id: "quick-open", title: "快速打开笔记", keys: "Ctrl+P", group: "导航", run: () => window.Palette.openFiles() },
       { id: "search", title: "在仓库中搜索", keys: "Ctrl+Shift+F", group: "导航", run: () => window.Palette.openSearch() },
+      { id: "find", title: "在本文查找", keys: "Ctrl+F", group: "导航", run: () => window.FindBar.open() },
+      { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => window.FindBar.open({ replace: true }) },
+      { id: "locate", title: "在目录中定位当前文件", keys: "", group: "导航", run: locateInTree },
       { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => window.Home.toggle() },
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
       { id: "theme", title: "切换主题", keys: "", group: "视图", run: toggleTheme },
@@ -844,7 +856,8 @@
       { id: "cloud", title: "立即云同步", keys: "", group: "应用", run: runCloudSync },
       { id: "date", title: "插入今天日期", keys: "", group: "插入", run: () => window.Editor.insertValue(todayStamp(false)) },
       { id: "time", title: "插入当前时间", keys: "", group: "插入", run: () => window.Editor.insertValue(todayStamp(true)) },
-    ];
+      { id: "tpl-folder", title: "打开模板文件夹", keys: "", group: "模板", run: openTemplatesDir },
+    ].concat(templateCommands());
   }
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
@@ -875,6 +888,134 @@
   function toggleTypewriter() {
     const on = window.Editor.toggleTypewriter();
     toast(on ? "已进入打字机模式" : "已退出打字机模式");
+  }
+
+  async function refreshTemplates() {
+    const a = api();
+    if (!a || !a.list_templates || !state.currentFolder) {
+      state.templates = [];
+      return;
+    }
+    try {
+      const res = await a.list_templates(state.currentFolder);
+      state.templates = (res && res.items) || [];
+    } catch (e) {
+      state.templates = [];
+    }
+  }
+
+  function templateCommands() {
+    const list = state.templates || [];
+    const out = [];
+    list.forEach((it) => {
+      out.push({
+        id: "tpl-ins-" + it.path,
+        title: "插入模板：" + it.name,
+        keys: "",
+        group: "模板",
+        run: () => insertTemplate(it.path),
+      });
+      out.push({
+        id: "tpl-new-" + it.path,
+        title: "从模板新建：" + it.name,
+        keys: "",
+        group: "模板",
+        run: () => newFromTemplate(it),
+      });
+    });
+    return out;
+  }
+
+  async function insertTemplate(path) {
+    const a = apiOrToast();
+    if (!a || !a.render_template) return;
+    const title = state.currentPath ? basename(state.currentPath).replace(/\.md$/i, "") : "";
+    const res = await a.render_template(state.currentFolder || "", path, title);
+    if (!res.ok) { toast(res.error || "读取模板失败"); return; }
+    window.Editor.insertValue(res.content || "");
+  }
+
+  async function newFromTemplate(it) {
+    const a = apiOrToast();
+    if (!a || !a.new_from_template) return;
+    const dir = state.currentFolder;
+    if (!dir) { toast("请先打开仓库或文件夹"); return; }
+    const name = await promptText({ title: "从模板新建", sub: it.name, value: it.name });
+    if (name == null) return;
+    if (!(await maybeConfirmDiscard())) return;
+    const res = await a.new_from_template(dir, it.path, name);
+    if (!res.ok) { toast(res.error || "创建失败"); return; }
+    loadDoc(res);
+    refreshFolder();
+    toast("已创建：" + (res.name || name));
+  }
+
+  async function openTemplatesDir() {
+    const a = apiOrToast();
+    if (!a || !a.ensure_templates_dir) return;
+    const res = await a.ensure_templates_dir(state.currentFolder || "");
+    if (!res.ok) { toast(res.error || "无法打开模板文件夹"); return; }
+    if (a.reveal_in_explorer) await a.reveal_in_explorer(res.path);
+    toast("模板目录：仓库下的「模板」文件夹，放入 .md 即可");
+    refreshTemplates();
+  }
+
+  async function copyText(text, okMsg) {
+    const s = String(text || "");
+    if (!s) { toast("没有可复制的内容"); return; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(s);
+      } else {
+        throw new Error("no clipboard");
+      }
+      toast(okMsg || "已复制");
+    } catch (e) {
+      toast("复制失败，请手动选择复制");
+    }
+  }
+
+  function copyCurrentPath() {
+    if (!state.currentPath) { toast("未打开已保存的文件"); return; }
+    copyText(state.currentPath, "已复制路径");
+  }
+
+  function copyCurrentWiki() {
+    if (!state.currentPath) { toast("未打开已保存的文件"); return; }
+    const stem = basename(state.currentPath).replace(/\.md$/i, "");
+    copyText("[[" + stem + "]]", "已复制双链");
+  }
+
+  function copyAsHtml() {
+    const html = window.Editor.getHTML ? window.Editor.getHTML() : "";
+    copyText(html, "已复制 HTML");
+  }
+
+  function copyAsMarkdown() {
+    copyText(window.Editor.getValue() || "", "已复制 Markdown");
+  }
+
+  async function duplicateCurrent() {
+    const a = apiOrToast();
+    if (!a || !a.duplicate_file) return;
+    if (!state.currentPath) { toast("请先保存当前笔记"); return; }
+    if (!(await maybeConfirmDiscard())) return;
+    const res = await a.duplicate_file(state.currentPath);
+    if (!res.ok) { toast(res.error || "复制失败"); return; }
+    const file = await a.read_file(res.path);
+    if (file.ok) loadDoc(file);
+    refreshFolder();
+    toast("已复制：" + res.name);
+  }
+
+  function locateInTree() {
+    if (!state.currentPath) { toast("未打开文件"); return; }
+    const side = document.getElementById("sidebar");
+    if (side) side.classList.remove("collapsed");
+    const tab = document.querySelector('.side-tab[data-panel="files"]');
+    if (tab) tab.click();
+    const ok = window.Sidebar.revealPath && window.Sidebar.revealPath(state.currentPath);
+    if (!ok) toast("当前文件不在目录树中");
   }
 
   async function newNoteInFolder(folder, name) {

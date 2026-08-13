@@ -86,6 +86,12 @@
     { id: "time", icon: "clock", title: "当前时间", desc: "插入日期与时间", group: "插入",
       keys: "/time", notion: ["time", "now", "datetime"], wolai: ["sj", "shijian"], cn: ["时间", "此刻"],
       insert: "" },
+    { id: "mark", icon: "bold", title: "高亮", desc: "==高亮文字==", group: "格式",
+      keys: "/mark", notion: ["mark", "highlight"], wolai: ["gy", "gaoliang"], cn: ["高亮"],
+      insert: "==高亮==" },
+    { id: "callout", icon: "quote", title: "提示块", desc: "引用式提示 / 警告", group: "块",
+      keys: "/tip", notion: ["callout", "tip", "note", "admonition"], wolai: ["ts", "tishi"], cn: ["提示块", "警告块"],
+      insert: "> [!note] 提示\n> 内容\n" },
   ];
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }

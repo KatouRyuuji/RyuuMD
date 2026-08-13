@@ -756,6 +756,32 @@ CASES = [
               "var ok=t.indexOf(" + JV("新建") + ")>=0;"
               "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));"
               "return ok?true:'text='+t.slice(0,100);})()")),
+
+    dict(name="T56 查找替换:Ctrl+H 展开替换行且全部替换生效",
+         setup=("window.Editor.setValue('alpha alpha beta');"
+                "window.FindBar.open({replace:true});"
+                "document.getElementById('find-input').value='alpha';"
+                "document.getElementById('replace-input').value='zz';"),
+         sleep=0.5,
+         js=("document.getElementById('find-bar').classList.contains('open')"
+             "&&document.getElementById('find-bar').classList.contains('replace-open')"
+             "&&!!document.getElementById('replace-input')"),
+         setup2="document.getElementById('replace-all').click()",
+         sleep2=0.5,
+         js2=("(function(){var v=window.Editor.getValue();"
+              "document.getElementById('find-close').click();"
+              "return v.indexOf('zz zz beta')>=0?true:'val='+v.slice(0,40);})()")),
+
+    dict(name="T57 命令面板含查找替换与复制路径",
+         setup="window.Palette.openCommands();",
+         sleep=0.5,
+         js=("(function(){var t=document.getElementById('pal-list').textContent;"
+             "if(t.indexOf(" + JV("查找替换") + ")<0)return 'no replace';"
+             "if(t.indexOf(" + JV("复制当前路径") + ")<0)return 'no path';"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
 ]
 
 

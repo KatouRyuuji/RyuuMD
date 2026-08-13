@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 _TMP_APPDATA = tempfile.TemporaryDirectory(prefix="ryuumd-test-search-appdata-")
 os.environ["APPDATA"] = _TMP_APPDATA.name
 
-from app.core.api import Api, wrap_html_export  # noqa: E402
+from app.core.api import Api, wrap_html_export, apply_template_vars  # noqa: E402
 from app.core.config import Config  # noqa: E402
 from app.core.search import parse_wikilink  # noqa: E402
 
@@ -165,11 +165,67 @@ class TestSaveImageAndDaily(unittest.TestCase):
         bad = self.api.open_daily_note(str(self.root), "../outside")
         self.assertFalse(bad["ok"])
 
+    def test_daily_note_uses_template(self):
+        tpl = self.root / "模板"
+        tpl.mkdir()
+        (tpl / "日记.md").write_text("# {{date}} {{title}}\nhello\n", encoding="utf-8")
+        res = self.api.open_daily_note(str(self.root), "日记")
+        self.assertTrue(res["ok"], res)
+        date = datetime.now().strftime("%Y-%m-%d")
+        self.assertIn(date, res["content"])
+        self.assertIn("hello", res["content"])
+
     def test_wrap_html_export_escapes_title(self):
         doc = wrap_html_export("<脚本>", "<p>正文</p>")
         self.assertIn("&lt;脚本&gt;", doc)
         self.assertIn("<p>正文</p>", doc)
         self.assertTrue(doc.startswith("<!DOCTYPE html>"))
+
+
+class TestTemplates(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-tpl-")
+        self.root = Path(self.dir.name)
+        self.api = make_api()
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_apply_template_vars(self):
+        now = datetime(2026, 8, 13, 15, 4, 0)
+        out = apply_template_vars("# {{title}} {{date}} {{week}}", "会议", now)
+        self.assertIn("会议", out)
+        self.assertIn("2026-08-13", out)
+        self.assertIn("四", out)
+
+    def test_list_and_render_and_new(self):
+        touch(self.root / "模板" / "会议.md", "# {{title}}\n日期 {{date}}\n")
+        listed = self.api.list_templates(str(self.root))
+        self.assertTrue(listed["ok"], listed)
+        self.assertEqual(len(listed["items"]), 1)
+        self.assertEqual(listed["items"][0]["name"], "会议")
+        rendered = self.api.render_template(
+            str(self.root), listed["items"][0]["path"], "周会"
+        )
+        self.assertTrue(rendered["ok"], rendered)
+        self.assertIn("周会", rendered["content"])
+        created = self.api.new_from_template(
+            str(self.root), listed["items"][0]["path"], "今日周会"
+        )
+        self.assertTrue(created["ok"], created)
+        self.assertTrue(created["name"].startswith("今日周会"))
+        self.assertIn("今日周会", created["content"])
+
+    def test_render_rejects_outside_vault(self):
+        outside = Path(tempfile.mkdtemp(prefix="ryuumd-out-")) / "evil.md"
+        outside.write_text("secret", encoding="utf-8")
+        res = self.api.render_template(str(self.root), str(outside), "x")
+        self.assertFalse(res["ok"])
+
+    def test_ensure_templates_dir(self):
+        res = self.api.ensure_templates_dir(str(self.root))
+        self.assertTrue(res["ok"], res)
+        self.assertTrue(Path(res["path"]).is_dir())
 
 
 if __name__ == "__main__":

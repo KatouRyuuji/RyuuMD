@@ -282,6 +282,27 @@ class Api:
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
+    def duplicate_file(self, path: str) -> dict[str, Any]:
+        """在同目录复制一份 md（`名 副本.md` / `名 副本 2.md`）。"""
+        try:
+            p = Path(path)
+            if not self._is_md_file(p):
+                return {"ok": False, "error": "不是已存在的 Markdown 文件"}
+            dest = None
+            for n in range(1, 100):
+                suffix = " 副本" if n == 1 else f" 副本 {n}"
+                cand = p.with_name(p.stem + suffix + p.suffix)
+                if not cand.exists():
+                    dest = cand
+                    break
+            if dest is None:
+                return {"ok": False, "error": "副本过多"}
+            shutil.copy2(str(p), str(dest))
+            self._add_recent(str(dest), "file")
+            return {"ok": True, "path": str(dest), "name": dest.name}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
     # ------------------------------------------------------------------
     # 文件夹树
     # ------------------------------------------------------------------
@@ -590,6 +611,87 @@ class Api:
             return last
         return ""
 
+    def _md_in_vault(self, folder: str, path: str) -> Path | None:
+        """path 必须是仓库内已存在的 markdown，防止模板接口读出仓库外文件。"""
+        root = self._vault_root(folder)
+        if not root or not path:
+            return None
+        try:
+            p = Path(path).resolve()
+            p.relative_to(Path(root).resolve())
+        except (OSError, ValueError):
+            return None
+        if not self._is_md_file(p):
+            return None
+        return p
+
+    def list_templates(self, folder: str = "") -> dict[str, Any]:
+        """列出仓库 `模板/` 与 `templates/` 下一层的 md（不递归）。"""
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "items": []}
+        items: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for dirname in ("模板", "templates"):
+            d = Path(root) / dirname
+            if not d.is_dir():
+                continue
+            try:
+                files = sorted(d.iterdir(), key=lambda x: x.name.lower())
+            except OSError:
+                continue
+            for p in files:
+                if not p.is_file() or p.suffix.lower() not in MD_EXTS:
+                    continue
+                key = os.path.normcase(str(p))
+                if key in seen:
+                    continue
+                seen.add(key)
+                items.append({
+                    "path": str(p),
+                    "name": p.stem,
+                    "rel": f"{dirname}/{p.name}",
+                })
+        return {"ok": True, "items": items, "dir": str(Path(root) / "模板")}
+
+    def render_template(self, folder: str = "", path: str = "", title: str = "") -> dict[str, Any]:
+        p = self._md_in_vault(folder, path)
+        if p is None:
+            return {"ok": False, "error": "模板不存在或不在当前仓库"}
+        try:
+            raw = p.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        name = (title or p.stem).strip()
+        return {"ok": True, "content": apply_template_vars(raw, name), "name": p.stem}
+
+    def new_from_template(
+        self, folder: str = "", template_path: str = "", name: str = ""
+    ) -> dict[str, Any]:
+        rendered = self.render_template(folder, template_path, name)
+        if not rendered.get("ok"):
+            return rendered
+        created = self.new_file(folder, name or rendered.get("name") or "未命名")
+        if not created.get("ok"):
+            return created
+        try:
+            Path(created["path"]).write_text(rendered["content"], encoding="utf-8")
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return self.read_file(created["path"])
+
+    def ensure_templates_dir(self, folder: str = "") -> dict[str, Any]:
+        """确保仓库下有 `模板/` 目录（不自动写样例文件）。"""
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹"}
+        d = Path(root) / "模板"
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "path": str(d)}
+
     def list_md_files(self, folder: str = "", query: str = "") -> dict[str, Any]:
         root = self._vault_root(folder)
         if not root:
@@ -678,7 +780,18 @@ class Api:
         try:
             if not target.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(f"# {date} 周{week}\n\n", encoding="utf-8")
+                body = f"# {date} 周{week}\n\n"
+                for rel in ("模板/日记.md", "templates/daily.md", "模板/daily.md"):
+                    tpl = Path(root) / rel
+                    if tpl.is_file():
+                        try:
+                            raw = tpl.read_text(encoding="utf-8", errors="replace")
+                        except OSError:
+                            raw = ""
+                        if raw:
+                            body = apply_template_vars(raw, title=date, now=now)
+                        break
+                target.write_text(body, encoding="utf-8")
             return self.read_file(str(target))
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -746,6 +859,25 @@ def _image_ext(filename: str, mime: str) -> str:
     }
     key = (mime or "").split(";", 1)[0].strip().lower()
     return mime_map.get(key, ".png")
+
+
+def apply_template_vars(text: str, title: str = "", now: datetime | None = None) -> str:
+    """替换模板占位符：{{title}} {{date}} {{time}} {{week}} {{year}} {{month}} {{day}}。"""
+    stamp = now or datetime.now()
+    week = "一二三四五六日"[stamp.weekday()]
+    mapping = {
+        "{{title}}": title or "",
+        "{{date}}": stamp.strftime("%Y-%m-%d"),
+        "{{time}}": stamp.strftime("%H:%M"),
+        "{{week}}": week,
+        "{{year}}": stamp.strftime("%Y"),
+        "{{month}}": stamp.strftime("%m"),
+        "{{day}}": stamp.strftime("%d"),
+    }
+    out = text or ""
+    for key, val in mapping.items():
+        out = out.replace(key, val)
+    return out
 
 
 def wrap_html_export(title: str, body: str) -> str:

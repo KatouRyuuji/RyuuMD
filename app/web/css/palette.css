@@ -116,15 +116,23 @@
 
 #find-bar {
   display: none;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding: 6px 12px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 #find-bar.open { display: flex; }
-#find-input {
+#find-bar .find-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#replace-row { display: none; }
+#find-bar.replace-open #replace-row { display: flex; }
+#find-input, #replace-input {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
@@ -136,7 +144,7 @@
   font-size: 13px;
   outline: none;
 }
-#find-input:focus { border-color: var(--primary); }
+#find-input:focus, #replace-input:focus { border-color: var(--primary); }
 #find-count {
   font-variant-numeric: tabular-nums;
   font-size: 12px;

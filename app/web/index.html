@@ -71,11 +71,19 @@
 
       <main id="editor-wrap">
         <div id="find-bar">
-          <input id="find-input" placeholder="在本文查找" spellcheck="false" />
-          <span id="find-count"></span>
-          <button type="button" class="btn" id="find-prev">上一个</button>
-          <button type="button" class="btn" id="find-next">下一个</button>
-          <button type="button" class="btn" id="find-close">关闭</button>
+          <div class="find-row">
+            <input id="find-input" placeholder="在本文查找" spellcheck="false" />
+            <span id="find-count"></span>
+            <button type="button" class="btn" id="find-prev">上一个</button>
+            <button type="button" class="btn" id="find-next">下一个</button>
+            <button type="button" class="btn" id="find-toggle-replace" title="替换 (Ctrl+H)">替换</button>
+            <button type="button" class="btn" id="find-close">关闭</button>
+          </div>
+          <div class="find-row" id="replace-row">
+            <input id="replace-input" placeholder="替换为" spellcheck="false" />
+            <button type="button" class="btn" id="replace-one">替换</button>
+            <button type="button" class="btn" id="replace-all">全部替换</button>
+          </div>
         </div>
         <div id="editor"></div>
         <div id="statusbar">

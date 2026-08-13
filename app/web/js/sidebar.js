@@ -275,5 +275,29 @@
   }
 
   rebindEmpty();
-  window.Sidebar = { setHandlers, renderTree, markActive, renderOutline, renderRecent, renderLinks };
+  function revealPath(path) {
+    if (!path) return false;
+    markActive(path);
+    let file = null;
+    fileTreeEl.querySelectorAll(".tree-item.file").forEach((el) => {
+      if (el.dataset.path === path) file = el;
+    });
+    if (!file) return false;
+    let node = file.parentElement;
+    while (node && node !== fileTreeEl) {
+      if (node.classList && node.classList.contains("tree-dir")) {
+        const dirItem = node.querySelector(":scope > .tree-item.dir");
+        const children = node.querySelector(":scope > .tree-children");
+        if (dirItem && dirItem.classList.contains("collapsed")) {
+          dirItem.classList.remove("collapsed");
+          if (children) children.style.display = "block";
+        }
+      }
+      node = node.parentElement;
+    }
+    file.scrollIntoView({ block: "nearest" });
+    return true;
+  }
+
+  window.Sidebar = { setHandlers, renderTree, markActive, revealPath, renderOutline, renderRecent, renderLinks };
 })();

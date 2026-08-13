@@ -32,6 +32,9 @@
 - **文件树管理**：右键文件可重命名、移动、在资源管理器中显示、删除（回收站）；
   右键文件夹可新建笔记 / 文件夹。`Ctrl+P` 输入新名也可直接新建。
 - **编辑区缩放**：`Ctrl+=` / `Ctrl+-` / `Ctrl+0`，状态栏显示当前比例。
+- **查找替换**：`Ctrl+F` 本文查找，`Ctrl+H` 展开替换（支持全部替换）。
+- **笔记模板**：仓库下建 `模板/` 放入 `.md`，命令面板可插入或从模板新建；支持 `{{title}}` `{{date}}` 等占位符；今日日记优先使用 `模板/日记.md`。
+- **复制与定位**：命令面板可复制路径 / 双链 / HTML / Markdown，复制当前笔记，在目录树中定位。
 - **拖拽即开**：拖入 `.md` 文件或文件夹即可打开。
 - **启动即主页**：开机回到工作台，最近文件一触即达（可在设置改为「恢复上次会话」）。
 - **本地优先**：编辑器资源全内置，默认同步关闭、无需联网；云同步为可选项。
@@ -87,6 +90,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 | 命令面板 | `Ctrl+Shift+P` |
 | 仓库全文搜索 | `Ctrl+Shift+F` |
 | 本文查找 | `Ctrl+F` |
+| 查找替换 | `Ctrl+H` |
 | 今日日记 | `Ctrl+Shift+D` |
 | 放大 / 缩小 / 重置 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` |
 | 切换侧栏 | `Ctrl+Shift+B` |
@@ -99,7 +103,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（92 项），再跑真实窗口端到端测试（57 项）。
+先跑 Python API 单元测试（98 项），再跑真实窗口端到端测试（59 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 

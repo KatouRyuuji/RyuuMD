@@ -430,6 +430,20 @@ class TestFileOps(unittest.TestCase):
         self.assertTrue(txt.exists())
         self.assertFalse(self.api.delete_file(str(self.root / "nope.md"))["ok"])
 
+    def test_duplicate_file_copies_beside(self):
+        p = touch(self.root / "note.md", "# hi\n")
+        res = self.api.duplicate_file(str(p))
+        self.assertTrue(res["ok"], res)
+        dest = Path(res["path"])
+        self.assertTrue(dest.exists())
+        self.assertEqual(dest.read_text(encoding="utf-8"), "# hi\n")
+        self.assertIn("副本", dest.name)
+        again = self.api.duplicate_file(str(p))
+        self.assertTrue(again["ok"], again)
+        self.assertNotEqual(again["path"], res["path"])
+        txt = touch(self.root / "plain.txt", "x")
+        self.assertFalse(self.api.duplicate_file(str(txt))["ok"])
+
 
 class TestProjects(unittest.TestCase):
     """仓库（项目）管理：添加/去重/重命名/置顶/排序/移除/打开计时。"""
