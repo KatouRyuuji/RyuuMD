@@ -389,6 +389,15 @@ body {
 .outline-item[data-level="5"] { padding-left: 54px; font-size: 12px; }
 .outline-item[data-level="6"] { padding-left: 66px; font-size: 12px; }
 
+.links-group {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 10px 10px 4px;
+  user-select: none;
+}
+
 /* —— 编辑区 —— */
 #editor-wrap {
   flex: 1;
@@ -428,6 +437,15 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+#sb-zoom {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+#sb-zoom:hover { color: var(--primary); }
 .sb-modes {
   display: inline-flex;
   background: var(--sidebar-bg);

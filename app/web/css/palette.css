@@ -153,6 +153,11 @@
   opacity: 0.34;
   transition: opacity 0.16s ease;
 }
+#editor-wrap.typewriter-mode #editor .vditor-ir .vditor-reset,
+#editor-wrap.typewriter-mode #editor .vditor-sv {
+  padding-top: 32vh;
+  padding-bottom: 48vh;
+}
 
 .wiki-link {
   color: var(--primary);

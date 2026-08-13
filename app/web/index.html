@@ -43,6 +43,7 @@
           <button class="side-tab active" data-panel="files">目录</button>
           <button class="side-tab" data-panel="outline">大纲</button>
           <button class="side-tab" data-panel="recent">最近</button>
+          <button class="side-tab" data-panel="links">链接</button>
         </div>
         <div class="side-panel active" id="panel-files">
           <div class="side-empty" id="files-empty">
@@ -62,6 +63,10 @@
             <button class="btn btn-ghost" id="btn-clear-recent">清空列表</button>
           </div>
         </div>
+        <div class="side-panel" id="panel-links">
+          <div class="side-empty" id="links-empty">打开一篇笔记后，这里显示指向它的双向链接</div>
+          <div id="links-list"></div>
+        </div>
       </aside>
 
       <main id="editor-wrap">
@@ -79,6 +84,7 @@
           </div>
           <div class="sb-right">
             <span id="sb-count" class="sb-item">0 字</span>
+            <button type="button" class="sb-item" id="sb-zoom" title="Ctrl+= 放大 / Ctrl+- 缩小 / Ctrl+0 重置">100%</button>
             <button type="button" class="sb-item sb-cloud" id="sb-cloud" title="云同步" style="display:none">云同步</button>
             <div class="sb-modes" id="sb-modes">
               <button class="sb-mode active" data-mode="ir">渲染</button>

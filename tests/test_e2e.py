@@ -692,6 +692,70 @@ CASES = [
          setup2="window.Editor.toggleFocusMode(false)",
          sleep2=0.2,
          js2="!document.getElementById('editor-wrap').classList.contains('focus-mode')"),
+
+    dict(name="T51 目录右键菜单:新建笔记/文件夹/资源管理器三项",
+         setup=("window.Sidebar.renderTree([{type:'dir',name:'docs',path:'/d/docs',children:[]},"
+                "{type:'file',name:'a.md',path:'/d/a.md'}],'root');"
+                "var el=document.querySelector('#file-tree .tree-item.dir');"
+                "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:220,clientY:220}));"),
+         sleep=0.4,
+         js=("(function(){var m=document.getElementById('tree-menu');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var items=m.querySelectorAll('.ctx-item');"
+             "if(items.length!==3)return 'items='+items.length;"
+             "if(items[0].getAttribute('data-act')!=='new-file')return 'act0='+items[0].getAttribute('data-act');"
+             "return true;})()"),
+         setup2="document.body.dispatchEvent(new MouseEvent('click',{bubbles:true}))", sleep2=0.3,
+         js2="!document.getElementById('tree-menu').classList.contains('open')"),
+
+    dict(name="T52 标题跳转:jumpToHeading 滚离顶部",
+         # T38 会把模式留在 sv；源码面板与 IR 面板不是同一个滚动容器。
+         # 先切回 ir（重建中 setValue 会进 pendingValue），再装 80 章与 T06 同构。
+         setup=("(function(){window.Editor.setMode('ir');"
+                "var s='';for(var i=0;i<80;i++){s+='## '+(" + JV('章节') + ")+i+'\\n\\n'+(" + JV('内容') + ")+'\\n';}"
+                "window.Editor.setValue(s);})()"),
+         sleep=2.2,
+         js=("window.Editor.getMode()==='ir'&&window.Editor.isReady()"
+             "&&document.querySelectorAll('#outline-list .outline-item').length>=61"),
+         timeout=18,
+         setup2=("(function(){var it=document.querySelectorAll('#outline-list .outline-item');"
+                 "if(it.length>60){window.__t52h=it[60].textContent;window.Editor.jumpToHeading(window.__t52h);}})()"),
+         sleep2=1.0,
+         js2=("(function(){var sc=document.querySelector('#editor .vditor-ir .vditor-reset');"
+              "var mode=window.Editor.getMode();"
+              "return sc&&sc.scrollTop>1000?true:'scrollTop='+(sc?sc.scrollTop:'null')+' mode='+mode+' h='+window.__t52h;})()")),
+
+    dict(name="T53 编辑区缩放:adjustZoom 更新状态栏与 zoom 样式",
+         setup="window.App.applyZoom(120,true)",
+         sleep=0.3,
+         js=("(function(){var z=document.getElementById('sb-zoom').textContent;"
+             "var ed=document.getElementById('editor');"
+             "if(z.indexOf('120')<0)return 'badge='+z;"
+             "if(ed.style.zoom!=='1.2')return 'zoom='+ed.style.zoom;"
+             "return true;})()"),
+         setup2="window.App.applyZoom(100,true)",
+         sleep2=0.2,
+         js2="document.getElementById('sb-zoom').textContent.indexOf('100')>=0"),
+
+    dict(name="T54 侧栏链接页签存在并可切换",
+         setup="document.querySelector('.side-tab[data-panel=\"links\"]').click()",
+         sleep=0.3,
+         js="document.getElementById('panel-links').classList.contains('active')",
+         setup2="document.querySelector('.side-tab[data-panel=\"files\"]').click()",
+         sleep2=0.3,
+         js2="document.getElementById('panel-files').classList.contains('active')"),
+
+    dict(name="T55 命令面板空查询可列出项、输入可出现新建",
+         setup="window.Palette.openFiles();",
+         sleep=0.5,
+         js="document.getElementById('palette-mask').classList.contains('open')",
+         setup2=("document.getElementById('pal-input').value='e2e-create-note';"
+                 "document.getElementById('pal-input').dispatchEvent(new Event('input',{bubbles:true}));"),
+         sleep2=0.5,
+         js2=("(function(){var t=document.getElementById('pal-list').textContent;"
+              "var ok=t.indexOf(" + JV("新建") + ")>=0;"
+              "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));"
+              "return ok?true:'text='+t.slice(0,100);})()")),
 ]
 
 

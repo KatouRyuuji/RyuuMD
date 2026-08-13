@@ -266,9 +266,112 @@
     if (onOutline) onOutline(list);
   }
 
+  function scrollPanelTo(node) {
+    const sc = activePanel();
+    if (!sc || !node) return;
+    const delta = node.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+    sc.scrollTop = Math.max(0, sc.scrollTop + delta - 10);
+  }
+
   function jumpTo(id) {
-    const el = document.querySelector(`[data-ryuu-id="${id}"]`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!id) return;
+    let el = document.querySelector(`[data-ryuu-id="${id}"]`);
+    if (!el) {
+      updateOutline();
+      el = document.querySelector(`[data-ryuu-id="${id}"]`);
+    }
+    if (el) scrollPanelTo(el);
+  }
+
+  function headingMatches(text, want) {
+    const t = String(text || "").trim().replace(/^#{1,6}\s+/, "").toLowerCase();
+    return t === want || (want.length >= 2 && t.indexOf(want) >= 0);
+  }
+
+  function jumpToHeading(text) {
+    const want = String(text || "").trim().toLowerCase();
+    if (!want) return false;
+    // 先重盖 data-ryuu-id：Vditor 异步重渲染会把属性刷掉，大纲列表仍是旧 id
+    updateOutline();
+    const items = document.querySelectorAll("#outline-list .outline-item");
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (!headingMatches(items[i].textContent, want)) continue;
+      const id = items[i].dataset.id;
+      if (id) {
+        jumpTo(id);
+        return true;
+      }
+      break;
+    }
+    const el = activePanel();
+    if (!el) return false;
+    if (curMode === "ir") {
+      const hs = el.querySelectorAll("h1,h2,h3,h4,h5,h6");
+      for (let i = hs.length - 1; i >= 0; i--) {
+        if (headingMatches(hs[i].textContent, want)) {
+          scrollPanelTo(hs[i]);
+          return true;
+        }
+      }
+    } else {
+      // 源码模式无标题 DOM id，按 md 行号比例滚到对应标题
+      const lines = getValue().split("\n");
+      let idx = -1;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const m = lines[i].match(/^(#{1,6})\s+(.*\S)\s*$/);
+        if (m && headingMatches(m[2], want)) { idx = i; break; }
+      }
+      if (idx >= 0) {
+        const max = el.scrollHeight - el.clientHeight;
+        if (max > 0) el.scrollTop = Math.round((idx / Math.max(lines.length - 1, 1)) * max);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function jumpToLine(line, snippet) {
+    const n = parseInt(line, 10);
+    const needle = (snippet || "").trim();
+    if (needle) {
+      try {
+        const ok = window.find(needle.slice(0, 80), false, false, true, false, true, false);
+        if (ok) return true;
+      } catch (e) { /* ignore */ }
+    }
+    if (!n || n < 1) return false;
+    const md = getValue();
+    const lines = md.split("\n");
+    const idx = Math.min(n, lines.length) - 1;
+    const hint = (lines[idx] || "").trim();
+    if (!hint) return false;
+    try {
+      return window.find(hint.slice(0, 80), false, false, true, false, true, false);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getScrollRatio() {
+    const sc = activePanel();
+    if (!sc) return 0;
+    const max = sc.scrollHeight - sc.clientHeight;
+    return max > 0 ? sc.scrollTop / max : 0;
+  }
+
+  function setScrollRatio(ratio) {
+    const sc = activePanel();
+    if (!sc) return;
+    const max = sc.scrollHeight - sc.clientHeight;
+    sc.scrollTop = Math.round((ratio || 0) * Math.max(max, 0));
+  }
+
+  function toggleTypewriter(on) {
+    const wrap = document.getElementById("editor-wrap");
+    if (!wrap) return false;
+    if (on == null) wrap.classList.toggle("typewriter-mode");
+    else wrap.classList.toggle("typewriter-mode", !!on);
+    return wrap.classList.contains("typewriter-mode");
   }
 
   function focus() {
@@ -424,9 +527,14 @@
     insertValue,
     getHTML,
     jumpTo,
+    jumpToHeading,
+    jumpToLine,
+    getScrollRatio,
+    setScrollRatio,
     focus,
     isReady: () => ready,
     toggleFocusMode,
+    toggleTypewriter,
     enhanceRendered,
   };
 })();

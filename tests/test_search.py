@@ -118,6 +118,14 @@ class TestWikilink(unittest.TestCase):
         self.assertFalse(res["exists"])
         self.assertTrue(res["suggested"].endswith("不存在的笔记.md"))
 
+    def test_backlinks_finds_wikilink(self):
+        touch(self.root / "首页.md", "见 [[详情]] 与 [相对](sub/详情.md)\n")
+        res = self.api.find_backlinks(str(self.root), str(self.root / "sub" / "详情.md"))
+        self.assertTrue(res["ok"])
+        names = {h["name"] for h in res["hits"]}
+        self.assertIn("首页.md", names)
+        self.assertNotIn("详情.md", names)
+
 
 class TestSaveImageAndDaily(unittest.TestCase):
     def setUp(self) -> None:

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -243,3 +244,63 @@ def resolve_wikilink(
         "name": Path(suggested).name,
         "suggested": suggested,
     }
+
+
+WIKI_RE = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+
+
+def _link_targets(target_path: str) -> set[str]:
+    p = Path(target_path)
+    names = {p.stem.lower(), p.name.lower()}
+    if p.suffix.lower() in MD_EXTS:
+        names.add(p.name.lower().replace(p.suffix.lower(), ""))
+    return names
+
+
+def find_backlinks(root: str, target_path: str, max_hits: int = 40) -> dict[str, Any]:
+    """扫描仓库，找出用 [[wikilink]] 或相对 md 链接指向 target 的笔记。"""
+    root_p = Path(root)
+    if not root_p.is_dir() or not target_path:
+        return {"ok": True, "hits": []}
+    names = _link_targets(target_path)
+    want = os.path.normcase(str(Path(target_path)))
+    hits: list[dict[str, Any]] = []
+    truncated = False
+    for p in iter_md_files(root_p):
+        if os.path.normcase(str(p)) == want:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
+        except OSError:
+            continue
+        matched = False
+        for m in WIKI_RE.finditer(text):
+            raw = m.group(1).strip().replace("\\", "/")
+            key = Path(raw).name.lower()
+            stem = Path(raw).stem.lower() if Path(raw).suffix.lower() in MD_EXTS else Path(raw).name.lower()
+            if key in names or stem in names or raw.lower() in names:
+                matched = True
+                break
+        if not matched:
+            for m in MD_LINK_RE.finditer(text):
+                href = (m.group(1) or "").split("#", 1)[0].strip()
+                if not href or href.startswith(("http://", "https://", "mailto:")):
+                    continue
+                key = Path(href.replace("\\", "/")).name.lower()
+                if key in names or Path(key).stem.lower() in names:
+                    matched = True
+                    break
+        if not matched:
+            continue
+        hits.append(
+            {
+                "path": str(p),
+                "name": p.name,
+                "rel": _rel(root_p, p),
+            }
+        )
+        if len(hits) >= max_hits:
+            truncated = True
+            break
+    return {"ok": True, "hits": hits, "truncated": truncated}

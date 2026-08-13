@@ -88,7 +88,7 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 ## 4. 测试与质量门禁
 
 ```bash
-python run_tests.py     # 单测 76 + E2E 44，全绿才可发布
+python run_tests.py     # 单测 92 + E2E 57，全绿才可发布
 ```
 
 E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。

@@ -42,6 +42,8 @@ DEFAULTS: dict[str, Any] = {
     "auto_save": True,
     # 每日笔记子目录（相对当前仓库根），默认「日记」
     "daily_note_folder": "日记",
+    # 编辑区缩放百分比（Ctrl+= / Ctrl+- / Ctrl+0）
+    "editor_zoom": 100,
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,

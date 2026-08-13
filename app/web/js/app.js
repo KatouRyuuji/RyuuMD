@@ -43,6 +43,7 @@
     }
 
     applyTheme(state.config.theme);
+    applyZoom(state.config.editor_zoom || 100, true);
     window.SlashMenu.setStyle(state.config.operation_style);
     window.Editor.setOpStyle(state.config.operation_style);
 
@@ -54,6 +55,8 @@
       moveFile: moveFileFlow,
       revealFile: revealFileFlow,
       deleteFile: deleteFileFlow,
+      newFile: (folder) => newNoteInFolder(folder),
+      newFolder: (folder) => newFolderIn(folder),
     });
 
     window.Home.init({
@@ -83,13 +86,23 @@
         if (!a || !a.list_md_files) return { items: [] };
         return a.list_md_files(state.currentFolder || "", q || "");
       },
+      recentFiles: async () => {
+        const a = api();
+        if (!a || !a.get_recent) return [];
+        const res = await a.get_recent();
+        return (res && res.items) || [];
+      },
       search: async (q) => {
         const a = api();
         if (!a || !a.search_vault) return { hits: [] };
         return a.search_vault(state.currentFolder || "", q || "");
       },
       onPickFile: (it) => { if (it && it.path) openFileByPath(it.path); },
-      onPickHit: (it) => { if (it && it.path) openFileByPath(it.path); },
+      onPickHit: (it) => {
+        if (!it || !it.path) return;
+        openFileByPath(it.path, { line: it.line, snippet: it.snippet });
+      },
+      onCreate: (name) => newNoteInFolder(state.currentFolder, name),
     });
   }
 
@@ -97,7 +110,7 @@
   function defaultConfig() {
     return {
       theme: "light", operation_style: "notion", display_mode: "ir",
-      welcome_shown: true, auto_save: true, daily_note_folder: "日记",
+      welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
     };
   }
 
@@ -178,7 +191,11 @@
   // ---------------------------------------------------------------
   // 文档加载 / 保存
   // ---------------------------------------------------------------
-  function loadDoc(fileRes) {
+  const scrollMem = {};
+  function loadDoc(fileRes, opts) {
+    if (state.currentPath && window.Editor.getScrollRatio) {
+      scrollMem[state.currentPath] = window.Editor.getScrollRatio();
+    }
     if (window.Home && window.Home.isOpen()) window.Home.hide(); // 打开文档即回编辑器
     state.currentPath = fileRes.path;
     state.lastSaved = fileRes.content;
@@ -200,6 +217,14 @@
     updateStatusPath();
     updateCount(fileRes.content);
     loadRecent(); // 后端已在 read_file 记录，刷新最近列表（fire-and-forget）
+    refreshLinks();
+    const jump = opts || {};
+    const restore = (!jump.heading && !jump.line && !jump.snippet) ? scrollMem[fileRes.path] : null;
+    setTimeout(() => {
+      if (jump.heading && window.Editor.jumpToHeading) window.Editor.jumpToHeading(jump.heading);
+      else if ((jump.line || jump.snippet) && window.Editor.jumpToLine) window.Editor.jumpToLine(jump.line, jump.snippet);
+      else if (restore != null && window.Editor.setScrollRatio) window.Editor.setScrollRatio(restore);
+    }, 280);
   }
 
   // 离开被强制源码模式的大文档时，恢复用户偏好的渲染模式
@@ -209,12 +234,12 @@
     if (state.config.display_mode !== "sv") window.Editor.setMode("ir");
   }
 
-  async function openFileByPath(path) {
+  async function openFileByPath(path, opts) {
     if (!(await maybeConfirmDiscard())) return;
     const a = apiOrToast();
     if (!a) return;
     const res = await a.read_file(path);
-    if (res.ok) loadDoc(res);
+    if (res.ok) loadDoc(res, opts);
     else toast("打开失败：" + (res.error || ""));
   }
 
@@ -338,7 +363,21 @@
     const chars = (t || "").replace(/\s/g, "").length;
     const el = document.getElementById("sb-count");
     if (el) el.textContent = chars + " 字";
+    state._count = chars;
   }
+
+  document.addEventListener("selectionchange", () => {
+    const el = document.getElementById("sb-count");
+    if (!el) return;
+    const host = document.getElementById("editor");
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !host || !sel.anchorNode || !host.contains(sel.anchorNode)) {
+      if (state._count != null) el.textContent = state._count + " 字";
+      return;
+    }
+    const n = String(sel).replace(/\s/g, "").length;
+    el.textContent = "选中 " + n + " 字";
+  });
 
   function updateStatusPath() {
     const el = document.getElementById("sb-path");
@@ -389,6 +428,7 @@
     on("btn-settings", openSettings);
     on("btn-clear-recent", clearRecent);
     on("sb-cloud", runCloudSync);
+    on("sb-zoom", () => applyZoom(100));
 
     // 侧栏标签切换（目录 / 大纲 / 最近）：tab 的 data-panel 对应 panel-<name> 面板
     document.querySelectorAll(".side-tab").forEach((tab) => {
@@ -452,6 +492,7 @@
       window.Editor.setOpStyle(partial.operation_style);
     }
     if ("cloud_sync" in partial) refreshCloudBadge();
+    if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
   }
 
   function refreshCloudBadge() {
@@ -520,6 +561,18 @@
       else if (k === "h" && e.shiftKey) {
         e.preventDefault();
         window.Home.toggle();
+      }
+      else if (k === "=" || k === "+" || e.key === "Add") {
+        e.preventDefault();
+        adjustZoom(10);
+      }
+      else if (k === "-" || e.key === "Subtract") {
+        e.preventDefault();
+        adjustZoom(-10);
+      }
+      else if (k === "0") {
+        e.preventDefault();
+        applyZoom(100);
       }
     });
   }
@@ -708,7 +761,7 @@
     const res = await a.resolve_wikilink(state.currentFolder || "", name, state.currentPath || "");
     if (!res.ok) { toast(res.error || "无法解析链接"); return; }
     if (res.exists) {
-      openFileByPath(res.path);
+      openFileByPath(res.path, { heading: res.heading || "" });
       return;
     }
     if (!window.confirm("笔记「" + name + "」不存在，是否创建？")) return;
@@ -781,11 +834,121 @@
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
       { id: "theme", title: "切换主题", keys: "", group: "视图", run: toggleTheme },
       { id: "focus", title: "专注模式", keys: "", group: "视图", run: toggleFocus },
+      { id: "typewriter", title: "打字机模式", keys: "", group: "视图", run: toggleTypewriter },
+      { id: "zoom-in", title: "放大编辑区", keys: "Ctrl+=", group: "视图", run: () => adjustZoom(10) },
+      { id: "zoom-out", title: "缩小编辑区", keys: "Ctrl+-", group: "视图", run: () => adjustZoom(-10) },
+      { id: "zoom-reset", title: "重置缩放", keys: "Ctrl+0", group: "视图", run: () => applyZoom(100) },
       { id: "ir", title: "渲染模式", keys: "", group: "视图", run: () => { window.Editor.setMode("ir"); syncModeButtons("ir"); applyConfig({ display_mode: "ir" }); } },
       { id: "sv", title: "源码模式", keys: "", group: "视图", run: () => { window.Editor.setMode("sv"); syncModeButtons("sv"); applyConfig({ display_mode: "sv" }); } },
       { id: "settings", title: "设置", keys: "", group: "应用", run: openSettings },
       { id: "cloud", title: "立即云同步", keys: "", group: "应用", run: runCloudSync },
+      { id: "date", title: "插入今天日期", keys: "", group: "插入", run: () => window.Editor.insertValue(todayStamp(false)) },
+      { id: "time", title: "插入当前时间", keys: "", group: "插入", run: () => window.Editor.insertValue(todayStamp(true)) },
     ];
+  }
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function todayStamp(withTime) {
+    const d = new Date();
+    const day = d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    if (!withTime) return day;
+    return day + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+
+  function applyZoom(pct, silent) {
+    let z = parseInt(pct, 10);
+    if (isNaN(z)) z = 100;
+    z = Math.max(80, Math.min(160, z));
+    if (!state.config) state.config = {};
+    state.config.editor_zoom = z;
+    const ed = document.getElementById("editor");
+    if (ed) ed.style.zoom = String(z / 100);
+    const badge = document.getElementById("sb-zoom");
+    if (badge) badge.textContent = z + "%";
+    if (!silent && api()) api().update_config({ editor_zoom: z });
+  }
+
+  function adjustZoom(delta) {
+    applyZoom(((state.config && state.config.editor_zoom) || 100) + delta);
+  }
+
+  function toggleTypewriter() {
+    const on = window.Editor.toggleTypewriter();
+    toast(on ? "已进入打字机模式" : "已退出打字机模式");
+  }
+
+  async function newNoteInFolder(folder, name) {
+    const a = apiOrToast();
+    if (!a) return;
+    const dir = folder || state.currentFolder;
+    if (!dir) { toast("请先打开仓库或文件夹"); return; }
+    let fname = (name || "").trim();
+    if (!fname) {
+      fname = await promptText({ title: "新建笔记", sub: dir, value: "未命名" });
+      if (fname == null) return;
+    }
+    if (!(await maybeConfirmDiscard())) return;
+    const res = await a.new_file(dir, fname);
+    if (!res.ok) { toast(res.error || "创建失败"); return; }
+    const file = await a.read_file(res.path);
+    if (file.ok) loadDoc(file);
+    refreshFolder();
+    toast("已创建：" + res.name);
+  }
+
+  async function newFolderIn(parent) {
+    const a = apiOrToast();
+    if (!a) return;
+    const dir = parent || state.currentFolder;
+    if (!dir) { toast("请先打开仓库或文件夹"); return; }
+    const name = await promptText({ title: "新建文件夹", sub: dir, value: "新建文件夹" });
+    if (name == null) return;
+    const res = await a.new_folder(dir, name);
+    if (!res.ok) { toast(res.error || "创建失败"); return; }
+    refreshFolder();
+    toast("已创建文件夹：" + res.name);
+  }
+
+  async function refreshLinks() {
+    if (!window.Sidebar.renderLinks) return;
+    if (!state.currentPath) {
+      window.Sidebar.renderLinks({ back: [], out: [], message: "打开一篇笔记后，这里显示指向它的双向链接" });
+      return;
+    }
+    const md = window.Editor.getValue() || state.lastSaved || "";
+    const re = /\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g;
+    const names = [];
+    let m;
+    while ((m = re.exec(md))) {
+      const n = m[1].trim();
+      if (n && names.indexOf(n) < 0) names.push(n);
+    }
+    const a = api();
+    const out = [];
+    if (a && a.resolve_wikilink) {
+      for (let i = 0; i < names.length; i++) {
+        try {
+          const r = await a.resolve_wikilink(state.currentFolder || "", names[i], state.currentPath);
+          out.push({
+            wiki: names[i],
+            name: names[i],
+            path: r.exists ? r.path : "",
+            exists: !!r.exists,
+            rel: r.exists ? r.path : (r.suggested || ""),
+          });
+        } catch (e) {
+          out.push({ wiki: names[i], name: names[i], exists: false });
+        }
+      }
+    }
+    let back = [];
+    if (a && a.find_backlinks) {
+      try {
+        const res = await a.find_backlinks(state.currentFolder || "", state.currentPath);
+        back = (res && res.hits) || [];
+      } catch (e) { back = []; }
+    }
+    window.Sidebar.renderLinks({ back, out });
   }
 
   // ---------------------------------------------------------------
@@ -957,6 +1120,9 @@
     openDailyNote,
     exportHtml,
     toggleFocus,
+    newNoteInFolder,
+    adjustZoom,
+    applyZoom,
   };
 
   let booted = false;

@@ -74,6 +74,18 @@ class TestFileIO(unittest.TestCase):
         self.assertFalse(dup["ok"])
         self.assertIn("已存在", dup["error"])
 
+    def test_new_file_rejects_path_sep(self):
+        res = self.api.new_file(str(self.root), "a/b")
+        self.assertFalse(res["ok"])
+
+    def test_new_folder_and_reject_dup(self):
+        res = self.api.new_folder(str(self.root), "资料")
+        self.assertTrue(res["ok"], res)
+        self.assertTrue((self.root / "资料").is_dir())
+        dup = self.api.new_folder(str(self.root), "资料")
+        self.assertFalse(dup["ok"])
+        self.assertFalse(self.api.new_folder(str(self.root), "../x")["ok"])
+
 
 class TestFolderTree(unittest.TestCase):
     def setUp(self) -> None:

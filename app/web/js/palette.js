@@ -126,6 +126,7 @@
     }
     if (mode === "file") {
       if (!handlers.listFiles) { items = []; render(); return; }
+      const qtrim = (q || "").trim();
       const res = await handlers.listFiles(q);
       if (my !== seq) return;
       const arr = (res && res.items) || [];
@@ -136,6 +137,42 @@
         path: f.path,
         badge: "",
       }));
+      if (!qtrim && handlers.recentFiles) {
+        let rec = [];
+        try { rec = await handlers.recentFiles(); } catch (e) { rec = []; }
+        if (my !== seq) return;
+        const recentItems = (rec || [])
+          .filter((r) => r.kind !== "folder" && r.exists !== false)
+          .slice(0, 8)
+          .map((r) => ({
+            kind: "file",
+            title: r.name,
+            sub: r.path,
+            path: r.path,
+            badge: "最近",
+          }));
+        if (recentItems.length) {
+          const seen = {};
+          recentItems.forEach((it) => { seen[it.path] = true; });
+          items = recentItems.concat(items.filter((it) => !seen[it.path]));
+        }
+      }
+      if (qtrim) {
+        const ql = qtrim.toLowerCase();
+        const exact = items.some((it) => {
+          const n = (it.title || "").toLowerCase();
+          return n === ql || n === ql + ".md" || (it.title && it.title.replace(/\.md$/i, "").toLowerCase() === ql);
+        });
+        if (!exact) {
+          items.unshift({
+            kind: "create",
+            title: "新建「" + qtrim + ".md」",
+            sub: "在当前仓库根目录创建",
+            badge: "新建",
+            name: qtrim,
+          });
+        }
+      }
       activeIdx = 0;
       render();
       return;
@@ -156,6 +193,8 @@
       title: h.name,
       sub: (h.kind === "name" ? h.rel : ((h.line ? h.line + ": " : "") + (h.snippet || h.rel))),
       path: h.path,
+      line: h.line,
+      snippet: h.snippet,
       badge: h.kind === "name" ? "文件名" : "正文",
     }));
     activeIdx = 0;
@@ -167,6 +206,7 @@
     if (!it) return;
     close();
     if (it.kind === "command" && it.run) it.run();
+    else if (it.kind === "create" && handlers.onCreate) handlers.onCreate(it.name);
     else if (it.kind === "file" && handlers.onPickFile) handlers.onPickFile(it);
     else if (it.kind === "hit" && handlers.onPickHit) handlers.onPickHit(it);
   }

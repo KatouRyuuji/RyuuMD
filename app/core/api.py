@@ -160,12 +160,33 @@ class Api:
         try:
             if not name.lower().endswith(tuple(MD_EXTS)):
                 name += ".md"
+            if any(sep in name for sep in ("/", "\\", ":")):
+                return {"ok": False, "error": "名称不能包含路径分隔符"}
             target = Path(folder) / name if folder else Path(name)
             if target.exists():
                 return {"ok": False, "error": "同名文件已存在"}
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("", encoding="utf-8")
             self._add_recent(str(target), "file")
+            return {"ok": True, "path": str(target), "name": target.name}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def new_folder(self, parent: str, name: str) -> dict[str, Any]:
+        """在已打开的仓库目录下新建子文件夹。"""
+        try:
+            folder = Path(parent)
+            if not folder.is_dir():
+                return {"ok": False, "error": "父文件夹不存在"}
+            raw = (name or "").strip()
+            if not raw:
+                return {"ok": False, "error": "名称不能为空"}
+            if any(sep in raw for sep in ("/", "\\", ":")) or raw in (".", ".."):
+                return {"ok": False, "error": "名称不能包含路径分隔符"}
+            target = folder / raw
+            if target.exists():
+                return {"ok": False, "error": "同名文件夹已存在"}
+            target.mkdir()
             return {"ok": True, "path": str(target), "name": target.name}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -586,6 +607,12 @@ class Api:
     ) -> dict[str, Any]:
         root = self._vault_root(folder)
         return vault_search.resolve_wikilink(root, name, current_file)
+
+    def find_backlinks(self, folder: str = "", path: str = "") -> dict[str, Any]:
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": True, "hits": []}
+        return vault_search.find_backlinks(root, path or "")
 
     def save_image(
         self,

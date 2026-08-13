@@ -80,11 +80,29 @@
     { id: "italic", icon: "italic", title: "斜体", desc: "斜体文字", group: "格式",
       keys: "/xt · *", notion: ["italic", "em"], wolai: ["xt", "xieti"], cn: ["斜体"],
       insert: "*斜体*" },
+    { id: "date", icon: "calendar", title: "今天日期", desc: "插入 YYYY-MM-DD", group: "插入",
+      keys: "/date", notion: ["date", "today"], wolai: ["rq", "riqi"], cn: ["日期", "今天"],
+      insert: "" },
+    { id: "time", icon: "clock", title: "当前时间", desc: "插入日期与时间", group: "插入",
+      keys: "/time", notion: ["time", "now", "datetime"], wolai: ["sj", "shijian"], cn: ["时间", "此刻"],
+      insert: "" },
   ];
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function stamp(withTime) {
+    const d = new Date();
+    const day = d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    if (!withTime) return day;
+    return day + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
 
   /* 在 Vditor 实例插入命令文本（右键/斜杠菜单共用） */
   function runCommand(cmd, ed) {
-    if (cmd && ed) ed.insertValue(cmd.insert, true);
+    if (!cmd || !ed) return;
+    let text = cmd.insert;
+    if (cmd.id === "date") text = stamp(false);
+    else if (cmd.id === "time") text = stamp(true);
+    if (text) ed.insertValue(text, true);
   }
 
   /* 按操作风格返回该命令的「展示触发词」：
