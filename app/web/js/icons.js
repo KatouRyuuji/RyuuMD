@@ -53,6 +53,7 @@
     newWindow: s('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
     clock: s('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'),
     folderOpen: s('<path d="M5 19l2.5-7H22l-2.6 7.3a1 1 0 0 1-.9.7H5z"/><path d="M5 19V5a2 2 0 0 1 2-2h4l2 3h7a2 2 0 0 1 2 2v2"/>'),
+    move: s('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="9" y1="13" x2="15" y2="13"/><polyline points="12 10 15 13 12 16"/>'),
     close: s('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
     books: s('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'),
 

@@ -7,6 +7,7 @@ pywebview 会把 Api 实例的公开方法挂到 window.pywebview.api.* 上，
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import urllib.parse
@@ -17,7 +18,7 @@ import webview
 
 from . import file_assoc
 from .config import Config
-from .fsutil import IGNORE_DIRS, MD_EXTS  # noqa: F401  （re-export，main/tests 引用）
+from .fsutil import IGNORE_DIRS, MD_EXTS, recycle_file  # noqa: F401  （re-export，main/tests 引用）
 from .projects import ProjectStore
 
 # 文件夹树扫描上限：层级与总条目数，超出即截断并在返回数据中标注
@@ -156,6 +157,97 @@ class Api:
             target.write_text("", encoding="utf-8")
             self._add_recent(str(target), "file")
             return {"ok": True, "path": str(target), "name": target.name}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
+    # 文件管理：重命名 / 移动 / 删除（直接操作磁盘上的真实文件）
+    # ------------------------------------------------------------------
+    def _sync_path_refs(self, old: str, new: str) -> None:
+        """重命名/移动后同步配置中的路径引用（最近列表 + last_file），失败不影响主流程。"""
+        try:
+            items = self.config.get("recent_files", []) or []
+            changed = False
+            for it in items:
+                if isinstance(it, dict) and it.get("path") == old:
+                    it["path"] = new
+                    changed = True
+            if changed:
+                self.config.set("recent_files", items)
+            if self.config.get("last_file", "") == old:
+                self.config.set("last_file", new)
+        except Exception:  # noqa: BLE001
+            pass
+
+    @staticmethod
+    def _is_md_file(p: Path) -> bool:
+        return p.is_file() and p.suffix.lower() in MD_EXTS
+
+    def rename_file(self, path: str, new_name: str) -> dict[str, Any]:
+        """重命名真实 md 文件（仅同目录改名，不接受带路径的名字）。"""
+        try:
+            p = Path(path)
+            if not self._is_md_file(p):
+                return {"ok": False, "error": "不是已存在的 Markdown 文件"}
+            name = (new_name or "").strip()
+            if not name:
+                return {"ok": False, "error": "名称不能为空"}
+            if any(sep in name for sep in ("/", "\\", ":")):
+                return {"ok": False, "error": "名称不能包含路径分隔符"}
+            if not name.lower().endswith(tuple(MD_EXTS)):
+                name += ".md"
+            target = p.with_name(name)
+            if os.path.normcase(str(target)) == os.path.normcase(str(p)):
+                return {"ok": True, "path": str(p), "name": p.name}
+            if target.exists():
+                return {"ok": False, "error": "同名文件已存在"}
+            os.rename(p, target)
+            self._sync_path_refs(str(p), str(target))
+            return {"ok": True, "path": str(target), "name": target.name}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def move_file(self, path: str, target_folder: str) -> dict[str, Any]:
+        """把真实 md 文件移动到目标目录（shutil.move 跨盘安全）。"""
+        try:
+            p = Path(path)
+            if not self._is_md_file(p):
+                return {"ok": False, "error": "不是已存在的 Markdown 文件"}
+            folder = Path(target_folder)
+            if not folder.is_dir():
+                return {"ok": False, "error": "目标文件夹不存在"}
+            same = os.path.normcase(os.path.normpath(str(folder)))
+            if same == os.path.normcase(os.path.normpath(str(p.parent))):
+                return {"ok": False, "error": "文件已在该文件夹中"}
+            target = folder / p.name
+            if target.exists():
+                return {"ok": False, "error": "目标位置已存在同名文件"}
+            shutil.move(str(p), str(target))
+            self._sync_path_refs(str(p), str(target))
+            return {"ok": True, "path": str(target)}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def move_file_dialog(self, path: str) -> dict[str, Any]:
+        """弹文件夹选择框，把文件移动到所选目录。"""
+        if not self._window:
+            return {"ok": False, "error": "窗口未就绪"}
+        result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        if not result:
+            return {"ok": False, "cancelled": True}
+        return self.move_file(path, result[0])
+
+    def delete_file(self, path: str) -> dict[str, Any]:
+        """把真实 md 文件移入系统回收站（风险确认弹窗由前端负责）。"""
+        try:
+            p = Path(path)
+            if not self._is_md_file(p):
+                return {"ok": False, "error": "不是已存在的 Markdown 文件"}
+            recycle_file(str(p))
+            self.remove_recent(str(p))
+            if self.config.get("last_file", "") == str(p):
+                self.config.set("last_file", "")
+            return {"ok": True}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 

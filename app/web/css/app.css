@@ -851,3 +851,45 @@ body {
   opacity: 0.95;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ============================================================
+   文件树右键菜单（重命名 / 移动 / 删除真实文件）
+   ============================================================ */
+#tree-menu {
+  position: fixed;
+  z-index: 5000;
+  min-width: 190px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  display: none;
+  animation: pop 0.12s ease;
+}
+#tree-menu.open { display: block; }
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--text);
+}
+.ctx-item:hover { background: var(--primary-bg); }
+.ctx-item .ci-icon {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.ctx-item .ci-icon svg { width: 15px; height: 15px; }
+.ctx-item:hover .ci-icon { color: var(--primary); }
+.ctx-item.danger { color: #e74c3c; }
+.ctx-item.danger .ci-icon { color: #e74c3c; }
+.ctx-item.danger:hover { background: rgba(231, 76, 60, 0.1); }

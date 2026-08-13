@@ -326,6 +326,99 @@ class TestRecentFiles(unittest.TestCase):
         self.assertEqual(self.api.get_recent()["items"], [])
 
 
+class TestFileOps(unittest.TestCase):
+    """文件管理：重命名/移动/删除真实磁盘文件（删除走回收站）+ 配置路径同步。"""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-ops-")
+        self.root = Path(self.dir.name)
+        self.api = make_api()
+        self.api.config.set("recent_files", [])
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_rename_success_keeps_content(self):
+        p = touch(self.root / "旧名.md", "# 内容不变")
+        res = self.api.rename_file(str(p), "新名.md")
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["name"], "新名.md")
+        self.assertFalse(p.exists())
+        self.assertEqual(Path(res["path"]).read_text(encoding="utf-8"), "# 内容不变")
+
+    def test_rename_appends_ext_and_rejects_invalid(self):
+        p = touch(self.root / "a.md")
+        res = self.api.rename_file(str(p), "不带扩展")
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["name"], "不带扩展.md")
+        # 空名 / 含路径分隔符 / 源缺失 / 非 md 一律拒绝
+        self.assertFalse(self.api.rename_file(res["path"], "  ")["ok"])
+        self.assertFalse(self.api.rename_file(res["path"], "sub/x.md")["ok"])
+        self.assertFalse(self.api.rename_file(str(self.root / "nope.md"), "y.md")["ok"])
+        txt = touch(self.root / "note.txt")
+        self.assertFalse(self.api.rename_file(str(txt), "z.md")["ok"])
+
+    def test_rename_rejects_duplicate(self):
+        touch(self.root / "a.md")
+        b = touch(self.root / "b.md")
+        res = self.api.rename_file(str(b), "a.md")
+        self.assertFalse(res["ok"])
+        self.assertIn("已存在", res["error"])
+
+    def test_rename_syncs_recent_and_last_file(self):
+        p = touch(self.root / "r.md")
+        self.api.read_file(str(p))  # 记录 recent + last_file
+        res = self.api.rename_file(str(p), "r2.md")
+        self.assertTrue(res["ok"])
+        items = self.api.get_recent()["items"]
+        self.assertEqual([it["path"] for it in items], [res["path"]])
+        self.assertEqual(self.api.config.get("last_file"), res["path"])
+
+    def test_move_success(self):
+        p = touch(self.root / "m.md", "正文")
+        sub = self.root / "目标"
+        sub.mkdir()
+        res = self.api.move_file(str(p), str(sub))
+        self.assertTrue(res["ok"])
+        self.assertFalse(p.exists())
+        self.assertEqual(Path(res["path"]).read_text(encoding="utf-8"), "正文")
+
+    def test_move_rejects(self):
+        p = touch(self.root / "m.md")
+        sub = self.root / "sub"
+        touch(sub / "m.md")  # 目标处同名
+        self.assertFalse(self.api.move_file(str(p), str(sub))["ok"])
+        self.assertFalse(self.api.move_file(str(p), str(self.root / "nope"))["ok"])
+        # 移到当前所在文件夹 = 无操作拒绝，原文件不动
+        res = self.api.move_file(str(p), str(self.root))
+        self.assertFalse(res["ok"])
+        self.assertTrue(p.exists())
+
+    def test_delete_goes_to_recycle_bin(self):
+        p = touch(self.root / "d.md")
+        res = self.api.delete_file(str(p))
+        self.assertTrue(res["ok"], res.get("error"))
+        self.assertFalse(p.exists())
+
+    def test_delete_cleans_recent_and_last_file(self):
+        p = touch(self.root / "d.md")
+        keep = touch(self.root / "keep.md")
+        self.api.read_file(str(p))
+        self.api.read_file(str(keep))
+        self.api.read_file(str(p))  # last_file = p
+        res = self.api.delete_file(str(p))
+        self.assertTrue(res["ok"], res.get("error"))
+        items = self.api.get_recent()["items"]
+        self.assertEqual([it["path"] for it in items], [str(keep)])
+        self.assertEqual(self.api.config.get("last_file"), "")
+
+    def test_delete_rejects_non_md_and_missing(self):
+        txt = touch(self.root / "n.txt")
+        self.assertFalse(self.api.delete_file(str(txt))["ok"])
+        self.assertTrue(txt.exists())
+        self.assertFalse(self.api.delete_file(str(self.root / "nope.md"))["ok"])
+
+
 class TestProjects(unittest.TestCase):
     """仓库（项目）管理：添加/去重/重命名/置顶/排序/移除/打开计时。"""
 

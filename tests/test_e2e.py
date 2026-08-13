@@ -70,6 +70,15 @@ REPO_DIR = TMP / "e2e-repo"
 (REPO_DIR / "sub" / "note.md").write_text("# 子目录\n", encoding="utf-8")
 REPO_JS = str(REPO_DIR).replace("\\", "\\\\")
 
+# 文件管理用例夹具：独立于仓库目录（避免影响 T24 的仓库计数断言）
+OPS_DIR = TMP / "e2e-ops"
+OPS_DIR.mkdir(parents=True, exist_ok=True)
+(OPS_DIR / "rename-me.md").write_text("# 待重命名\n", encoding="utf-8")
+(OPS_DIR / "delete-me.md").write_text("# 待删除\n", encoding="utf-8")
+OPS_RENAME_JS = str(OPS_DIR / "rename-me.md").replace("\\", "\\\\")
+OPS_RENAMED_JS = str(OPS_DIR / "renamed-e2e.md").replace("\\", "\\\\")
+OPS_DELETE_JS = str(OPS_DIR / "delete-me.md").replace("\\", "\\\\")
+
 # T08 用 Markdown(含代码围栏,验证 sv 大纲忽略 ``` 内标题)
 T08_MD = "# 模式测试\n\n```\n# 注释不是标题\n```\n\n## 真标题\n"
 
@@ -394,6 +403,67 @@ CASES = [
               "if(cards.length!==0)return 'cards='+cards.length;"
               "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'empty hidden';"
               "window.Home.hide();return true;})()")),
+
+    # —— 文件管理（右键菜单操作真实磁盘文件） ——
+    dict(name="T30 文件右键菜单:四项弹出、末项 danger、点击外部关闭",
+         setup=("window.Sidebar.renderTree([{type:'file',name:'a.md',path:'/d/a.md'}],'root');"
+                "var el=document.querySelector('#file-tree .tree-item.file');"
+                "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200}));"),
+         sleep=0.4,
+         js=("(function(){var m=document.getElementById('tree-menu');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var items=m.querySelectorAll('.ctx-item');"
+             "if(items.length!==4)return 'items='+items.length;"
+             "if(!items[3].classList.contains('danger'))return 'delete not danger';"
+             "return true;})()"),
+         setup2="document.body.dispatchEvent(new MouseEvent('click',{bubbles:true}))", sleep2=0.3,
+         js2="!document.getElementById('tree-menu').classList.contains('open')"),
+
+    dict(name="T31 重命名真实文件:弹窗改名、磁盘生效",
+         setup=("window.Sidebar.renderTree([{type:'file',name:'rename-me.md',path:'" + OPS_RENAME_JS + "'}],'ops');"
+                "var el=document.querySelector('#file-tree .tree-item.file');"
+                "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200}));"
+                "document.querySelector('#tree-menu .ctx-item[data-act=\"rename\"]').click();"),
+         sleep=0.5,
+         js=("(function(){var m=document.getElementById('input-modal-mask');"
+             "return m.classList.contains('open')&&!!document.getElementById('pm-input')?true:'modal not open';})()"),
+         # 第二阶段:输入新名并确定;延迟后回读磁盘验证(改名是异步链路)
+         setup2=("document.getElementById('pm-input').value='renamed-e2e';"
+                 "document.getElementById('pm-ok').click();"
+                 "window.__t31=0;"
+                 "setTimeout(function(){"
+                 "window.pywebview.api.read_file('" + OPS_RENAMED_JS + "').then(function(r){"
+                 "if(!r.ok){window.__t31=-1;return;}"
+                 "window.pywebview.api.read_file('" + OPS_RENAME_JS + "').then(function(o){"
+                 "window.__t31=o.ok?-2:1;});});},700);"),
+         sleep2=1.6,
+         js2=("(function(){"
+              "if(document.getElementById('input-modal-mask').classList.contains('open'))return 'modal open';"
+              "return window.__t31===1?true:'t31='+window.__t31;})()"),
+         timeout=12),
+
+    dict(name="T32 删除当前打开文件:回收站、内容保留为未保存草稿",
+         setup=("window.Sidebar.renderTree([{type:'file',name:'delete-me.md',path:'" + OPS_DELETE_JS + "'}],'ops');"
+                "document.querySelector('#file-tree .tree-item.file').click();"),
+         sleep=1.2,
+         js=("(function(){var dn=document.getElementById('doc-name').textContent;"
+             "return dn.indexOf('delete-me.md')>=0?true:'doc='+dn;})()"),
+         # 第二阶段:右键删除(confirm 已 hook 恒真);延迟回读磁盘 + 断言草稿态
+         setup2=("var el=document.querySelector('#file-tree .tree-item.file');"
+                 "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200}));"
+                 "document.querySelector('#tree-menu .ctx-item[data-act=\"delete\"]').click();"
+                 "window.__t32=0;"
+                 "setTimeout(function(){"
+                 "window.pywebview.api.read_file('" + OPS_DELETE_JS + "').then(function(o){window.__t32=o.ok?-1:1;});"
+                 "},700);"),
+         sleep2=1.6,
+         js2=("(function(){"
+              "if(window.__t32!==1)return 't32='+window.__t32;"
+              "var dn=document.getElementById('doc-name').textContent;"
+              "if(dn.indexOf('\\u25cf')<0)return 'not dirty:'+dn;"
+              "var sp=document.getElementById('sb-path').textContent;"
+              "return sp.indexOf(" + JV('未保存文档') + ")>=0?true:'path='+sp;})()"),
+         timeout=12),
 ]
 
 

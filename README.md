@@ -21,6 +21,8 @@
   - **Typora + Wolai**：拼音缩写触发，如 `/bt1`、`/dmk`、`/lb`、`/wxlb`。
 - **phycat 配色**：亮色 sky（核心蓝）、暗色 vampire（吸血鬼红），现代扁平。
 - **目录 / 大纲 / 最近侧栏**：浏览文件夹中的 md，文档大纲实时生成、点击跳转；最近打开列表快速回访文件与工作区（失效项点击后自动移除，可一键清空）。
+- **文件树管理**：侧栏右键文件即可重命名、移动到…、在资源管理器中显示、删除
+  （移入回收站，误删可恢复）——直接操作磁盘上的真实文件。
 - **拖拽即开**：拖入 `.md` 文件或文件夹即可打开。
 - **会话记忆**：开启应用自动恢复上次浏览的文件夹与文件（可在设置改为「始终显示首页」）。
 - **全本地**：无需联网，所有编辑器资源已内置（vendor/vditor）。
@@ -82,7 +84,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（45 项），再跑真实窗口端到端测试（31 项）。
+先跑 Python API 单元测试（54 项），再跑真实窗口端到端测试（34 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 
@@ -98,11 +100,11 @@ python run_tests.py
 ```
 main.py                 启动入口（多窗口管理、单实例接管、命令行/拖图标打开）
 app/core/config.py      配置持久化（%APPDATA%/RyuuMD/config.json）
-app/core/api.py         前端 JS API（文件读写、文件夹树、仓库、多窗口、关联）
+app/core/api.py         前端 JS API（文件读写/管理、文件夹树、仓库、多窗口、关联）
 app/core/projects.py    仓库（项目）管理：增删改/置顶/重命名/打开计时
 app/core/file_assoc.py  Windows 文件关联（ProgID 注册 + 一键设默认）
 app/core/singleton.py   单实例守护（端口+token 转发，新窗口秒开）
-app/core/fsutil.py      共享常量与 md 计数（api/projects 共用）
+app/core/fsutil.py      共享常量、md 计数与回收站删除（api/projects 共用）
 app/web/index.html      前端外壳（含首页 DOM）
 app/web/css/            主题（app / editor / slash / home）
 app/web/js/             icons / commands / slash / sidebar / welcome / settings / home / editor / app

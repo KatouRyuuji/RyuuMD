@@ -9,16 +9,26 @@
   const recentList = document.getElementById("recent-list");
   const recentEmpty = document.getElementById("recent-empty");
   const recentFoot = document.getElementById("recent-foot");
+  const treeMenu = document.getElementById("tree-menu");
 
   let onOpenFile = null;  // (path) => void
   let onJumpHeading = null; // (id) => void
   let onOpenRecent = null;  // (path, kind) => void
+  // 文件管理操作（真实磁盘文件），由 app.js 注入
+  let onRenameFile = null;
+  let onMoveFile = null;
+  let onRevealFile = null;
+  let onDeleteFile = null;
   let activePath = null;
 
-  function setHandlers({ openFile, jumpHeading, openRecent }) {
+  function setHandlers({ openFile, jumpHeading, openRecent, renameFile, moveFile, revealFile, deleteFile }) {
     onOpenFile = openFile;
     onJumpHeading = jumpHeading;
     onOpenRecent = openRecent;
+    onRenameFile = renameFile;
+    onMoveFile = moveFile;
+    onRevealFile = revealFile;
+    onDeleteFile = deleteFile;
   }
 
   // —— 文件树 ——
@@ -72,6 +82,67 @@
     const children = item.parentElement.querySelector(".tree-children");
     if (children) children.style.display = item.classList.contains("collapsed") ? "none" : "block";
   });
+
+  // —— 文件右键菜单（重命名 / 移动 / 删除真实磁盘文件） ——
+  // 仅文件行弹出；目录行保持「点击折叠」单一语义，不挂管理操作
+  const FILE_OPS = [
+    { act: "rename", label: "重命名", icon: "edit" },
+    { act: "move", label: "移动到…", icon: "move" },
+    { act: "reveal", label: "在资源管理器中显示", icon: "folderOpen" },
+    { act: "delete", label: "删除（移入回收站）", icon: "trash", danger: true },
+  ];
+  let menuPath = null;
+
+  fileTreeEl.addEventListener("contextmenu", (e) => {
+    const item = e.target.closest(".tree-item.file");
+    if (!item) return;
+    e.preventDefault();
+    openMenu(item.dataset.path, e.clientX, e.clientY);
+  });
+
+  function openMenu(path, x, y) {
+    menuPath = path;
+    treeMenu.innerHTML = FILE_OPS.map(
+      (op) => `
+        <div class="ctx-item${op.danger ? " danger" : ""}" data-act="${op.act}">
+          <span class="ci-icon">${window.ICONS[op.icon]}</span><span>${op.label}</span>
+        </div>`
+    ).join("");
+    treeMenu.classList.add("open");
+    // 视口边缘钳制（与 slash.js 同一定位思路）
+    const mw = treeMenu.offsetWidth || 190;
+    const mh = treeMenu.offsetHeight || 170;
+    if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+    if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+    treeMenu.style.left = Math.max(8, x) + "px";
+    treeMenu.style.top = Math.max(8, y) + "px";
+  }
+
+  function closeMenu() {
+    treeMenu.classList.remove("open");
+    menuPath = null;
+  }
+
+  treeMenu.addEventListener("click", (e) => {
+    const btn = e.target.closest(".ctx-item");
+    if (!btn || !menuPath) return;
+    const path = menuPath;
+    closeMenu();
+    const handler = {
+      rename: onRenameFile, move: onMoveFile,
+      reveal: onRevealFile, delete: onDeleteFile,
+    }[btn.dataset.act];
+    if (handler) handler(path);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (menuPath && !treeMenu.contains(e.target)) closeMenu();
+  });
+  // 捕获阶段拦截 Esc：菜单打开时不让全局 Esc（如关闭首页）抢先响应
+  document.addEventListener("keydown", (e) => {
+    if (menuPath && e.key === "Escape") { e.stopPropagation(); closeMenu(); }
+  }, true);
+  window.addEventListener("resize", () => { if (menuPath) closeMenu(); });
 
   function markActive(path) {
     activePath = path;

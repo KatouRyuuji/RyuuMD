@@ -49,6 +49,10 @@
       openFile: openFileByPath,
       jumpHeading: (id) => window.Editor.jumpTo(id),
       openRecent: openRecentItem,
+      renameFile: renameFileFlow,
+      moveFile: moveFileFlow,
+      revealFile: revealFileFlow,
+      deleteFile: deleteFileFlow,
     });
 
     window.Home.init({
@@ -527,6 +531,114 @@
   window.__openDroppedPath = openDroppedPath;
 
   // ---------------------------------------------------------------
+  // 文件管理（侧栏右键菜单：重命名 / 移动 / 删除真实磁盘文件）
+  // ---------------------------------------------------------------
+  // 通用输入小弹窗：Promise<string|null>，null = 取消。
+  // 结构与 home.js 仓库重命名弹窗同款（.mini-modal 样式复用）。
+  function promptText({ title, sub, value }) {
+    const mask = document.getElementById("input-modal-mask");
+    return new Promise((resolve) => {
+      mask.innerHTML = `
+        <div class="modal mini-modal">
+          <div class="modal-head">
+            <span class="badge">${window.ICONS.edit}</span>
+            <div><h2>${esc(title)}</h2><p>${esc(sub || "")}</p></div>
+          </div>
+          <div class="modal-body">
+            <input class="mm-input" id="pm-input" maxlength="120" />
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" id="pm-cancel">取消</button>
+            <button class="btn btn-primary" id="pm-ok">确定</button>
+          </div>
+        </div>`;
+      mask.classList.add("open");
+      const input = document.getElementById("pm-input");
+      input.value = value || "";
+      function done(val) {
+        mask.removeEventListener("click", onMask);
+        mask.classList.remove("open");
+        mask.innerHTML = "";
+        resolve(val);
+      }
+      function onMask(e) { if (e.target === mask) done(null); }
+      mask.addEventListener("click", onMask);
+      document.getElementById("pm-ok").addEventListener("click", () => {
+        const v = input.value.trim();
+        if (!v) { toast("名称不能为空"); return; }
+        done(v);
+      });
+      document.getElementById("pm-cancel").addEventListener("click", () => done(null));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); document.getElementById("pm-ok").click(); }
+        else if (e.key === "Escape") { e.stopPropagation(); done(null); }
+      });
+      input.focus();
+      input.select();
+    });
+  }
+
+  // 重命名/移动后，若动的是当前打开的文件，同步编辑器侧的路径与标题
+  function syncCurrentPath(oldPath, newPath, newName) {
+    if (state.currentPath !== oldPath) return;
+    state.currentPath = newPath;
+    if (newName) updateDocName(newName);
+    updateStatusPath();
+  }
+
+  async function renameFileFlow(path) {
+    const a = apiOrToast();
+    if (!a) return;
+    const name = await promptText({ title: "重命名文件", sub: path, value: basename(path) });
+    if (name == null) return;
+    const res = await a.rename_file(path, name);
+    if (!res.ok) { toast("重命名失败：" + (res.error || "")); return; }
+    syncCurrentPath(path, res.path, res.name);
+    refreshFolder();
+    loadRecent();
+    toast("已重命名为：" + res.name);
+  }
+
+  async function moveFileFlow(path) {
+    const a = apiOrToast();
+    if (!a) return;
+    const res = await a.move_file_dialog(path);
+    if (!res || res.cancelled) return;
+    if (!res.ok) { toast("移动失败：" + (res.error || "")); return; }
+    syncCurrentPath(path, res.path, null);
+    refreshFolder();
+    loadRecent();
+    toast("已移动到：" + res.path);
+  }
+
+  async function revealFileFlow(path) {
+    const a = apiOrToast();
+    if (!a) return;
+    const res = await a.reveal_in_explorer(path);
+    if (!res.ok) toast(res.error || "无法打开资源管理器");
+  }
+
+  async function deleteFileFlow(path) {
+    const a = apiOrToast();
+    if (!a) return;
+    // 风险操作确认：明确告知去向（回收站可恢复）
+    if (!window.confirm("确定把「" + basename(path) + "」移入回收站？\n可从系统回收站恢复。")) return;
+    const res = await a.delete_file(path);
+    if (!res.ok) { toast("删除失败：" + (res.error || "")); return; }
+    if (state.currentPath === path) {
+      // 当前打开的文件被删：内容保留为未保存草稿，编辑成果不丢
+      state.currentPath = null;
+      state.dirty = true;
+      updateDocName(basename(path));
+      updateStatusPath();
+      window.Sidebar.markActive(null);
+    }
+    refreshFolder();
+    loadRecent();
+    toast("已移入回收站");
+  }
+
+  // ---------------------------------------------------------------
   // 工具
   // ---------------------------------------------------------------
   async function maybeConfirmDiscard() {
@@ -537,6 +649,15 @@
   function basename(p) {
     if (!p) return "未命名";
     return p.split(/[\\/]/).pop();
+  }
+
+  // 注入 HTML 前转义（文件路径/名称是用户数据）
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function fmtBytes(n) {
