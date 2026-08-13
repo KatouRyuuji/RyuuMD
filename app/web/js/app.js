@@ -47,6 +47,7 @@
 
     applyTheme(state.config.theme);
     applyZoom(state.config.editor_zoom || 100, true);
+    applyReadable(!!state.config.readable_width, true);
     window.SlashMenu.setStyle(state.config.operation_style);
     window.Editor.setOpStyle(state.config.operation_style);
 
@@ -109,7 +110,7 @@
       vaultIndex: async (kind, q) => {
         const a = api();
         if (!a || !a.vault_index) return { items: [] };
-        return a.vault_index(state.currentFolder || "", kind, q || "");
+        return a.vault_index(state.currentFolder || "", kind, q || "", state.currentPath || "");
       },
     });
   }
@@ -119,6 +120,7 @@
     return {
       theme: "light", operation_style: "notion", display_mode: "ir",
       welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
+      readable_width: false,
     };
   }
 
@@ -514,6 +516,7 @@
     }
     if ("cloud_sync" in partial) refreshCloudBadge();
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
+    if ("readable_width" in partial) applyReadable(partial.readable_width, true);
   }
 
   function refreshCloudBadge() {
@@ -595,6 +598,10 @@
       else if (k === "0") {
         e.preventDefault();
         applyZoom(100);
+      }
+      else if (k === "g") {
+        e.preventDefault();
+        goToLine();
       }
     });
   }
@@ -855,22 +862,31 @@
       { id: "copy-wiki", title: "复制双链", keys: "", group: "文件", run: copyCurrentWiki },
       { id: "copy-html", title: "复制为 HTML", keys: "", group: "文件", run: copyAsHtml },
       { id: "copy-md", title: "复制为 Markdown", keys: "", group: "文件", run: copyAsMarkdown },
+      { id: "rename-cur", title: "重命名当前文件", keys: "", group: "文件", run: renameCurrent },
+      { id: "move-cur", title: "移动当前文件", keys: "", group: "文件", run: moveCurrent },
+      { id: "new-window", title: "在新窗口打开", keys: "", group: "文件", run: openCurrentNewWindow },
+      { id: "capture", title: "快速收集", keys: "", group: "文件", run: captureQuick },
       { id: "quick-open", title: "快速打开笔记", keys: "Ctrl+P", group: "导航", run: () => window.Palette.openFiles() },
       { id: "search", title: "在仓库中搜索", keys: "Ctrl+Shift+F", group: "导航", run: () => window.Palette.openSearch() },
       { id: "find", title: "在本文查找", keys: "Ctrl+F", group: "导航", run: () => window.FindBar.open() },
       { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => window.FindBar.open({ replace: true }) },
+      { id: "goto-line", title: "转到行", keys: "Ctrl+G", group: "导航", run: goToLine },
       { id: "locate", title: "在目录中定位当前文件", keys: "", group: "导航", run: locateInTree },
       { id: "new-here", title: "在当前文件夹新建笔记", keys: "", group: "文件", run: newNoteBeside },
       { id: "tasks", title: "仓库待办", keys: "", group: "仓库", run: () => window.Palette.openTasks() },
       { id: "tags", title: "浏览标签", keys: "", group: "仓库", run: () => window.Palette.openTags() },
       { id: "broken", title: "断开的双链", keys: "", group: "仓库", run: () => window.Palette.openBroken() },
       { id: "orphans", title: "孤立笔记", keys: "", group: "仓库", run: () => window.Palette.openOrphans() },
+      { id: "mentions", title: "未链接提及", keys: "", group: "仓库", run: openMentions },
       { id: "stats", title: "仓库统计", keys: "", group: "仓库", run: showVaultStats },
       { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => window.Home.toggle() },
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
       { id: "theme", title: "切换主题", keys: "", group: "视图", run: toggleTheme },
       { id: "focus", title: "专注模式", keys: "", group: "视图", run: toggleFocus },
       { id: "typewriter", title: "打字机模式", keys: "", group: "视图", run: toggleTypewriter },
+      { id: "readable", title: "切换可读宽度", keys: "", group: "视图", run: toggleReadable },
+      { id: "fold-all", title: "折叠全部目录", keys: "", group: "视图", run: () => foldTree(true) },
+      { id: "unfold-all", title: "展开全部目录", keys: "", group: "视图", run: () => foldTree(false) },
       { id: "zoom-in", title: "放大编辑区", keys: "Ctrl+=", group: "视图", run: () => adjustZoom(10) },
       { id: "zoom-out", title: "缩小编辑区", keys: "Ctrl+-", group: "视图", run: () => adjustZoom(-10) },
       { id: "zoom-reset", title: "重置缩放", keys: "Ctrl+0", group: "视图", run: () => applyZoom(100) },
@@ -912,6 +928,104 @@
   function toggleTypewriter() {
     const on = window.Editor.toggleTypewriter();
     toast(on ? "已进入打字机模式" : "已退出打字机模式");
+  }
+
+  function applyReadable(on, silent) {
+    const wrap = document.getElementById("editor-wrap");
+    if (!wrap) return false;
+    const next = (on == null) ? !wrap.classList.contains("readable-width") : !!on;
+    wrap.classList.toggle("readable-width", next);
+    if (!state.config) state.config = {};
+    state.config.readable_width = next;
+    if (!silent && api()) api().update_config({ readable_width: next });
+    return next;
+  }
+
+  function toggleReadable() {
+    const on = applyReadable(null);
+    toast(on ? "已开启可读宽度" : "已关闭可读宽度");
+  }
+
+  function foldTree(collapsed) {
+    if (!window.Sidebar || !window.Sidebar.foldAll) return;
+    window.Sidebar.foldAll(collapsed);
+    toast(collapsed ? "已折叠全部目录" : "已展开全部目录");
+  }
+
+  async function goToLine() {
+    const md = window.Editor.getValue ? window.Editor.getValue() : "";
+    const total = md ? md.split("\n").length : 1;
+    const raw = await promptText({
+      title: "转到行",
+      sub: "共 " + total + " 行",
+      value: "1",
+      emptyMsg: "请输入行号",
+    });
+    if (raw == null) return;
+    const n = parseInt(raw, 10);
+    if (!n || n < 1) { toast("请输入有效行号"); return; }
+    if (window.Editor.jumpToLine) window.Editor.jumpToLine(n);
+  }
+
+  function requireSavedFile() {
+    if (!state.currentPath) { toast("请先保存或打开一篇笔记"); return ""; }
+    return state.currentPath;
+  }
+
+  function renameCurrent() {
+    const p = requireSavedFile();
+    if (p) renameFileFlow(p);
+  }
+
+  function moveCurrent() {
+    const p = requireSavedFile();
+    if (p) moveFileFlow(p);
+  }
+
+  async function openCurrentNewWindow() {
+    const a = apiOrToast();
+    if (!a || !a.open_new_window) return;
+    const path = state.currentPath || state.currentFolder || "";
+    const res = await a.open_new_window(path);
+    if (!res.ok) toast(res.error || "无法打开新窗口");
+  }
+
+  function openMentions() {
+    if (!state.currentPath) { toast("请先打开一篇笔记"); return; }
+    window.Palette.openMentions();
+  }
+
+  function pathsEqual(a, b) {
+    if (!a || !b) return false;
+    return a.replace(/\\/g, "/").toLowerCase() === b.replace(/\\/g, "/").toLowerCase();
+  }
+
+  async function captureQuick() {
+    if (!state.currentFolder) { toast("请先打开仓库或文件夹"); return; }
+    const text = await promptText({
+      title: "快速收集",
+      sub: "写入仓库根目录「收集箱.md」",
+      value: "",
+      maxLen: 2000,
+      emptyMsg: "收集内容不能为空",
+    });
+    if (text == null) return;
+    const a = apiOrToast();
+    if (!a || !a.append_capture) return;
+    const res = await a.append_capture(state.currentFolder, text);
+    if (!res.ok) { toast(res.error || "收集失败"); return; }
+    refreshFolder();
+    if (res.path && pathsEqual(state.currentPath, res.path)) {
+      if (state.dirty) {
+        toast("已写入收集箱（当前文件有未保存更改，未自动重载）");
+        return;
+      }
+      try {
+        const fileRes = await a.read_file(res.path);
+        if (fileRes && fileRes.ok) loadDoc(fileRes);
+      } catch (e) { /* 重载失败仍算收集成功 */ }
+    }
+    toast("已写入收集箱");
   }
 
   async function refreshTemplates() {
@@ -1182,7 +1296,7 @@
   // ---------------------------------------------------------------
   // 通用输入小弹窗：Promise<string|null>，null = 取消。
   // 结构与 home.js 仓库重命名弹窗同款（.mini-modal 样式复用）。
-  function promptText({ title, sub, value }) {
+  function promptText({ title, sub, value, maxLen, emptyMsg }) {
     const mask = document.getElementById("input-modal-mask");
     return new Promise((resolve) => {
       mask.innerHTML = `
@@ -1192,7 +1306,7 @@
             <div><h2>${esc(title)}</h2><p>${esc(sub || "")}</p></div>
           </div>
           <div class="modal-body">
-            <input class="mm-input" id="pm-input" maxlength="120" />
+            <input class="mm-input" id="pm-input" maxlength="${maxLen || 120}" />
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" id="pm-cancel">取消</button>
@@ -1212,7 +1326,7 @@
       mask.addEventListener("click", onMask);
       document.getElementById("pm-ok").addEventListener("click", () => {
         const v = input.value.trim();
-        if (!v) { toast("名称不能为空"); return; }
+        if (!v) { toast(emptyMsg || "名称不能为空"); return; }
         done(v);
       });
       document.getElementById("pm-cancel").addEventListener("click", () => done(null));
@@ -1349,6 +1463,7 @@
     newNoteInFolder,
     adjustZoom,
     applyZoom,
+    applyReadable,
   };
 
   let booted = false;

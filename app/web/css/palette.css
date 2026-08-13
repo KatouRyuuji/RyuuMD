@@ -167,6 +167,13 @@
   padding-bottom: 48vh;
 }
 
+#editor-wrap.readable-width #editor .vditor-ir .vditor-reset,
+#editor-wrap.readable-width #editor .vditor-sv {
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .wiki-link {
   color: var(--primary);
   border-bottom: 1px dashed var(--primary);

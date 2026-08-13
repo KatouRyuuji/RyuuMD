@@ -299,5 +299,18 @@
     return true;
   }
 
-  window.Sidebar = { setHandlers, renderTree, markActive, revealPath, renderOutline, renderRecent, renderLinks };
+  function foldAll(collapsed) {
+    const hide = !!collapsed;
+    fileTreeEl.querySelectorAll(".tree-item.dir").forEach((item) => {
+      item.classList.toggle("collapsed", hide);
+      const parent = item.parentElement;
+      const children = parent ? parent.querySelector(":scope > .tree-children") : null;
+      if (children) children.style.display = hide ? "none" : "block";
+    });
+  }
+
+  window.Sidebar = {
+    setHandlers, renderTree, markActive, revealPath,
+    renderOutline, renderRecent, renderLinks, foldAll,
+  };
 })();

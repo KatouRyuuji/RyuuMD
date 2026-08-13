@@ -35,7 +35,8 @@
 - **查找替换**：`Ctrl+F` 本文查找，`Ctrl+H` 展开替换（支持全部替换）。
 - **笔记模板**：仓库下建 `模板/` 放入 `.md`，命令面板可插入或从模板新建；支持 `{{title}}` `{{date}}` 等占位符；今日日记优先使用 `模板/日记.md`。
 - **复制与定位**：命令面板可复制路径 / 双链 / HTML / Markdown，复制当前笔记，在目录树中定位（也可点状态栏路径）。
-- **仓库索引**：命令面板「仓库待办 / 浏览标签 / 断开的双链 / 孤立笔记 / 仓库统计」；外部改盘上的已保存文件会自动重新载入（有未保存更改时不覆盖）。
+- **仓库索引**：命令面板「仓库待办 / 浏览标签 / 断开的双链 / 孤立笔记 / 未链接提及 / 仓库统计」；外部改盘上的已保存文件会自动重新载入（有未保存更改时不覆盖）。
+- **可读宽度 / 转到行 / 快速收集**：命令面板可开关 Typora 式可读宽度；`Ctrl+G` 跳到指定行；「快速收集」把一段文字追加到仓库根的 `收集箱.md`；可折叠/展开全部目录。
 - **拖拽即开**：拖入 `.md` 文件或文件夹即可打开。
 - **启动即主页**：开机回到工作台，最近文件一触即达（可在设置改为「恢复上次会话」）。
 - **本地优先**：编辑器资源全内置，默认同步关闭、无需联网；云同步为可选项。
@@ -92,6 +93,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 | 仓库全文搜索 | `Ctrl+Shift+F` |
 | 本文查找 | `Ctrl+F` |
 | 查找替换 | `Ctrl+H` |
+| 转到行 | `Ctrl+G` |
 | 今日日记 | `Ctrl+Shift+D` |
 | 放大 / 缩小 / 重置 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` |
 | 切换侧栏 | `Ctrl+Shift+B` |
@@ -104,7 +106,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（102 项），再跑真实窗口端到端测试（60 项）。
+先跑 Python API 单元测试（105 项），再跑真实窗口端到端测试（62 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 
@@ -120,7 +122,8 @@ python run_tests.py
 ```
 main.py                 启动入口（多窗口管理、单实例接管、命令行/拖图标打开）
 app/core/config.py      配置持久化（%APPDATA%/RyuuMD/config.json）
-app/core/api.py         前端 JS API（文件读写/管理、文件夹树、仓库、多窗口、关联）
+app/core/api.py         前端 JS API（文件读写/管理、文件夹树、仓库、多窗口、关联、收集箱）
+app/core/search.py      仓库索引（搜索 / 双链 / 待办标签 / 未链接提及）
 app/core/projects.py    仓库（项目）管理：增删改/置顶/重命名/打开计时
 app/core/file_assoc.py  Windows 文件关联（ProgID 注册 + 一键设默认）
 app/core/singleton.py   单实例守护（端口+token 转发，新窗口秒开）
@@ -129,7 +132,7 @@ app/core/webdav.py      轻量 WebDAV 客户端（标准库，无额外依赖）
 app/core/cloud_sync.py  可选云同步引擎（默认关闭，用户自备 WebDAV）
 app/web/index.html      前端外壳（含首页 DOM）
 app/web/css/            主题（app / editor / slash / home）
-app/web/js/             icons / commands / slash / sidebar / welcome / settings / home / editor / app
+app/web/js/             icons / commands / slash / sidebar / welcome / settings / home / editor / palette / app
 app/web/vendor/vditor/  内置 Vditor 全量资源
 ```
 

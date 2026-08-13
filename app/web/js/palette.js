@@ -16,9 +16,10 @@
     tags: "浏览标签",
     broken: "断开的双链",
     orphans: "孤立笔记",
+    mentions: "未链接提及",
   };
 
-  const INDEX_MODES = { tasks: 1, tags: 1, broken: 1, orphans: 1 };
+  const INDEX_MODES = { tasks: 1, tags: 1, broken: 1, orphans: 1, mentions: 1 };
 
   let mode = "file";
   let items = [];
@@ -240,7 +241,7 @@
     if (it.kind === "command" && it.run) it.run();
     else if (it.kind === "create" && handlers.onCreate) handlers.onCreate(it.name);
     else if ((it.kind === "file" || it.kind === "orphan") && handlers.onPickFile) handlers.onPickFile(it);
-    else if ((it.kind === "hit" || it.kind === "task" || it.kind === "tag" || it.kind === "broken") && handlers.onPickHit) {
+    else if ((it.kind === "hit" || it.kind === "task" || it.kind === "tag" || it.kind === "broken" || it.kind === "mention") && handlers.onPickHit) {
       handlers.onPickHit(it);
     }
   }
@@ -289,6 +290,7 @@
     openTags: () => open("tags"),
     openBroken: () => open("broken"),
     openOrphans: () => open("orphans"),
+    openMentions: () => open("mentions"),
   };
 })();
 

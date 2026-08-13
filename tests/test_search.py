@@ -274,6 +274,43 @@ class TestVaultIndex(unittest.TestCase):
         self.assertGreater(fs["mtime"], 0)
         self.assertFalse(self.api.file_stat(str(self.root / "nope.md"))["ok"])
 
+    def test_unlinked_mentions_skips_wikilink(self):
+        touch(self.root / "项目计划.md", "# 计划\n")
+        touch(self.root / "wiki.md", "见 [[项目计划]]\n")
+        touch(self.root / "plain.md", "项目计划 需要评审\n")
+        res = self.api.vault_index(
+            str(self.root), "mentions", "", str(self.root / "项目计划.md")
+        )
+        self.assertTrue(res["ok"], res)
+        names = {it["name"] for it in res["items"]}
+        self.assertIn("plain.md", names)
+        self.assertNotIn("wiki.md", names)
+        self.assertNotIn("项目计划.md", names)
+        empty = self.api.vault_index(str(self.root), "mentions", "", "")
+        self.assertFalse(empty["ok"])
+
+    def test_append_capture_creates_and_appends(self):
+        res = self.api.append_capture(str(self.root), "一条想法")
+        self.assertTrue(res["ok"], res)
+        dest = Path(res["path"])
+        self.assertEqual(dest.name, "收集箱.md")
+        text = dest.read_text(encoding="utf-8")
+        self.assertIn("# 收集箱", text)
+        self.assertIn("一条想法", text)
+        self.assertRegex(text, r"## \d{4}-\d{2}-\d{2} \d{2}:\d{2}")
+        again = self.api.append_capture(str(self.root), "第二条")
+        self.assertTrue(again["ok"], again)
+        text2 = dest.read_text(encoding="utf-8")
+        self.assertIn("一条想法", text2)
+        self.assertIn("第二条", text2)
+        self.assertEqual(text2.count("一条想法"), 1)
+
+    def test_append_capture_rejects_bad_name(self):
+        self.assertFalse(self.api.append_capture(str(self.root), "  ")["ok"])
+        self.assertFalse(self.api.append_capture(str(self.root), "x", "../evil.md")["ok"])
+        self.assertFalse(self.api.append_capture(str(self.root), "x", "a\\b.md")["ok"])
+        self.assertFalse(self.api.append_capture("", "x")["ok"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

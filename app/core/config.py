@@ -44,6 +44,8 @@ DEFAULTS: dict[str, Any] = {
     "daily_note_folder": "日记",
     # 编辑区缩放百分比（Ctrl+= / Ctrl+- / Ctrl+0）
     "editor_zoom": 100,
+    # Typora 式可读宽度：正文限制最大行宽，居中排版
+    "readable_width": False,
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,

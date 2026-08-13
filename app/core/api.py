@@ -728,7 +728,13 @@ class Api:
         except OSError as e:
             return {"ok": False, "exists": False, "error": str(e)}
 
-    def vault_index(self, folder: str = "", kind: str = "tasks", query: str = "") -> dict[str, Any]:
+    def vault_index(
+        self,
+        folder: str = "",
+        kind: str = "tasks",
+        query: str = "",
+        path: str = "",
+    ) -> dict[str, Any]:
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹", "items": []}
@@ -741,6 +747,8 @@ class Api:
             return vault_search.list_broken_wikilinks(root, query)
         if k in ("orphans", "orphan"):
             return vault_search.list_orphans(root, query)
+        if k in ("mentions", "unlinked"):
+            return vault_search.list_unlinked_mentions(root, path or "", query)
         return {"ok": False, "error": "未知索引类型", "items": []}
 
     def vault_stats(self, folder: str = "") -> dict[str, Any]:
@@ -748,6 +756,54 @@ class Api:
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹"}
         return vault_search.vault_stats(root)
+
+    def append_capture(
+        self,
+        folder: str = "",
+        text: str = "",
+        name: str = "收集箱.md",
+    ) -> dict[str, Any]:
+        """把一段文字追加到仓库根的收集箱（默认「收集箱.md」）。"""
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹"}
+        body = (text or "").strip()
+        if not body:
+            return {"ok": False, "error": "收集内容不能为空"}
+        if len(body) > 8000:
+            return {"ok": False, "error": "内容过长"}
+        raw = (name or "收集箱.md").strip() or "收集箱.md"
+        if any(sep in raw for sep in ("/", "\\", ":")) or raw in (".", ".."):
+            return {"ok": False, "error": "文件名不合法"}
+        if any(ord(c) < 32 for c in raw):
+            return {"ok": False, "error": "文件名不合法"}
+        if not raw.lower().endswith(tuple(MD_EXTS)):
+            raw += ".md"
+        dest = Path(root) / raw
+        try:
+            dest.resolve().relative_to(Path(root).resolve())
+        except (OSError, ValueError):
+            return {"ok": False, "error": "文件名不合法"}
+        if dest.exists() and not dest.is_file():
+            return {"ok": False, "error": "目标不是文件"}
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        block = f"\n## {stamp}\n\n{body}\n"
+        try:
+            if dest.is_file():
+                existing = dest.read_text(encoding="utf-8", errors="replace")
+                dest.write_text(existing.rstrip() + "\n" + block, encoding="utf-8")
+            else:
+                dest.write_text("# " + dest.stem + "\n" + block, encoding="utf-8")
+            self._maybe_cloud_push(str(dest))
+            st = dest.stat()
+            return {
+                "ok": True,
+                "path": str(dest),
+                "name": dest.name,
+                "mtime": st.st_mtime,
+            }
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
 
     def save_image(
         self,

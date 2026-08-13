@@ -794,6 +794,27 @@ CASES = [
          setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T59 可读宽度:开关后 editor-wrap 带 class",
+         setup="window.App.applyReadable(true, true);",
+         sleep=0.3,
+         js="document.getElementById('editor-wrap').classList.contains('readable-width')",
+         setup2="window.App.applyReadable(false, true);",
+         sleep2=0.3,
+         js2="!document.getElementById('editor-wrap').classList.contains('readable-width')"),
+
+    dict(name="T60 命令面板含转到行与可读宽度",
+         setup="window.Palette.openCommands();",
+         sleep=0.5,
+         js=("(function(){var t=document.getElementById('pal-list').textContent;"
+             "if(t.indexOf(" + JV("转到行") + ")<0)return 'no goto';"
+             "if(t.indexOf(" + JV("可读宽度") + ")<0)return 'no readable';"
+             "if(t.indexOf(" + JV("快速收集") + ")<0)return 'no capture';"
+             "if(t.indexOf(" + JV("折叠全部目录") + ")<0)return 'no fold';"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
 ]
 
 

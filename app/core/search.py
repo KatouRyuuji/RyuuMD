@@ -516,6 +516,62 @@ def list_orphans(root: str, query: str = "", max_hits: int = MAX_HITS) -> dict[s
     return {"ok": True, "items": items, "truncated": truncated}
 
 
+def _plain_has_stem(plain: str, stem: str) -> bool:
+    """去掉双链后，正文是否仍出现笔记名（未链接提及）。"""
+    if not stem:
+        return False
+    hay = plain.lower()
+    needle = stem.lower()
+    if re.fullmatch(r"[A-Za-z0-9_-]+", stem):
+        return re.search(
+            r"(?<![A-Za-z0-9_])" + re.escape(needle) + r"(?![A-Za-z0-9_])",
+            hay,
+        ) is not None
+    return needle in hay
+
+
+def list_unlinked_mentions(
+    root: str,
+    path: str,
+    query: str = "",
+    max_hits: int = MAX_HITS,
+) -> dict[str, Any]:
+    """其它笔记里出现当前文件名、但未写成 `[[wikilink]]` 的明文提及。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "items": []}
+    if not (path or "").strip():
+        return {"ok": False, "error": "请先打开一篇笔记", "items": []}
+    target = Path(path)
+    stem = target.stem.strip()
+    if len(stem) < 2:
+        return {"ok": True, "items": [], "truncated": False}
+    want = os.path.normcase(str(target))
+    q = (query or "").strip().lower()
+    items: list[dict[str, Any]] = []
+    truncated = False
+    for p, text in _iter_notes(root_p):
+        if os.path.normcase(str(p)) == want:
+            continue
+        for i, line in _iter_source_lines(text):
+            plain = WIKI_RE.sub(" ", line)
+            plain = MD_LINK_RE.sub(" ", plain)
+            if not _plain_has_stem(plain, stem):
+                continue
+            if q and q not in plain.lower() and q not in p.name.lower():
+                continue
+            items.append(_hit(
+                root_p, p, kind="mention", title=p.stem,
+                line=i, snippet=line.strip(), badge="提及",
+            ))
+            if len(items) >= max_hits:
+                truncated = True
+                break
+        if truncated:
+            break
+    return {"ok": True, "items": items, "truncated": truncated}
+
+
 def vault_stats(root: str) -> dict[str, Any]:
     """仓库规模速览（受索引预算限制）。"""
     root_p = Path(root)

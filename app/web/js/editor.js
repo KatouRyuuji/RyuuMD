@@ -344,12 +344,16 @@
     const lines = md.split("\n");
     const idx = Math.min(n, lines.length) - 1;
     const hint = (lines[idx] || "").trim();
-    if (!hint) return false;
-    try {
-      return window.find(hint.slice(0, 80), false, false, true, false, true, false);
-    } catch (e) {
-      return false;
+    if (hint) {
+      try {
+        if (window.find(hint.slice(0, 80), false, false, true, false, true, false)) return true;
+      } catch (e) { /* ignore */ }
     }
+    const el = activePanel();
+    if (!el) return false;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max > 0) el.scrollTop = Math.round((idx / Math.max(lines.length - 1, 1)) * max);
+    return true;
   }
 
   function getScrollRatio() {

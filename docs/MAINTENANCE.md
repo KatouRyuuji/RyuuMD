@@ -8,7 +8,7 @@
 
 | 路径 | 内容 | 可否删除 |
 | --- | --- | --- |
-| `%APPDATA%\RyuuMD\config.json` | 全部配置：偏好、仓库列表、最近记录、会话、窗口尺寸、**云同步账号（含密码）** | 可，删后回默认（不影响笔记文件） |
+| `%APPDATA%\RyuuMD\config.json` | 全部配置：偏好、仓库列表、最近记录、会话、窗口尺寸、编辑区缩放、可读宽度、**云同步账号（含密码）** | 可，删后回默认（不影响笔记文件） |
 | `%APPDATA%\RyuuMD\cloud-state.json` | 云同步指纹（相对路径 → sha/mtime），用于三路比对 | 可，删后下次按内容重新对齐 |
 | `%APPDATA%\RyuuMD\instance.json` | 单实例锁（端口+token），运行时存在 | 运行中勿删；异常残留可删 |
 | `%APPDATA%\RyuuMD\默认应用验证.md` | 「设为默认」流程生成的验证文档 | 可随时删 |
@@ -88,7 +88,7 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 ## 4. 测试与质量门禁
 
 ```bash
-python run_tests.py     # 单测 102 + E2E 60，全绿才可发布
+python run_tests.py     # 单测 105 + E2E 62，全绿才可发布
 ```
 
 E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
