@@ -10,9 +10,10 @@
   let editor = null;       // Vditor 实例
   let style = "notion";    // 当前操作风格
   let open = false;
-  let mode = "slash";      // slash（带 / 查询）| context（右键）
+  let mode = "slash";      // slash（带 / 查询）| context（右键）| wiki（[[ 查询）
   let items = [];          // 当前过滤结果
   let activeIdx = 0;
+  let wikiSeq = 0;
 
   function setEditor(ed) { editor = ed; }
   function setStyle(s) { style = s === "wolai" ? "wolai" : "notion"; }
@@ -33,9 +34,6 @@
     const node = range.startContainer;
     if (node.nodeType !== Node.TEXT_NODE) return null;
     const before = node.textContent.slice(0, range.startOffset);
-    // "/" 位于行首或空白/引用符之后，后跟非空白非斜杠串（允许中英文字母数字）
-    const m = before.match(/(?:^|[\s>])\/([^\s/]*)$/);
-    if (!m) return null;
     let rect = range.getBoundingClientRect();
     if (!rect || (rect.top === 0 && rect.left === 0)) {
       const r2 = range.cloneRange();
@@ -43,7 +41,14 @@
       const rects = r2.getClientRects();
       if (rects.length) rect = rects[0];
     }
-    return { query: m[1], deleteLen: m[1].length + 1, rect };
+    const wiki = before.match(/\[\[([^\]]*)$/);
+    if (wiki) {
+      return { kind: "wiki", query: wiki[1], deleteLen: wiki[0].length, rect };
+    }
+    // "/" 位于行首或空白/引用符之后，后跟非空白非斜杠串（允许中英文字母数字）
+    const m = before.match(/(?:^|[\s>])\/([^\s/]*)$/);
+    if (!m) return null;
+    return { kind: "slash", query: m[1], deleteLen: m[1].length + 1, rect };
   }
 
   function render() {
@@ -104,6 +109,53 @@
     if (!items.length) { close(); return; }
     activeIdx = 0;
     mode = "slash";
+    render();
+    menu.classList.add("open");
+    open = true;
+    position(ctx.rect, true);
+  }
+
+  async function showWiki(ctx) {
+    const my = ++wikiSeq;
+    mode = "wiki";
+    let files = [];
+    if (window.App && window.App.listVaultFiles) {
+      try { files = await window.App.listVaultFiles(ctx.query); } catch (e) { files = []; }
+    }
+    if (my !== wikiSeq) return;
+    const q = (ctx.query || "").trim();
+    items = (files || []).slice(0, 40).map((f) => ({
+      id: "wiki-" + f.path,
+      icon: "fileText",
+      title: f.stem || f.name,
+      desc: f.rel || "",
+      group: "笔记",
+      keys: "[[ ]]",
+      wikiInsert: "[[" + (f.stem || f.name.replace(/\.md$/i, "")) + "]]",
+    }));
+    if (q && !items.some((it) => it.title.toLowerCase() === q.toLowerCase())) {
+      items.unshift({
+        id: "wiki-new",
+        icon: "plus",
+        title: "插入 [[" + q + "]]",
+        desc: "尚未创建的笔记，单击链接时可新建",
+        group: "笔记",
+        keys: "[[ ]]",
+        wikiInsert: "[[" + q + "]]",
+      });
+    }
+    if (!items.length) {
+      items = [{
+        id: "wiki-empty",
+        icon: "wiki",
+        title: "插入双向链接",
+        desc: "输入笔记名进行过滤",
+        group: "笔记",
+        keys: "[[ ]]",
+        wikiInsert: "[[]]",
+      }];
+    }
+    activeIdx = 0;
     render();
     menu.classList.add("open");
     open = true;
@@ -174,7 +226,7 @@
   /* 插入选中命令；slash 模式先删除已键入的 "/查询"；剪贴板伪命令走 doClipboard */
   function choose() {
     const cmd = items[activeIdx];
-    const wasSlash = mode === "slash";
+    const wasSlash = mode === "slash" || mode === "wiki";
     const ctx = wasSlash ? caretContext() : null;
     if (!cmd || cmd.disabled) return; // 禁用项不响应、不关菜单
     close();
@@ -188,7 +240,8 @@
     }
     if (editor) {
       editor.focus();
-      window.runCommand(cmd, editor);
+      if (cmd.wikiInsert != null) editor.insertValue(cmd.wikiInsert, true);
+      else window.runCommand(cmd, editor);
     }
   }
 
@@ -196,8 +249,9 @@
   function onInput() {
     if (mode === "context" && open) return;
     const ctx = caretContext();
-    if (ctx) showSlash(ctx);
-    else if (open && mode === "slash") close();
+    if (ctx && ctx.kind === "wiki") showWiki(ctx);
+    else if (ctx) showSlash(ctx);
+    else if (open && (mode === "slash" || mode === "wiki")) close();
   }
 
   /* 上下导航：跳过禁用项（如无选区时的复制/剪切） */
@@ -258,7 +312,9 @@
       }
     });
     document.addEventListener("focusout", (e) => {
-      if (inEditor(e.target)) setTimeout(() => { if (open && mode === "slash") close(); }, 150);
+      if (inEditor(e.target)) setTimeout(() => {
+        if (open && (mode === "slash" || mode === "wiki")) close();
+      }, 150);
     });
   }
 

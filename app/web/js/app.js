@@ -30,6 +30,7 @@
     bindModeBar();
     bindShortcuts();
     bindDragDrop();
+    bindPasteImages();
 
     // 后端通道兜底：js_api 注入失败/超时不得拖死 boot，降级默认配置继续，
     // 保证 UI 可交互；功能调用处另有 apiOrToast 给出明确提示而非静默失败。
@@ -72,12 +73,32 @@
       outline: (hs) => window.Sidebar.renderOutline(hs),
       onReady: afterEditorReady,
       modeChange: (m) => syncModeButtons(m),
+      docDir: () => state.currentPath ? dirname(state.currentPath) : "",
+    });
+
+    window.Palette.init({
+      commands: appCommands,
+      listFiles: async (q) => {
+        const a = api();
+        if (!a || !a.list_md_files) return { items: [] };
+        return a.list_md_files(state.currentFolder || "", q || "");
+      },
+      search: async (q) => {
+        const a = api();
+        if (!a || !a.search_vault) return { hits: [] };
+        return a.search_vault(state.currentFolder || "", q || "");
+      },
+      onPickFile: (it) => { if (it && it.path) openFileByPath(it.path); },
+      onPickHit: (it) => { if (it && it.path) openFileByPath(it.path); },
     });
   }
 
   // 后端不可用时的最小配置（welcome_shown=true：异常时不再弹欢迎窗添乱）
   function defaultConfig() {
-    return { theme: "light", operation_style: "notion", display_mode: "ir", welcome_shown: true };
+    return {
+      theme: "light", operation_style: "notion", display_mode: "ir",
+      welcome_shown: true, auto_save: true, daily_note_folder: "日记",
+    };
   }
 
   function waitForApi() {
@@ -217,15 +238,17 @@
     loadRecent(); // 后端已在 list_folder 记录，刷新最近列表（fire-and-forget）
   }
 
-  async function save() {
+  async function save(opts) {
+    const silent = opts && opts.silent;
     const a = apiOrToast();
     if (!a) return;
     const content = window.Editor.getValue();
     if (state.currentPath) {
       const res = await a.save_file(state.currentPath, content);
-      if (res.ok) { markSaved(content); toast("已保存"); loadRecent(); }
+      if (res.ok) { markSaved(content); if (!silent) toast("已保存"); loadRecent(); }
       else toast("保存失败：" + (res.error || ""));
     } else {
+      if (silent) return; // 未保存新文档不自动弹另存对话框
       const res = await a.save_file_dialog(content, "未命名.md");
       if (res.ok) {
         state.currentPath = res.path;
@@ -292,11 +315,22 @@
   // 编辑变化
   // ---------------------------------------------------------------
   // now 由编辑器防抖回调传入已序列化的全文，避免这里再 getValue 一次（大文档开销大）
+  let autoSaveTimer = null;
   function onEditorChange(now) {
     if (now == null) now = window.Editor.getValue();
     state.dirty = now !== state.lastSaved;
     updateDocName();
     updateCount(now);
+    scheduleAutoSave();
+  }
+
+  function scheduleAutoSave() {
+    clearTimeout(autoSaveTimer);
+    if (!state.config || state.config.auto_save === false) return;
+    if (!state.currentPath || !state.dirty) return;
+    autoSaveTimer = setTimeout(() => {
+      if (state.dirty && state.currentPath) save({ silent: true });
+    }, 1800);
   }
 
   function updateCount(text) {
@@ -350,6 +384,7 @@
     on("btn-open-file", openFile);
     on("btn-new", newDoc);
     on("btn-save", save);
+    on("btn-search", () => window.Palette.openSearch());
     on("btn-theme", toggleTheme);
     on("btn-settings", openSettings);
     on("btn-clear-recent", clearRecent);
@@ -447,10 +482,15 @@
 
   function bindShortcuts() {
     window.addEventListener("keydown", (e) => {
-      // Esc 关闭首页（弹窗打开时让弹窗自己处理）
-      if (e.key === "Escape" && window.Home.isOpen()
-          && !document.querySelector(".modal-mask.open")) {
-        window.Home.hide();
+      if (e.key === "Escape") {
+        if (window.Palette && window.Palette.isOpen()) return;
+        if (window.FindBar && window.FindBar.isOpen()) {
+          window.FindBar.close();
+          return;
+        }
+        if (window.Home.isOpen() && !document.querySelector(".modal-mask.open")) {
+          window.Home.hide();
+        }
         return;
       }
       const mod = e.ctrlKey || e.metaKey;
@@ -459,6 +499,20 @@
       if (k === "s") { e.preventDefault(); save(); }
       else if (k === "o") { e.preventDefault(); openFile(); }
       else if (k === "n") { e.preventDefault(); newDoc(); }
+      else if (k === "p") {
+        e.preventDefault();
+        if (e.shiftKey) window.Palette.openCommands();
+        else window.Palette.openFiles();
+      }
+      else if (k === "f") {
+        e.preventDefault();
+        if (e.shiftKey) window.Palette.openSearch();
+        else window.FindBar.open();
+      }
+      else if (k === "d" && e.shiftKey) {
+        e.preventDefault();
+        openDailyNote();
+      }
       else if (k === "b" && e.shiftKey) {
         e.preventDefault();
         document.getElementById("sidebar").classList.toggle("collapsed");
@@ -527,6 +581,13 @@
         e.preventDefault();
         e.stopPropagation();
         if (!dt.files || !dt.files.length) return;
+        const dropped = Array.prototype.slice.call(dt.files);
+        if (dropped.length && dropped.every(isImageFile)) {
+          saveImages(dropped).then((md) => {
+            if (md) window.Editor.insertValue(md);
+          });
+          return;
+        }
         // WebView2 不在 JS File 上暴露本地路径。经 AdditionalObjects 把真实 File
         // 回传原生层：pywebview 收到 "FilesDropped" 后把路径暂存 _dnd_state['paths']
         // （该通道要求 _dnd_state['num_listeners']>0，见 main.py _bind_drop），
@@ -563,6 +624,169 @@
     await openPath(path);
   }
   window.__openDroppedPath = openDroppedPath;
+
+  function isImageFile(f) {
+    if (!f) return false;
+    if (f.type && f.type.indexOf("image/") === 0) return true;
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name || "");
+  }
+
+  function fileToB64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const s = String(r.result || "");
+        const i = s.indexOf(",");
+        resolve(i >= 0 ? s.slice(i + 1) : s);
+      };
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  function bindPasteImages() {
+    document.addEventListener("paste", (e) => {
+      const host = document.getElementById("editor");
+      if (!host || !e.target || !host.contains(e.target)) return;
+      const files = [];
+      const cd = e.clipboardData;
+      if (cd && cd.files) {
+        for (let i = 0; i < cd.files.length; i++) {
+          if (isImageFile(cd.files[i])) files.push(cd.files[i]);
+        }
+      }
+      if (!files.length && cd && cd.items) {
+        for (let i = 0; i < cd.items.length; i++) {
+          const it = cd.items[i];
+          if (it.type && it.type.indexOf("image/") === 0) {
+            const f = it.getAsFile();
+            if (f) files.push(f);
+          }
+        }
+      }
+      if (!files.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      saveImages(files).then((md) => { if (md) window.Editor.insertValue(md); });
+    }, true);
+  }
+
+  async function saveImages(files) {
+    const a = apiOrToast();
+    if (!a || !a.save_image) return "";
+    if (!state.currentPath && !state.currentFolder) {
+      toast("请先保存文档或打开仓库，再插入图片");
+      return "";
+    }
+    let md = "";
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!isImageFile(f)) continue;
+      let b64;
+      try { b64 = await fileToB64(f); } catch (err) { toast("读取图片失败"); return md; }
+      const res = await a.save_image(
+        state.currentPath || "", state.currentFolder || "",
+        f.name || "image.png", b64, f.type || ""
+      );
+      if (!res.ok) { toast(res.error || "图片保存失败"); return md; }
+      md += "![" + (res.name || "") + "](" + res.rel + ")\n";
+    }
+    if (md) setTimeout(() => { if (window.Editor.enhanceRendered) window.Editor.enhanceRendered(); }, 80);
+    return md;
+  }
+
+  async function listVaultFiles(query) {
+    const a = api();
+    if (!a || !a.list_md_files) return [];
+    const res = await a.list_md_files(state.currentFolder || "", query || "");
+    return (res && res.items) || [];
+  }
+
+  async function openWikilink(name) {
+    const a = apiOrToast();
+    if (!a || !a.resolve_wikilink) return;
+    const res = await a.resolve_wikilink(state.currentFolder || "", name, state.currentPath || "");
+    if (!res.ok) { toast(res.error || "无法解析链接"); return; }
+    if (res.exists) {
+      openFileByPath(res.path);
+      return;
+    }
+    if (!window.confirm("笔记「" + name + "」不存在，是否创建？")) return;
+    const suggested = res.suggested || "";
+    const folder = dirname(suggested) || state.currentFolder || "";
+    const fname = basename(suggested).replace(/\.md$/i, "");
+    const created = await a.new_file(folder, fname);
+    if (!created.ok) { toast(created.error || "创建失败"); return; }
+    const file = await a.read_file(created.path);
+    if (file.ok) loadDoc(file);
+    refreshFolder();
+  }
+
+  function openRelLink(href) {
+    const h = decodeURIComponent((href || "").split("#")[0].trim());
+    if (!h) return;
+    if (/\.(md|markdown|mdown|mkd|mdx)$/i.test(h) || !/\.[a-z0-9]+$/i.test(h)) {
+      openWikilink(h);
+    }
+  }
+
+  function openExternal(url) {
+    const a = api();
+    if (a && a.open_external) a.open_external(url);
+  }
+
+  async function openDailyNote() {
+    const a = apiOrToast();
+    if (!a || !a.open_daily_note) return;
+    if (!(await maybeConfirmDiscard())) return;
+    const res = await a.open_daily_note(state.currentFolder || "", (state.config && state.config.daily_note_folder) || "");
+    if (!res.ok) { toast(res.error || "无法打开日记"); return; }
+    loadDoc(res);
+    refreshFolder();
+  }
+
+  async function exportHtml() {
+    const a = apiOrToast();
+    if (!a || !a.save_html_dialog) return;
+    const html = window.Editor.getHTML ? window.Editor.getHTML() : "";
+    const name = (state.currentPath ? basename(state.currentPath).replace(/\.md$/i, "") : "导出") + ".html";
+    const res = await a.save_html_dialog(html, name);
+    if (res.ok) toast("已导出：" + basename(res.path));
+    else if (!res.cancelled) toast("导出失败：" + (res.error || ""));
+  }
+
+  function toggleFocus() {
+    const on = window.Editor.toggleFocusMode();
+    const side = document.getElementById("sidebar");
+    if (on) {
+      state._sideBeforeFocus = side.classList.contains("collapsed");
+      side.classList.add("collapsed");
+    } else if (state._sideBeforeFocus === false) {
+      side.classList.remove("collapsed");
+    }
+    toast(on ? "已进入专注模式" : "已退出专注模式");
+  }
+
+  function appCommands() {
+    return [
+      { id: "save", title: "保存", keys: "Ctrl+S", group: "文件", run: save },
+      { id: "new", title: "新建文档", keys: "Ctrl+N", group: "文件", run: newDoc },
+      { id: "open", title: "打开文件", keys: "Ctrl+O", group: "文件", run: openFile },
+      { id: "open-folder", title: "打开文件夹", keys: "", group: "文件", run: openFolder },
+      { id: "daily", title: "今日日记", keys: "Ctrl+Shift+D", group: "文件", run: openDailyNote },
+      { id: "export", title: "导出 HTML", keys: "", group: "文件", run: exportHtml },
+      { id: "quick-open", title: "快速打开笔记", keys: "Ctrl+P", group: "导航", run: () => window.Palette.openFiles() },
+      { id: "search", title: "在仓库中搜索", keys: "Ctrl+Shift+F", group: "导航", run: () => window.Palette.openSearch() },
+      { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => window.Home.toggle() },
+      { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
+      { id: "theme", title: "切换主题", keys: "", group: "视图", run: toggleTheme },
+      { id: "focus", title: "专注模式", keys: "", group: "视图", run: toggleFocus },
+      { id: "ir", title: "渲染模式", keys: "", group: "视图", run: () => { window.Editor.setMode("ir"); syncModeButtons("ir"); applyConfig({ display_mode: "ir" }); } },
+      { id: "sv", title: "源码模式", keys: "", group: "视图", run: () => { window.Editor.setMode("sv"); syncModeButtons("sv"); applyConfig({ display_mode: "sv" }); } },
+      { id: "settings", title: "设置", keys: "", group: "应用", run: openSettings },
+      { id: "cloud", title: "立即云同步", keys: "", group: "应用", run: runCloudSync },
+    ];
+  }
 
   // ---------------------------------------------------------------
   // 文件管理（侧栏右键菜单：重命名 / 移动 / 删除真实磁盘文件）
@@ -685,6 +909,12 @@
     return p.split(/[\\/]/).pop();
   }
 
+  function dirname(p) {
+    if (!p) return "";
+    const i = Math.max(p.lastIndexOf("\\"), p.lastIndexOf("/"));
+    return i >= 0 ? p.slice(0, i) : "";
+  }
+
   // 注入 HTML 前转义（文件路径/名称是用户数据）
   function esc(s) {
     return String(s == null ? "" : s)
@@ -720,6 +950,13 @@
     toast,
     showWelcome: runWelcome,
     syncCloud: runCloudSync,
+    listVaultFiles,
+    openWikilink,
+    openRelLink,
+    openExternal,
+    openDailyNote,
+    exportHtml,
+    toggleFocus,
   };
 
   let booted = false;

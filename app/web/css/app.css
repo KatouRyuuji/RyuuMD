@@ -575,10 +575,17 @@ body {
   color: var(--text-secondary);
   margin-top: 2px;
 }
-.setting-row.stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
+.write-panel {
+  padding: 4px 2px 14px;
+}
+.write-panel .label {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.write-panel .desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0 8px;
 }
 
 .toggle {

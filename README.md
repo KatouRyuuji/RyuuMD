@@ -16,6 +16,11 @@
   （Win10/11 合规方式，无需管理员权限）。
 - **可选云同步**：官方不提供云端。在设置中填写自己的 WebDAV（坚果云 / Nextcloud / 群晖 / AList 等），
   勾选「启用云同步」后生效；可按仓库开启，或勾选「同步全部仓库」。笔记仍保存在本地。
+- **快速打开 / 命令面板 / 全文搜索**：`Ctrl+P` 打开当前仓库笔记，`Ctrl+Shift+P` 运行命令，
+  `Ctrl+Shift+F` 搜索文件名与正文（对标 Obsidian / VS Code）。
+- **粘贴即图**：粘贴或拖入图片落到 `{文件名}.assets/`（Typora 同款），正文插入相对路径并正确显示。
+- **双向链接**：`[[笔记名]]`，Ctrl+单击或点击已高亮链接即可跳转；键入 `[[` 可过滤仓库笔记。
+- **每日笔记 / 自动保存 / 专注模式 / 导出 HTML**：`Ctrl+Shift+D` 打开今日日记；已保存文档停止输入后自动写盘；命令面板可开关专注模式、导出独立 HTML。
 - **斜杠命令菜单**：按 `/` 唤起，上下箭头选择，`Tab`/`Enter` 插入（Notion 风格）；
   编辑区右键唤起同一面板，顶部带**剪贴板组**（复制/剪切/粘贴，无选区时前两项置灰）。
   支持 1~6 级标题、图片、脚注、链接、分割线、表格、代码块、公式块、内容目录、引用、加粗、斜体、有序/无序/待办列表。
@@ -77,6 +82,11 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 | 保存 | `Ctrl+S` |
 | 打开文件 | `Ctrl+O` |
 | 新建 | `Ctrl+N` |
+| 快速打开笔记 | `Ctrl+P` |
+| 命令面板 | `Ctrl+Shift+P` |
+| 仓库全文搜索 | `Ctrl+Shift+F` |
+| 本文查找 | `Ctrl+F` |
+| 今日日记 | `Ctrl+Shift+D` |
 | 切换侧栏 | `Ctrl+Shift+B` |
 | 首页 | `Ctrl+Shift+H`（`Esc` 关闭） |
 | 唤起命令菜单 | `/` |
@@ -87,7 +97,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（76 项），再跑真实窗口端到端测试（44 项）。
+先跑 Python API 单元测试（89 项），再跑真实窗口端到端测试（52 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 

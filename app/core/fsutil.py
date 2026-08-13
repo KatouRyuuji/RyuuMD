@@ -15,6 +15,20 @@ IGNORE_DIRS = {
     "node_modules", "__pycache__", "venv", "dist", "build", "target",
 }
 
+# 粘贴/拖入图片允许的扩展名（与 Typora 常见配图一致）
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
+
+
+def skip_dir_name(name: str) -> bool:
+    """目录扫描是否跳过：隐藏目录、依赖目录、Typora 式 `*.assets` 配图目录。"""
+    if not name:
+        return True
+    if name.startswith(".") or name in IGNORE_DIRS:
+        return True
+    if name.endswith(".assets"):
+        return True
+    return False
+
 
 def count_md_files(root: str, budget: int = 800, max_depth: int = 5) -> tuple[int, bool]:
     """快速统计目录下 markdown 文件数（供首页仓库卡片展示）。
@@ -33,7 +47,7 @@ def count_md_files(root: str, budget: int = 800, max_depth: int = 5) -> tuple[in
                     if count >= budget:
                         return count, True
                     if entry.is_dir(follow_symlinks=False):
-                        if entry.name.startswith(".") or entry.name in IGNORE_DIRS:
+                        if skip_dir_name(entry.name):
                             continue
                         if depth < max_depth:
                             stack.append((entry.path, depth + 1))

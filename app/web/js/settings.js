@@ -62,6 +62,18 @@
           </div>
           <div class="setting-row">
             <div>
+              <div class="label">自动保存</div>
+              <div class="desc">已保存的文档在停止输入后自动写盘</div>
+            </div>
+            <button type="button" class="toggle" id="set-autosave" title="自动保存"></button>
+          </div>
+          <div class="write-panel">
+            <div class="label">日记目录</div>
+            <div class="desc">相对当前仓库，每日笔记保存为 YYYY-MM-DD.md</div>
+            <input class="field-input" id="set-daily-folder" placeholder="日记" spellcheck="false" />
+          </div>
+          <div class="setting-row">
+            <div>
               <div class="label">启用云同步</div>
               <div class="desc">官方不提供云端，勾选后使用你自己的 WebDAV</div>
             </div>
@@ -105,6 +117,7 @@
       if (window.App && window.App.showWelcome) window.App.showWelcome();
     });
     bindDefaultApp();
+    bindAutoSave();
     bindCloud();
     syncActive();
   }
@@ -152,6 +165,29 @@
     });
 
     refreshState();
+  }
+
+  function bindAutoSave() {
+    const tog = document.getElementById("set-autosave");
+    const daily = document.getElementById("set-daily-folder");
+    function setOn(on) {
+      tog.classList.toggle("on", on);
+      tog.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    setOn(cfg.auto_save !== false);
+    tog.addEventListener("click", () => {
+      const next = !tog.classList.contains("on");
+      setOn(next);
+      cfg.auto_save = next;
+      if (onApply) onApply({ auto_save: next });
+    });
+    daily.value = cfg.daily_note_folder || "日记";
+    daily.addEventListener("change", () => {
+      const v = daily.value.trim() || "日记";
+      daily.value = v;
+      cfg.daily_note_folder = v;
+      if (onApply) onApply({ daily_note_folder: v });
+    });
   }
 
   function cloudCfg() {

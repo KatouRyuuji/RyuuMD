@@ -19,13 +19,15 @@
   let changeCb = null;
   let outlineCb = null;
   let onModeChange = null;
+  let getDocDir = null;    // () => 当前文档目录，用于相对图片转 file://
 
-  function init({ theme, change, outline, onReady, mode, modeChange }) {
+  function init({ theme, change, outline, onReady, mode, modeChange, docDir }) {
     onChange = change;
     onOutline = outline;
     changeCb = change;
     outlineCb = outline;
     onModeChange = modeChange;
+    getDocDir = docDir || null;
     curTheme = theme === "dark" ? "dark" : "light";
     curMode = mode === "sv" ? "sv" : "ir";
     build(onReady);
@@ -60,6 +62,7 @@
           window.SlashMenu.attach();
         }
         bindCheckboxGuard();
+        bindEditorClicks();
         if (onReady) onReady();
       },
       input: () => {
@@ -91,6 +94,7 @@
             try { vditor.setValue(pv); } catch (e) { /* ignore */ }
           }
           bindCheckboxGuard();
+          bindEditorClicks();
           if (onReady) onReady();
         } else if (n > 150) { // ~15s 放弃,避免无限轮询
           clearInterval(guard);
@@ -178,6 +182,7 @@
       // 把取到的值传给消费方，避免各处再各自 getValue 重复序列化
       if (onChange) onChange(v);
       updateOutline(v);
+      enhanceRendered();
     }, changeDelay);
   }
 
@@ -227,6 +232,7 @@
     setTimeout(() => {
       applyPos(); // Vditor 渲染/聚焦可能异步改动滚动，再置一次
       updateOutline(md || "");
+      enhanceRendered();
       if (window.SlashMenu) window.SlashMenu.attach();
     }, 60);
     // 图片/公式异步撑高内容后再校正一次（仅还原场景需要）
@@ -269,6 +275,144 @@
     if (vditor && ready) vditor.focus();
   }
 
+  function insertValue(text) {
+    if (!vditor || !ready || text == null) return;
+    try {
+      vditor.focus();
+      vditor.insertValue(String(text), true);
+    } catch (e) { /* ignore */ }
+  }
+
+  function getHTML() {
+    if (!vditor || !ready) return "";
+    try { return vditor.getHTML() || ""; } catch (e) { return ""; }
+  }
+
+  /* 相对路径图片在 file:// 应用页下会指到 app/web/，改写为当前文档目录的绝对 file URL。 */
+  function toFileUrl(abs) {
+    let p = String(abs || "").replace(/\\/g, "/");
+    if (!p) return "";
+    if (/^[a-zA-Z]:/.test(p)) p = "/" + p;
+    return "file://" + encodeURI(p).replace(/#/g, "%23");
+  }
+
+  function resolveRel(baseDir, rel) {
+    const left = String(baseDir || "").replace(/\\/g, "/").split("/").filter(Boolean);
+    // Windows 盘符段（C:）必须保留
+    const drive = String(baseDir || "").match(/^([a-zA-Z]:)/);
+    String(rel || "").replace(/\\/g, "/").split("/").forEach((seg) => {
+      if (!seg || seg === ".") return;
+      if (seg === "..") { if (left.length && !/^[a-zA-Z]:$/.test(left[left.length - 1])) left.pop(); }
+      else left.push(seg);
+    });
+    if (drive && left[0] !== drive[1]) left.unshift(drive[1]);
+    return left.join("\\");
+  }
+
+  function enhanceRendered() {
+    if (curMode !== "ir") return;
+    const el = activePanel();
+    if (!el) return;
+    rewriteMedia(el);
+    decorateWikilinks(el);
+  }
+
+  function rewriteMedia(el) {
+    const dir = getDocDir && getDocDir();
+    if (!dir) return;
+    el.querySelectorAll("img").forEach((img) => {
+      const src = img.getAttribute("src") || "";
+      if (!src || /^(https?:|data:|file:|blob:)/i.test(src)) return;
+      img.setAttribute("data-rel-src", src);
+      img.src = toFileUrl(resolveRel(dir, src));
+    });
+  }
+
+  function decorateWikilinks(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        const p = n.parentElement;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        if (p.closest("code, pre, a, .wiki-link")) return NodeFilter.FILTER_REJECT;
+        if (!n.nodeValue || n.nodeValue.indexOf("[[") < 0) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    const re = /\[\[([^\]\n]+)\]\]/g;
+    nodes.forEach((node) => {
+      const text = node.nodeValue;
+      re.lastIndex = 0;
+      if (!re.test(text)) return;
+      re.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0, m;
+      while ((m = re.exec(text))) {
+        if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const span = document.createElement("span");
+        span.className = "wiki-link";
+        span.dataset.wiki = m[1].split("|")[0].split("#")[0].trim();
+        span.textContent = m[0];
+        frag.appendChild(span);
+        last = m.index + m[0].length;
+      }
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+
+  function wikiAtPoint(e) {
+    const span = e.target.closest && e.target.closest(".wiki-link");
+    if (span && span.dataset.wiki) return span.dataset.wiki;
+    if (!(e.ctrlKey || e.metaKey)) return null;
+    if (!document.caretRangeFromPoint) return null;
+    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (!range || range.startContainer.nodeType !== Node.TEXT_NODE) return null;
+    const node = range.startContainer;
+    const text = node.textContent || "";
+    const off = range.startOffset;
+    const left = text.lastIndexOf("[[", off);
+    const right = text.indexOf("]]", off);
+    if (left < 0 || right < 0 || right < left) return null;
+    return text.slice(left + 2, right).split("|")[0].split("#")[0].trim();
+  }
+
+  let clicksBound = false;
+  function bindEditorClicks() {
+    const host = document.getElementById("editor");
+    if (!host || host.__ryuuClicks) return;
+    host.__ryuuClicks = true;
+    host.addEventListener("click", (e) => {
+      const wiki = wikiAtPoint(e);
+      if (wiki && window.App && window.App.openWikilink) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.App.openWikilink(wiki);
+        return;
+      }
+      const a = e.target.closest && e.target.closest("a");
+      if (!a) return;
+      const href = a.getAttribute("href") || "";
+      if (!href) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (/^https?:/i.test(href) || href.indexOf("mailto:") === 0) {
+        if (window.App && window.App.openExternal) window.App.openExternal(href);
+        return;
+      }
+      if (window.App && window.App.openRelLink) window.App.openRelLink(href);
+    });
+  }
+
+  function toggleFocusMode(on) {
+    const wrap = document.getElementById("editor-wrap");
+    if (!wrap) return false;
+    if (on == null) wrap.classList.toggle("focus-mode");
+    else wrap.classList.toggle("focus-mode", !!on);
+    return wrap.classList.contains("focus-mode");
+  }
+
   window.Editor = {
     init,
     setTheme,
@@ -277,8 +421,12 @@
     getMode,
     getValue,
     setValue,
+    insertValue,
+    getHTML,
     jumpTo,
     focus,
     isReady: () => ready,
+    toggleFocusMode,
+    enhanceRendered,
   };
 })();

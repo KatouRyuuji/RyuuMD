@@ -115,7 +115,7 @@ CASES = [
          js2="!window.Home.isOpen()"),
 
     dict(name="T01 启动:全局对象就绪、编辑器 ready", sleep=0,
-         js="!!(window.App&&window.Editor&&window.Sidebar&&window.Welcome&&window.Settings&&window.SlashMenu&&window.Home&&window.Editor.isReady())"),
+         js="!!(window.App&&window.Editor&&window.Sidebar&&window.Welcome&&window.Settings&&window.SlashMenu&&window.Home&&window.Palette&&window.FindBar&&window.Editor.isReady())"),
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
          js="(function(){var bs=document.querySelectorAll('#toolbar .icon-btn');return bs.length>=7&&Array.from(bs).every(function(b){var l=b.querySelector('.ib-label');return l&&l.textContent.trim().length>0;});})()"),
@@ -198,10 +198,11 @@ CASES = [
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js="document.documentElement.getAttribute('data-theme')==='light'"),
 
-    dict(name="T12 设置弹窗:打开含云同步的六行设置并可关闭",
+    dict(name="T12 设置弹窗:打开含自动保存与云同步的七行设置并可关闭",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
          js=("(function(){var m=document.getElementById('settings-mask');"
-             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===6"
+             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===7"
+             "&&document.getElementById('set-autosave')&&document.getElementById('set-daily-folder')"
              "&&document.getElementById('cloud-enabled')&&!document.getElementById('cloud-panel').classList.contains('show');})()"),
          setup2="document.getElementById('set-close').click()", sleep2=0.4,
          js2="!document.getElementById('settings-mask').classList.contains('open')"),
@@ -622,6 +623,75 @@ CASES = [
          timeout=10,
          setup2="window.Home.hide()", sleep2=0.3,
          js2="!window.Home.isOpen()"),
+
+    dict(name="T43 命令面板 Ctrl+P:打开快速打开并可 Esc 关闭",
+         setup="window.dispatchEvent(new KeyboardEvent('keydown',{key:'p',ctrlKey:true,bubbles:true}))",
+         sleep=0.4,
+         js="document.getElementById('palette-mask').classList.contains('open')&&!!document.getElementById('pal-input')",
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T44 命令面板 Ctrl+Shift+P:列出保存等应用命令",
+         setup="window.dispatchEvent(new KeyboardEvent('keydown',{key:'P',ctrlKey:true,shiftKey:true,bubbles:true}))",
+         sleep=0.5,
+         js=("(function(){var m=document.getElementById('palette-mask');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var t=document.getElementById('pal-list').textContent;"
+             "return t.indexOf(" + JV("保存") + ")>=0?true:'text='+t.slice(0,80);})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T45 工具栏搜索按钮:打开仓库搜索面板",
+         setup="document.getElementById('btn-search').click()",
+         sleep=0.4,
+         js=("(function(){var m=document.getElementById('palette-mask');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var h=document.getElementById('pal-hint').textContent;"
+             "return h.indexOf(" + JV("搜索") + ")>=0?true:'hint='+h;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T46 本文查找 Ctrl+F:查找条打开并可关闭",
+         setup="window.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}))",
+         sleep=0.3,
+         js="document.getElementById('find-bar').classList.contains('open')&&!!document.getElementById('find-input')",
+         setup2="document.getElementById('find-close').click()",
+         sleep2=0.3,
+         js2="!document.getElementById('find-bar').classList.contains('open')"),
+
+    dict(name="T47 自动保存开关默认开启",
+         setup="document.getElementById('btn-settings').click()", sleep=0.4,
+         js="document.getElementById('set-autosave').classList.contains('on')",
+         setup2="document.getElementById('set-close').click()", sleep2=0.3,
+         js2="!document.getElementById('settings-mask').classList.contains('open')"),
+
+    dict(name="T48 每日笔记 API:创建并打开当日文档",
+         setup=("window.__t48=0;"
+                "window.pywebview.api.open_daily_note('" + REPO_JS + "'," + JV("日记") + ").then(function(r){"
+                "window.__t48=r&&r.ok&&r.content?1:-1;window.__t48path=r&&r.path;});"),
+         sleep=0.8,
+         js="window.__t48===1?true:'t48='+window.__t48",
+         timeout=10),
+
+    dict(name="T49 insertValue 与 getHTML 可用",
+         setup="window.Editor.setValue(" + JV("# 导出测试\n\n正文") + ")",
+         sleep=0.8,
+         js=("(function(){window.Editor.insertValue('\\n\\nINSERT-E2E');"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('INSERT-E2E')<0)return 'no insert:'+v.slice(0,40);"
+             "var h=window.Editor.getHTML();"
+             "return (typeof h==='string')?true:'html='+typeof h;})()")),
+
+    dict(name="T50 专注模式:切换 editor-wrap 类名",
+         setup="window.Editor.toggleFocusMode(true)",
+         sleep=0.2,
+         js="document.getElementById('editor-wrap').classList.contains('focus-mode')",
+         setup2="window.Editor.toggleFocusMode(false)",
+         sleep2=0.2,
+         js2="!document.getElementById('editor-wrap').classList.contains('focus-mode')"),
 ]
 
 

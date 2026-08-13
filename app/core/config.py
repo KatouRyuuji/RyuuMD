@@ -38,6 +38,10 @@ DEFAULTS: dict[str, Any] = {
     "home_view": "card",
     # 启动页：home = 始终显示首页（默认），restore = 恢复上次会话（无会话则进首页）
     "startup_page": "home",
+    # 已保存文档在停止输入后自动写盘（Typora / Joplin 同款；未保存的新文档不弹框）
+    "auto_save": True,
+    # 每日笔记子目录（相对当前仓库根），默认「日记」
+    "daily_note_folder": "日记",
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,

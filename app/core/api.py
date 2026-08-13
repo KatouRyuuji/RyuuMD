@@ -6,12 +6,15 @@ pywebview 会把 Api 实例的公开方法挂到 window.pywebview.api.* 上，
 
 from __future__ import annotations
 
+import base64
+import html as html_lib
 import os
 import shutil
 import subprocess
 import sys
 import threading
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -20,8 +23,9 @@ import webview
 from . import file_assoc
 from .cloud_sync import get_engine, public_cloud, save_cloud
 from .config import Config
-from .fsutil import IGNORE_DIRS, MD_EXTS, recycle_file  # noqa: F401  （re-export，main/tests 引用）
+from .fsutil import IMAGE_EXTS, IGNORE_DIRS, MD_EXTS, recycle_file, skip_dir_name  # noqa: F401
 from .projects import ProjectStore
+from . import search as vault_search
 
 # 文件夹树扫描上限：层级与总条目数，超出即截断并在返回数据中标注
 MAX_TREE_DEPTH = 8
@@ -303,7 +307,7 @@ class Api:
         for entry in entries:
             if entry.is_dir(follow_symlinks=False):
                 # 隐藏目录与依赖/构建类巨型目录一律跳过
-                if entry.name.startswith(".") or entry.name in IGNORE_DIRS:
+                if skip_dir_name(entry.name):
                     continue
                 if budget["left"] <= 0:
                     budget["truncated"] = True
@@ -552,3 +556,187 @@ class Api:
 
     def set_project_cloud(self, project_id: str, enabled: bool) -> dict[str, Any]:
         return self.projects.set_cloud_enabled(project_id, enabled)
+
+    # ------------------------------------------------------------------
+    # 仓库检索 / 双向链接 / 贴图 / 每日笔记 / 导出
+    # ------------------------------------------------------------------
+    def _vault_root(self, folder: str = "") -> str:
+        """当前仓库根：入参优先，否则 last_folder。"""
+        if folder and Path(folder).is_dir():
+            return str(Path(folder))
+        last = self.config.get("last_folder", "") or ""
+        if last and Path(last).is_dir():
+            return last
+        return ""
+
+    def list_md_files(self, folder: str = "", query: str = "") -> dict[str, Any]:
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "items": []}
+        return vault_search.list_md_files(root, query)
+
+    def search_vault(self, folder: str = "", query: str = "") -> dict[str, Any]:
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "hits": []}
+        return vault_search.search_vault(root, query)
+
+    def resolve_wikilink(
+        self, folder: str = "", name: str = "", current_file: str = ""
+    ) -> dict[str, Any]:
+        root = self._vault_root(folder)
+        return vault_search.resolve_wikilink(root, name, current_file)
+
+    def save_image(
+        self,
+        md_path: str = "",
+        folder: str = "",
+        filename: str = "",
+        data_b64: str = "",
+        mime: str = "",
+    ) -> dict[str, Any]:
+        """把粘贴/拖入的图片落到 Typora 式 `{文件名}.assets/`（未保存文档则用仓库 `assets/`）。"""
+        try:
+            raw = _decode_b64(data_b64)
+        except Exception:
+            return {"ok": False, "error": "图片数据无效"}
+        if not raw:
+            return {"ok": False, "error": "图片为空"}
+        if len(raw) > 12 * 1024 * 1024:
+            return {"ok": False, "error": "图片超过 12MB"}
+        ext = _image_ext(filename, mime)
+        md = Path(md_path) if md_path else None
+        if md and md.is_file():
+            dest_dir = md.parent / f"{md.stem}.assets"
+            base = md.parent
+        elif folder and Path(folder).is_dir():
+            dest_dir = Path(folder) / "assets"
+            base = Path(folder)
+        else:
+            last = self._vault_root("")
+            if last:
+                dest_dir = Path(last) / "assets"
+                base = Path(last)
+            else:
+                return {"ok": False, "error": "请先保存文档或打开仓库，再插入图片"}
+        try:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            name = f"pasted-{stamp}{ext}"
+            dest = dest_dir / name
+            n = 1
+            while dest.exists():
+                name = f"pasted-{stamp}-{n}{ext}"
+                dest = dest_dir / name
+                n += 1
+            dest.write_bytes(raw)
+            rel = os.path.relpath(str(dest), str(base)).replace("\\", "/")
+            return {"ok": True, "path": str(dest), "rel": rel, "name": dest.stem}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def open_daily_note(self, folder: str = "", subfolder: str = "") -> dict[str, Any]:
+        """打开（必要时创建）今日日记：`{仓库}/{日记目录}/YYYY-MM-DD.md`。"""
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹"}
+        sub = (subfolder or self.config.get("daily_note_folder") or "日记").strip() or "日记"
+        sub_path = Path(sub)
+        if sub_path.is_absolute() or ".." in sub_path.parts:
+            return {"ok": False, "error": "日记目录不合法"}
+        now = datetime.now()
+        week = "一二三四五六日"[now.weekday()]
+        date = now.strftime("%Y-%m-%d")
+        target = Path(root) / sub_path / f"{date}.md"
+        try:
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(f"# {date} 周{week}\n\n", encoding="utf-8")
+            return self.read_file(str(target))
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def save_html_dialog(self, html: str, suggested: str = "导出.html") -> dict[str, Any]:
+        if not self._window:
+            return {"ok": False, "error": "窗口未就绪"}
+        name = suggested or "导出.html"
+        if not name.lower().endswith((".html", ".htm")):
+            name += ".html"
+        result = self._window.create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=name,
+            file_types=("HTML (*.html)", "All files (*.*)"),
+        )
+        if not result:
+            return {"ok": False, "cancelled": True}
+        path = result if isinstance(result, str) else result[0]
+        title = Path(path).stem
+        doc = wrap_html_export(title, html or "")
+        try:
+            Path(path).write_text(doc, encoding="utf-8")
+            return {"ok": True, "path": str(path)}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+
+    def open_external(self, url: str) -> dict[str, Any]:
+        """用系统默认浏览器打开 http(s)/mailto，避免 WebView2 把应用整页导航走。"""
+        u = (url or "").strip()
+        if not u.startswith(("http://", "https://", "mailto:")):
+            return {"ok": False, "error": "不支持的链接"}
+        try:
+            if sys.platform == "win32":
+                os.startfile(u)  # noqa: S606
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", u])  # noqa: S603
+            else:
+                subprocess.Popen(["xdg-open", u])  # noqa: S603
+            return {"ok": True}
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+
+
+def _decode_b64(data: str) -> bytes:
+    s = (data or "").strip()
+    if not s:
+        return b""
+    if "," in s and s[:5].lower() == "data:":
+        s = s.split(",", 1)[1]
+    return base64.b64decode(s)
+
+
+def _image_ext(filename: str, mime: str) -> str:
+    ext = Path(filename or "").suffix.lower()
+    if ext in IMAGE_EXTS:
+        return ext
+    mime_map = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+        "image/bmp": ".bmp",
+        "image/svg+xml": ".svg",
+    }
+    key = (mime or "").split(";", 1)[0].strip().lower()
+    return mime_map.get(key, ".png")
+
+
+def wrap_html_export(title: str, body: str) -> str:
+    """把 Vditor HTML 片段包成可独立打开的文档（相对图片路径保持原样）。"""
+    safe_title = html_lib.escape(title or "导出")
+    return (
+        "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
+        "<meta charset=\"UTF-8\" />\n"
+        f"<title>{safe_title}</title>\n"
+        "<style>\n"
+        "body{max-width:800px;margin:2.2em auto;padding:0 1.2em 3em;"
+        "font-family:'LXGW WenKai','Segoe UI','Microsoft YaHei',sans-serif;"
+        "line-height:1.75;color:#2c3e50;}\n"
+        "img{max-width:100%;} pre,code{font-family:Consolas,monospace;}\n"
+        "blockquote{border-left:4px solid #3498db;margin:0;padding:.2em 1em;color:#5b7187;}\n"
+        "table{border-collapse:collapse;} th,td{border:1px solid #e7eef6;padding:.4em .7em;}\n"
+        "</style>\n</head>\n<body>\n"
+        f"{body}\n"
+        "</body>\n</html>\n"
+    )
+

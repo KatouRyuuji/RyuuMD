@@ -23,8 +23,9 @@
 main.py                     进程入口：单实例判定、WindowManager、webview.start
 app/core/
   config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键，tmp+replace 原子写）
-  fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS + count_md_files + recycle_file（回收站删除）
+  fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS/IMAGE_EXTS + skip_dir_name + count_md_files + recycle_file
   api.py                    Api：暴露给 JS 的全部方法（每窗口一个实例；含文件管理 rename/move/delete）
+  search.py                 仓库 md 索引 / 全文搜索 / [[wikilink]] 解析
   projects.py               ProjectStore：仓库增删改查/置顶/排序/打开计时
   file_assoc.py             Windows 文件关联：注册 + SHOpenWithDialog + 状态查询
   singleton.py              单实例：try_forward（客户端）/ InstanceServer（服务端）
@@ -36,18 +37,22 @@ app/web/
   css/home.css              首页样式（仓库卡片/列表、快速操作、最近区）
   css/editor-theme.css      Vditor 渲染区 phycat 化
   css/slash.css             斜杠菜单
+  css/palette.css           命令面板 + 本文查找条 + 专注模式 + 双向链接
   js/icons.js               内联 SVG 图标集（feather 风格，currentColor）
   js/commands.js            斜杠命令定义（notion/wolai 两套触发词）
-  js/slash.js               斜杠/右键菜单交互（含剪贴板组：复制/剪切/粘贴）
+  js/slash.js               斜杠/右键菜单交互（含剪贴板组：复制/剪切/粘贴）+ `[[` 笔记过滤
   js/sidebar.js             侧栏：文件树/大纲/最近（容器级事件委托）+ 文件右键管理菜单
   js/home.js                首页：仓库双视图/快速操作/最近/重命名弹窗
   js/welcome.js             首次欢迎窗口
-  js/settings.js            设置弹窗（含默认应用入口）
-  js/editor.js              Vditor 封装：模式切换（保持阅读位置）/大纲提取/主题/大文档策略
-  js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放
+  js/settings.js            设置弹窗（含默认应用、自动保存、云同步入口）
+  js/editor.js              Vditor 封装：模式切换（保持阅读位置）/大纲提取/主题/大文档策略/相对图片/wikilink
+  js/palette.js             Ctrl+P 快速打开 / Ctrl+Shift+P 命令 / Ctrl+Shift+F 搜索 / Ctrl+F 查找
+  js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放、贴图、自动保存
 tests/
-  test_api.py               Python 层单测（55 项，unittest，零三方依赖）
-  test_e2e.py               真实窗口 E2E（43 项，evaluate_js 探针）
+  test_api.py               Python 层单测（unittest，零三方依赖）
+  test_cloud.py             云同步门闩/双向/冲突
+  test_search.py            仓库检索/wikilink/贴图/日记
+  test_e2e.py               真实窗口 E2E（evaluate_js 探针）
 ```
 
 ## 3. 架构与数据流
@@ -162,6 +167,14 @@ Vditor 面板 drop 处理器首行 `stopPropagation`，事件冒泡被截断：
   （否则会冲掉密码）；
 - 保存后 `push_file` 后台线程，失败不影响本地保存。
 
+### 4.7 仓库检索与贴图
+
+- `search.py`：scandir + 深度/文件数预算；跳过 `skip_dir_name`（含 `*.assets`）。
+- 快速打开只扫文件名；全文搜索先文件名后正文（每文件一条命中、单文件最多读 256KB）。
+- `[[wikilink]]`：当前文件旁相对路径 → 仓库根相对路径 → 全库词干匹配（同目录优先）。
+- 贴图：已保存文档 → `{stem}.assets/`；否则仓库 `assets/`。前端把相对 `img src` 改写为 `file://` 以便 WebView2 显示。
+- 外链点击走 `open_external`，禁止 WebView2 整页跳转。
+
 ## 5. 开发与调试
 
 ```bash
@@ -186,8 +199,8 @@ python main.py                        # 开发运行
 ## 6. 测试
 
 ```bash
-python run_tests.py                   # 单测(76) + E2E(44) 全量
-python -m unittest tests.test_api tests.test_cloud -v   # 仅单测（快）
+python run_tests.py                   # 单测 + E2E 全量
+python -m unittest tests.test_api tests.test_cloud tests.test_search -v
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```
 
