@@ -782,6 +782,18 @@ CASES = [
          setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T58 仓库待办面板:提示文案并可关闭",
+         setup="window.Palette.openTasks();",
+         sleep=0.5,
+         js=("(function(){var m=document.getElementById('palette-mask');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var h=document.getElementById('pal-hint').textContent;"
+             "if(h.indexOf(" + JV("待办") + ")<0)return 'hint='+h;"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
 ]
 
 

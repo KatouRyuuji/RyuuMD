@@ -12,7 +12,13 @@
     file: "快速打开笔记",
     command: "运行命令",
     search: "在仓库中搜索",
+    tasks: "仓库未完成待办",
+    tags: "浏览标签",
+    broken: "断开的双链",
+    orphans: "孤立笔记",
   };
+
+  const INDEX_MODES = { tasks: 1, tags: 1, broken: 1, orphans: 1 };
 
   let mode = "file";
   let items = [];
@@ -30,10 +36,10 @@
   }
 
   function open(nextMode) {
-    mode = nextMode === "command" || nextMode === "search" ? nextMode : "file";
+    mode = HINTS[nextMode] ? nextMode : "file";
     mask.classList.add("open");
     hintEl.textContent = HINTS[mode];
-    iconEl.setAttribute("data-kind", mode);
+    iconEl.setAttribute("data-kind", mode === "command" || mode === "search" || INDEX_MODES[mode] ? (INDEX_MODES[mode] ? "search" : mode) : "file");
     input.value = "";
     input.placeholder = HINTS[mode] + "…";
     input.focus();
@@ -74,7 +80,8 @@
       emptyEl.style.display = "";
       emptyEl.textContent = mode === "file"
         ? "没有匹配的笔记（请先打开仓库）"
-        : (mode === "search" ? "没有匹配的内容" : "没有匹配的命令");
+        : (mode === "search" ? "没有匹配的内容"
+          : (INDEX_MODES[mode] ? "没有匹配的条目" : "没有匹配的命令"));
       return;
     }
     emptyEl.style.display = "none";
@@ -177,6 +184,26 @@
       render();
       return;
     }
+    if (INDEX_MODES[mode]) {
+      if (!handlers.vaultIndex) { items = []; render(); return; }
+      const res = await handlers.vaultIndex(mode, q);
+      if (my !== seq) return;
+      const arr = (res && res.items) || [];
+      items = arr.map((h) => ({
+        kind: h.kind || "hit",
+        title: h.title || h.name,
+        sub: h.sub || ((h.line ? h.line + ": " : "") + (h.snippet || h.rel || "")),
+        path: h.path,
+        line: h.line,
+        snippet: h.snippet,
+        tag: h.tag,
+        wiki: h.wiki,
+        badge: h.badge || "",
+      }));
+      activeIdx = 0;
+      render();
+      return;
+    }
     if (!q.trim()) {
       items = [];
       emptyEl.style.display = "";
@@ -204,11 +231,18 @@
   function choose() {
     const it = items[activeIdx];
     if (!it) return;
+    if (it.kind === "tag-group" && it.tag) {
+      input.value = it.tag;
+      refresh();
+      return;
+    }
     close();
     if (it.kind === "command" && it.run) it.run();
     else if (it.kind === "create" && handlers.onCreate) handlers.onCreate(it.name);
-    else if (it.kind === "file" && handlers.onPickFile) handlers.onPickFile(it);
-    else if (it.kind === "hit" && handlers.onPickHit) handlers.onPickHit(it);
+    else if ((it.kind === "file" || it.kind === "orphan") && handlers.onPickFile) handlers.onPickFile(it);
+    else if ((it.kind === "hit" || it.kind === "task" || it.kind === "tag" || it.kind === "broken") && handlers.onPickHit) {
+      handlers.onPickHit(it);
+    }
   }
 
   function onKey(e) {
@@ -246,8 +280,16 @@
     if (e.target === mask) close();
   });
 
-  window.Palette = { init, open, close, isOpen, openFiles: () => open("file"),
-    openCommands: () => open("command"), openSearch: () => open("search") };
+  window.Palette = {
+    init, open, close, isOpen,
+    openFiles: () => open("file"),
+    openCommands: () => open("command"),
+    openSearch: () => open("search"),
+    openTasks: () => open("tasks"),
+    openTags: () => open("tags"),
+    openBroken: () => open("broken"),
+    openOrphans: () => open("orphans"),
+  };
 })();
 
 /* 本文查找条：Ctrl+F 打开，Ctrl+H 展开替换，Enter 下一个，Shift+Enter 上一个 */

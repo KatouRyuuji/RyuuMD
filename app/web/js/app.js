@@ -10,6 +10,8 @@
     lastSaved: "",
     svForced: false,     // 当前文档因超过大文档阈值被强制为源码模式
     templates: [],
+    diskMtime: 0,
+    diskGone: false,
   };
 
   // 大文档阈值（字节）：Vditor 渲染(ir)模式全量渲染超长文档会卡死，
@@ -104,6 +106,11 @@
         openFileByPath(it.path, { line: it.line, snippet: it.snippet });
       },
       onCreate: (name) => newNoteInFolder(state.currentFolder, name),
+      vaultIndex: async (kind, q) => {
+        const a = api();
+        if (!a || !a.vault_index) return { items: [] };
+        return a.vault_index(state.currentFolder || "", kind, q || "");
+      },
     });
   }
 
@@ -219,6 +226,9 @@
     updateCount(fileRes.content);
     loadRecent(); // 后端已在 read_file 记录，刷新最近列表（fire-and-forget）
     refreshLinks();
+    if (fileRes.mtime) state.diskMtime = fileRes.mtime;
+    else rememberDiskMtime(fileRes.path);
+    state.diskGone = false;
     const jump = opts || {};
     const restore = (!jump.heading && !jump.line && !jump.snippet) ? scrollMem[fileRes.path] : null;
     setTimeout(() => {
@@ -272,7 +282,13 @@
     const content = window.Editor.getValue();
     if (state.currentPath) {
       const res = await a.save_file(state.currentPath, content);
-      if (res.ok) { markSaved(content); if (!silent) toast("已保存"); loadRecent(); }
+      if (res.ok) {
+        markSaved(content);
+        if (res.mtime) state.diskMtime = res.mtime;
+        else rememberDiskMtime();
+        if (!silent) toast("已保存");
+        loadRecent();
+      }
       else toast("保存失败：" + (res.error || ""));
     } else {
       if (silent) return; // 未保存新文档不自动弹另存对话框
@@ -432,6 +448,7 @@
     on("btn-clear-recent", clearRecent);
     on("sb-cloud", runCloudSync);
     on("sb-zoom", () => applyZoom(100));
+    on("sb-path", locateInTree);
 
     // 侧栏标签切换（目录 / 大纲 / 最近）：tab 的 data-panel 对应 panel-<name> 面板
     document.querySelectorAll(".side-tab").forEach((tab) => {
@@ -446,6 +463,7 @@
 
     // 空态「打开文件夹」按钮由 sidebar.js 的 rebindEmpty 统一绑定
     // （按钮会被 renderTree 的 innerHTML 重建，这里再绑会造成首启双弹对话框）
+    startDiskWatch();
   }
 
   async function openFolder() {
@@ -842,6 +860,12 @@
       { id: "find", title: "在本文查找", keys: "Ctrl+F", group: "导航", run: () => window.FindBar.open() },
       { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => window.FindBar.open({ replace: true }) },
       { id: "locate", title: "在目录中定位当前文件", keys: "", group: "导航", run: locateInTree },
+      { id: "new-here", title: "在当前文件夹新建笔记", keys: "", group: "文件", run: newNoteBeside },
+      { id: "tasks", title: "仓库待办", keys: "", group: "仓库", run: () => window.Palette.openTasks() },
+      { id: "tags", title: "浏览标签", keys: "", group: "仓库", run: () => window.Palette.openTags() },
+      { id: "broken", title: "断开的双链", keys: "", group: "仓库", run: () => window.Palette.openBroken() },
+      { id: "orphans", title: "孤立笔记", keys: "", group: "仓库", run: () => window.Palette.openOrphans() },
+      { id: "stats", title: "仓库统计", keys: "", group: "仓库", run: showVaultStats },
       { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => window.Home.toggle() },
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
       { id: "theme", title: "切换主题", keys: "", group: "视图", run: toggleTheme },
@@ -1016,6 +1040,67 @@
     if (tab) tab.click();
     const ok = window.Sidebar.revealPath && window.Sidebar.revealPath(state.currentPath);
     if (!ok) toast("当前文件不在目录树中");
+  }
+
+  function newNoteBeside() {
+    const dir = state.currentPath ? dirname(state.currentPath) : state.currentFolder;
+    newNoteInFolder(dir);
+  }
+
+  async function showVaultStats() {
+    const a = apiOrToast();
+    if (!a || !a.vault_stats) return;
+    const res = await a.vault_stats(state.currentFolder || "");
+    if (!res.ok) { toast(res.error || "统计失败"); return; }
+    const n = (v, trunc) => String(v == null ? 0 : v) + (trunc ? "+" : "");
+    toast(
+      n(res.files, false) + " 篇 · "
+      + n(res.tasks, res.tasks_truncated) + " 待办 · "
+      + n(res.tags, res.tags_truncated) + " 标签 · "
+      + n(res.broken, res.broken_truncated) + " 断链"
+    );
+  }
+
+  async function rememberDiskMtime(path) {
+    const p = path || state.currentPath;
+    const a = api();
+    if (!a || !a.file_stat || !p) { state.diskMtime = 0; return; }
+    try {
+      const res = await a.file_stat(p);
+      state.diskMtime = res && res.ok ? res.mtime : 0;
+    } catch (e) {
+      state.diskMtime = 0;
+    }
+  }
+
+  function startDiskWatch() {
+    if (startDiskWatch._t) return;
+    startDiskWatch._t = setInterval(checkDiskChange, 2500);
+  }
+
+  async function checkDiskChange() {
+    if (!state.currentPath || state.dirty) return;
+    const a = api();
+    if (!a || !a.file_stat) return;
+    let res;
+    try { res = await a.file_stat(state.currentPath); } catch (e) { return; }
+    if (!res || !res.exists) {
+      if (!state.diskGone) {
+        state.diskGone = true;
+        toast("磁盘上的文件已不存在");
+      }
+      return;
+    }
+    state.diskGone = false;
+    if (state.diskMtime && res.mtime > state.diskMtime + 0.4) {
+      const file = await a.read_file(state.currentPath);
+      if (file && file.ok && !state.dirty) {
+        loadDoc(file);
+        toast("文件已从磁盘重新载入");
+      }
+    } else if (res.mtime) {
+      state.diskMtime = res.mtime;
+    }
   }
 
   async function newNoteInFolder(folder, name) {

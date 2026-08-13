@@ -205,7 +205,7 @@ python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他
 ```
 
 - 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API/云同步/检索）；
-- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 59 项）；
+- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 60 项）；
 - 新增功能必须配套用例；中文注入断言一律用 `JV()`（json.dumps）；
 - 详见 `docs/TEST_PLAN.md`（含手动验证清单）。
 

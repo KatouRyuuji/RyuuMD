@@ -133,13 +133,14 @@ class Api:
             content = p.read_text(encoding="utf-8")
             self.config.set("last_file", str(p))
             self._add_recent(str(p), "file")
+            st = p.stat()
             return {
                 "ok": True,
                 "path": str(p),
                 "name": p.name,
                 "content": content,
-                # 字节大小：前端据此判断是否按大文档策略打开
-                "size": p.stat().st_size,
+                "size": st.st_size,
+                "mtime": st.st_mtime,
             }
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -152,7 +153,8 @@ class Api:
             self.config.set("last_file", str(p))
             self._add_recent(str(p), "file")
             self._maybe_cloud_push(str(p))
-            return {"ok": True, "path": str(p)}
+            st = p.stat()
+            return {"ok": True, "path": str(p), "mtime": st.st_mtime, "size": st.st_size}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -715,6 +717,37 @@ class Api:
         if not root:
             return {"ok": True, "hits": []}
         return vault_search.find_backlinks(root, path or "")
+
+    def file_stat(self, path: str) -> dict[str, Any]:
+        try:
+            p = Path(path)
+            if not p.is_file():
+                return {"ok": False, "exists": False}
+            st = p.stat()
+            return {"ok": True, "exists": True, "mtime": st.st_mtime, "size": st.st_size, "path": str(p)}
+        except OSError as e:
+            return {"ok": False, "exists": False, "error": str(e)}
+
+    def vault_index(self, folder: str = "", kind: str = "tasks", query: str = "") -> dict[str, Any]:
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "items": []}
+        k = (kind or "tasks").strip().lower()
+        if k == "tasks":
+            return vault_search.list_tasks(root, query)
+        if k == "tags":
+            return vault_search.list_tags(root, query)
+        if k in ("broken", "broken_links"):
+            return vault_search.list_broken_wikilinks(root, query)
+        if k in ("orphans", "orphan"):
+            return vault_search.list_orphans(root, query)
+        return {"ok": False, "error": "未知索引类型", "items": []}
+
+    def vault_stats(self, folder: str = "") -> dict[str, Any]:
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹"}
+        return vault_search.vault_stats(root)
 
     def save_image(
         self,

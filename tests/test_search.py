@@ -228,5 +228,52 @@ class TestTemplates(unittest.TestCase):
         self.assertTrue(Path(res["path"]).is_dir())
 
 
+class TestVaultIndex(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-idx-")
+        self.root = Path(self.dir.name)
+        self.api = make_api()
+        touch(self.root / "a.md", "- [ ] 买牛奶\n#work 今天\n[[missing]]\n")
+        touch(self.root / "b.md", "见 [[a]]\n")
+        touch(self.root / "c.md", "```\n- [ ] 假待办\n```\n完成 - [x] 已做\n")
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_list_tasks_skips_fence_and_done(self):
+        res = self.api.vault_index(str(self.root), "tasks")
+        self.assertTrue(res["ok"], res)
+        titles = [it["title"] for it in res["items"]]
+        self.assertIn("买牛奶", titles)
+        self.assertNotIn("假待办", titles)
+        self.assertFalse(any("已做" in t for t in titles))
+
+    def test_list_tags_grouped(self):
+        res = self.api.vault_index(str(self.root), "tags")
+        self.assertTrue(res["ok"], res)
+        tags = {it["tag"] for it in res["items"]}
+        self.assertIn("work", tags)
+
+    def test_broken_and_orphans(self):
+        broken = self.api.vault_index(str(self.root), "broken")
+        self.assertTrue(broken["ok"], broken)
+        titles = [it["title"] for it in broken["items"]]
+        self.assertTrue(any("missing" in t for t in titles))
+        orphans = self.api.vault_index(str(self.root), "orphans")
+        names = {it["name"] for it in orphans["items"]}
+        self.assertIn("b.md", names)
+        self.assertNotIn("a.md", names)
+
+    def test_vault_stats_and_file_stat(self):
+        st = self.api.vault_stats(str(self.root))
+        self.assertTrue(st["ok"], st)
+        self.assertGreaterEqual(st["files"], 3)
+        self.assertGreaterEqual(st["tasks"], 1)
+        fs = self.api.file_stat(str(self.root / "a.md"))
+        self.assertTrue(fs["ok"] and fs["exists"])
+        self.assertGreater(fs["mtime"], 0)
+        self.assertFalse(self.api.file_stat(str(self.root / "nope.md"))["ok"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

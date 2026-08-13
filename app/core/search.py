@@ -304,3 +304,236 @@ def find_backlinks(root: str, target_path: str, max_hits: int = 40) -> dict[str,
             truncated = True
             break
     return {"ok": True, "hits": hits, "truncated": truncated}
+
+
+TASK_RE = re.compile(r"^(\s*[-*+]\s+)\[ \]\s+(.*\S)\s*$")
+TAG_RE = re.compile(
+    r"(?<![#\w])#([A-Za-z0-9_\u4e00-\u9fff][A-Za-z0-9_\u4e00-\u9fff/-]{0,39})"
+)
+
+
+def _iter_notes(root_p: Path) -> Iterator[tuple[Path, str]]:
+    for p in iter_md_files(root_p):
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
+        except OSError:
+            continue
+        yield p, text
+
+
+def _iter_source_lines(text: str) -> Iterator[tuple[int, str]]:
+    in_fence = False
+    for i, line in enumerate((text or "").splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        yield i, line
+
+
+def _hit(root_p: Path, p: Path, **extra: Any) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "path": str(p),
+        "name": p.name,
+        "rel": _rel(root_p, p),
+    }
+    item.update(extra)
+    return item
+
+
+def list_tasks(root: str, query: str = "", max_hits: int = MAX_HITS) -> dict[str, Any]:
+    """未完成待办 `- [ ]`，跳过代码块。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "items": []}
+    q = (query or "").strip().lower()
+    items: list[dict[str, Any]] = []
+    truncated = False
+    for p, text in _iter_notes(root_p):
+        for i, line in _iter_source_lines(text):
+            m = TASK_RE.match(line)
+            if not m:
+                continue
+            task = m.group(2).strip()
+            if q and q not in task.lower() and q not in p.name.lower():
+                continue
+            items.append(_hit(
+                root_p, p, kind="task", title=task, line=i,
+                snippet=line.strip(), badge="待办",
+            ))
+            if len(items) >= max_hits:
+                truncated = True
+                break
+        if truncated:
+            break
+    return {"ok": True, "items": items, "truncated": truncated}
+
+
+def list_tags(root: str, query: str = "", max_hits: int = MAX_HITS) -> dict[str, Any]:
+    """正文 `#标签`。无查询时按标签汇总。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "items": []}
+    q = (query or "").strip().lstrip("#").lower()
+    grouped: dict[str, dict[str, Any]] = {}
+    occ: list[dict[str, Any]] = []
+    truncated = False
+    for p, text in _iter_notes(root_p):
+        for i, line in _iter_source_lines(text):
+            body = re.sub(r"^#{1,6}\s+", "", line)
+            for m in TAG_RE.finditer(body):
+                tag = m.group(1)
+                key = tag.lower()
+                if q and q not in key and q not in p.name.lower():
+                    continue
+                rec = grouped.setdefault(key, {"tag": tag, "count": 0, "files": set()})
+                rec["count"] += 1
+                rec["files"].add(str(p))
+                occ.append(_hit(
+                    root_p, p, kind="tag", title="#" + tag, tag=tag, line=i,
+                    snippet=line.strip(), badge="标签",
+                ))
+                if len(occ) >= max_hits:
+                    truncated = True
+                    break
+            if truncated:
+                break
+        if truncated:
+            break
+    if not q:
+        items = []
+        for rec in sorted(grouped.values(), key=lambda r: (-r["count"], r["tag"].lower())):
+            items.append({
+                "kind": "tag-group",
+                "title": "#" + rec["tag"],
+                "tag": rec["tag"],
+                "sub": str(len(rec["files"])) + " 篇 · " + str(rec["count"]) + " 处",
+                "badge": str(rec["count"]),
+            })
+            if len(items) >= max_hits:
+                truncated = True
+                break
+        return {"ok": True, "items": items, "truncated": truncated, "grouped": True}
+    return {"ok": True, "items": occ, "truncated": truncated, "grouped": False}
+
+
+def _wikilink_exists(target: str, current: Path, root_p: Path, names: set[str]) -> bool:
+    t, _ = parse_wikilink(target)
+    if not t:
+        return True
+    t = t.replace("\\", "/")
+    for base in (current.parent, root_p):
+        cand = Path(base) / t
+        if cand.suffix.lower() not in MD_EXTS:
+            cand = cand.with_suffix(".md")
+        try:
+            if cand.is_file():
+                return True
+        except OSError:
+            continue
+    key = Path(t).name.lower()
+    stem = Path(t).stem.lower() if Path(t).suffix.lower() in MD_EXTS else Path(t).name.lower()
+    return key in names or stem in names
+
+
+def list_broken_wikilinks(root: str, query: str = "", max_hits: int = MAX_HITS) -> dict[str, Any]:
+    """指向不存在笔记的 `[[wikilink]]`。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "items": []}
+    files = list(iter_md_files(root_p))
+    names: set[str] = set()
+    for p in files:
+        names.add(p.stem.lower())
+        names.add(p.name.lower())
+    q = (query or "").strip().lower()
+    items: list[dict[str, Any]] = []
+    truncated = False
+    for p in files:
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
+        except OSError:
+            continue
+        for i, line in _iter_source_lines(text):
+            for m in WIKI_RE.finditer(line):
+                raw = m.group(1).strip()
+                target, _ = parse_wikilink(raw)
+                if not target or _wikilink_exists(target, p, root_p, names):
+                    continue
+                if q and q not in target.lower() and q not in p.name.lower():
+                    continue
+                items.append(_hit(
+                    root_p, p, kind="broken", title="[[" + target + "]]",
+                    line=i, snippet=line.strip(), badge="断链", wiki=target,
+                ))
+                if len(items) >= max_hits:
+                    truncated = True
+                    break
+            if truncated:
+                break
+        if truncated:
+            break
+    return {"ok": True, "items": items, "truncated": truncated}
+
+
+def list_orphans(root: str, query: str = "", max_hits: int = MAX_HITS) -> dict[str, Any]:
+    """没有任何入链指向的笔记。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "items": []}
+    files = list(iter_md_files(root_p))
+    mentioned: set[str] = set()
+    for p in files:
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
+        except OSError:
+            continue
+        for m in WIKI_RE.finditer(text):
+            t, _ = parse_wikilink(m.group(1))
+            if t:
+                mentioned.add(Path(t.replace("\\", "/")).name.lower())
+                mentioned.add(Path(t.replace("\\", "/")).stem.lower())
+        for m in MD_LINK_RE.finditer(text):
+            href = (m.group(1) or "").split("#", 1)[0].strip()
+            if not href or href.startswith(("http://", "https://", "mailto:")):
+                continue
+            mentioned.add(Path(href.replace("\\", "/")).name.lower())
+            mentioned.add(Path(href.replace("\\", "/")).stem.lower())
+    q = (query or "").strip().lower()
+    items: list[dict[str, Any]] = []
+    truncated = False
+    for p in files:
+        keys = {p.stem.lower(), p.name.lower()}
+        if keys & mentioned:
+            continue
+        if q and q not in p.name.lower() and q not in _rel(root_p, p).lower():
+            continue
+        items.append(_hit(root_p, p, kind="orphan", title=p.stem, badge="孤立"))
+        if len(items) >= max_hits:
+            truncated = True
+            break
+    return {"ok": True, "items": items, "truncated": truncated}
+
+
+def vault_stats(root: str) -> dict[str, Any]:
+    """仓库规模速览（受索引预算限制）。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在"}
+    files = 0
+    for _ in iter_md_files(root_p):
+        files += 1
+    tasks = list_tasks(root, max_hits=MAX_HITS)
+    tags = list_tags(root, max_hits=MAX_HITS)
+    broken = list_broken_wikilinks(root, max_hits=MAX_HITS)
+    return {
+        "ok": True,
+        "files": files,
+        "tasks": len(tasks.get("items") or []),
+        "tags": len(tags.get("items") or []),
+        "broken": len(broken.get("items") or []),
+        "tasks_truncated": bool(tasks.get("truncated")),
+        "tags_truncated": bool(tags.get("truncated")),
+        "broken_truncated": bool(broken.get("truncated")),
+    }

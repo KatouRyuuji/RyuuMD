@@ -437,7 +437,10 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#sb-zoom {
+#sb-path {
+  cursor: pointer;
+}
+#sb-path:hover { color: var(--primary); }
   border: none;
   background: transparent;
   font-family: inherit;
