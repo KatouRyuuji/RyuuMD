@@ -712,6 +712,13 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg2.get("theme"), "light")
         self.assertEqual(cfg2.get("display_mode"), "ir")
 
+    def test_atomic_save_leaves_no_tmp(self):
+        # 原子写：临时文件写完后 os.replace 收走，目录不留 .tmp 残片，内容完整可读
+        cfg = Config()
+        cfg.set("theme", "dark")
+        self.assertFalse((cfg.data_dir / "config.json.tmp").exists())
+        self.assertEqual(Config().get("theme"), "dark")
+
 
 class TestAssets(unittest.TestCase):
     def test_hljs_themes_exist(self):

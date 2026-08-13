@@ -85,7 +85,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（54 项），再跑真实窗口端到端测试（39 项）。
+先跑 Python API 单元测试（55 项），再跑真实窗口端到端测试（42 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 

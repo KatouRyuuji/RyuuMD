@@ -47,7 +47,7 @@ def fail_all(msg: str) -> "NoReturn":  # type: ignore[name-defined]
 # 测试夹具:临时工作目录与大/小文档
 # ----------------------------------------------------------------------------
 _TMP = tempfile.TemporaryDirectory(prefix="ryuumd-e2e-files-")
-TMP = Path(_TMP_TMP := _TMP.name) if False else Path(_TMP.name)  # noqa: F841
+TMP = Path(_TMP.name)
 SMALL_MD = TMP / "small.md"
 BIG_MD = TMP / "big.md"
 SMALL_MD.write_text("# 小文档\n\n普通正文。\n", encoding="utf-8")
@@ -553,6 +553,43 @@ CASES = [
                  "navigator.clipboard.readText=window.__origRT;},700);"),
          sleep2=1.4,
          js2="window.__t37===1?true:'t37='+window.__t37+' len='+window.Editor.getValue().length",
+         timeout=12),
+
+    # —— 健壮性回归：快速连切竞态 / 快捷键 / 真实保存 ——
+    dict(name="T38 快速连切模式:重建中再切,最终落到目标模式且内容不丢",
+         # 连发 sv→ir→sv:第一次重建中后两次应被队列仲裁(最终=sv),不出现按钮与面板错位
+         setup="window.Editor.setMode('sv');window.Editor.setMode('ir');window.Editor.setMode('sv');",
+         sleep=3.0,
+         js=("(function(){if(window.Editor.getMode()!=='sv')return 'mode='+window.Editor.getMode();"
+             "if(!window.Editor.isReady())return 'not ready';"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf("+JV('章节')+")<0)return 'content lost len='+v.length;"
+             "var p=document.querySelector('#editor .vditor-sv');"
+             "return p?true:'no sv panel';})()"),
+         timeout=18),
+
+    dict(name="T39 快捷键 Ctrl+Shift+B:折叠/展开侧栏",
+         setup="window.dispatchEvent(new KeyboardEvent('keydown',{key:'B',ctrlKey:true,shiftKey:true,bubbles:true}))",
+         sleep=0.3,
+         js="document.getElementById('sidebar').classList.contains('collapsed')",
+         setup2="window.dispatchEvent(new KeyboardEvent('keydown',{key:'B',ctrlKey:true,shiftKey:true,bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('sidebar').classList.contains('collapsed')"),
+
+    dict(name="T40 Ctrl+S 真实写盘:保存后磁盘内容含新文本",
+         setup=("window.Sidebar.renderTree([{type:'file',name:'renamed-e2e.md',path:'" + OPS_RENAMED_JS + "'}],'ops');"
+                "document.querySelector('#file-tree .tree-item.file').click();"),
+         sleep=1.2,
+         js=("(function(){var dn=document.getElementById('doc-name').textContent;"
+             "return dn.indexOf('renamed-e2e.md')>=0?true:'doc='+dn;})()"),
+         setup2=("window.Editor.setValue(window.Editor.getValue()+'\\n\\n'+(" + JV('SAVE-E2E 标记') + "));"
+                 "window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true}));"
+                 "window.__t40=0;"
+                 "setTimeout(function(){"
+                 "window.pywebview.api.read_file('" + OPS_RENAMED_JS + "').then(function(r){"
+                 "window.__t40=(r.ok&&r.content.indexOf(" + JV('SAVE-E2E 标记') + ")>=0)?1:-1;});},800);"),
+         sleep2=1.6,
+         js2="window.__t40===1?true:'t40='+window.__t40",
          timeout=12),
 ]
 

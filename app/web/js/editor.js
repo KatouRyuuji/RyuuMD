@@ -12,6 +12,7 @@
   let pendingValue = null;   // 模式切换重建期间提交的内容，重建完成后再应用
   let cachedValue = "";      // setValue 注入的原文缓存：Vditor 未 settle 时 getValue 的回退
   let pendingScroll = null;  // 模式切换时保存的阅读位置 { ratio, content }
+  let queuedMode = null;     // 重建期间收到的目标模式（快速连切），重建完成后补切
   let curTheme = "light";
   let curMode = "ir";        // ir（渲染/即时渲染，Typora 式）| sv（源码）
   let everBuilt = false;     // 是否曾成功初始化（after 触发过）——重建看门狗的前提
@@ -123,8 +124,12 @@
   /* 切换渲染/源码模式：保留内容与阅读位置，重建实例（Vditor 不支持运行时切 mode）。 */
   function setMode(nextMode) {
     const target = nextMode === "sv" ? "sv" : "ir";
-    if (target === curMode || !vditor || !ready) {
-      curMode = target;
+    // 目标就是当前模式（含正在重建前往的模式）：撤销补切队列，无需动作
+    if (target === curMode) { queuedMode = null; return; }
+    if (!vditor || !ready) {
+      // 重建进行中：只记录目标模式，不动 curMode（保持与在建实例一致），完成后补切。
+      // 直接改 curMode 会让按钮状态/面板选择器与真实面板错位（快速连切实测可复现）。
+      queuedMode = target;
       return;
     }
     const content = getValue();
@@ -150,6 +155,10 @@
       pendingScroll = null;
       setValue(next, restore);
       if (onModeChange) onModeChange(curMode);
+      // 重建期间又有切换请求 → 补切到最终目标模式
+      const q = queuedMode;
+      queuedMode = null;
+      if (q && q !== curMode) setMode(q);
     });
   }
 

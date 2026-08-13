@@ -325,10 +325,12 @@ class Api:
     def open_file_dialog(self) -> dict[str, Any]:
         if not self._window:
             return {"ok": False, "error": "窗口未就绪"}
+        # 过滤词与 MD_EXTS 全量对齐（.mdown/.mkd 等也能从对话框选中）
+        exts = ";".join(f"*{e}" for e in sorted(MD_EXTS))
         result = self._window.create_file_dialog(
             webview.OPEN_DIALOG,
             allow_multiple=False,
-            file_types=("Markdown (*.md;*.markdown;*.mdx)", "All files (*.*)"),
+            file_types=(f"Markdown ({exts})", "All files (*.*)"),
         )
         if not result:
             return {"ok": False, "cancelled": True}

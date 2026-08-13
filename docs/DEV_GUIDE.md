@@ -22,7 +22,7 @@
 ```
 main.py                     进程入口：单实例判定、WindowManager、webview.start
 app/core/
-  config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键）
+  config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键，tmp+replace 原子写）
   fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS + count_md_files + recycle_file（回收站删除）
   api.py                    Api：暴露给 JS 的全部方法（每窗口一个实例；含文件管理 rename/move/delete）
   projects.py               ProjectStore：仓库增删改查/置顶/排序/打开计时
@@ -44,8 +44,8 @@ app/web/
   js/editor.js              Vditor 封装：模式切换（保持阅读位置）/大纲提取/主题/大文档策略
   js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放
 tests/
-  test_api.py               Python 层单测（54 项，unittest，零三方依赖）
-  test_e2e.py               真实窗口 E2E（39 项，evaluate_js 探针）
+  test_api.py               Python 层单测（55 项，unittest，零三方依赖）
+  test_e2e.py               真实窗口 E2E（42 项，evaluate_js 探针）
 ```
 
 ## 3. 架构与数据流
@@ -170,7 +170,7 @@ python main.py                        # 开发运行
 ## 6. 测试
 
 ```bash
-python run_tests.py                   # 单测(54) + E2E(39) 全量
+python run_tests.py                   # 单测(55) + E2E(42) 全量
 python -m unittest discover -s tests -p test_api.py   # 仅单测（快）
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```

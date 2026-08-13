@@ -316,7 +316,8 @@
     document.querySelectorAll(".sb-mode").forEach((btn) => {
       btn.addEventListener("click", () => {
         const m = btn.dataset.mode;
-        if (m === window.Editor.getMode()) return;
+        // 不在此按 getMode() 去重：快速连切时 getMode 是重建目的地而非最终意图，
+        // 统一交给 Editor.setMode 仲裁（同模式幂等、重建中排队补切）
         window.Editor.setMode(m);
         syncModeButtons(m);
         applyConfig({ display_mode: m });

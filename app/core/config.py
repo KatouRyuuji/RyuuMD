@@ -71,10 +71,13 @@ class Config:
 
     def _save(self) -> None:
         try:
-            self._path.write_text(
+            # 原子写：先写同目录临时文件再 replace，进程中断/崩溃不留半截 JSON
+            tmp = self._path.with_suffix(".json.tmp")
+            tmp.write_text(
                 json.dumps(self._data, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
+            os.replace(tmp, self._path)
         except Exception:
             pass
 
