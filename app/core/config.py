@@ -35,8 +35,8 @@ DEFAULTS: dict[str, Any] = {
     "projects": [],
     # 首页仓库视图：card = 卡片，list = 列表
     "home_view": "card",
-    # 启动页：restore = 恢复上次会话（无会话则进首页），home = 始终显示首页
-    "startup_page": "restore",
+    # 启动页：home = 始终显示首页（默认），restore = 恢复上次会话（无会话则进首页）
+    "startup_page": "home",
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,

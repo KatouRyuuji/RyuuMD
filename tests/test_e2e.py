@@ -591,6 +591,25 @@ CASES = [
          sleep2=1.6,
          js2="window.__t40===1?true:'t40='+window.__t40",
          timeout=12),
+
+    dict(name="T41 首页最近区分组:最近3个文件单独成卡、文件夹归入其他",
+         # 此刻最近列表应为 [renamed-e2e.md, small.md, e2e-repo(文件夹), big.md, ...]
+         setup="window.Home.show()",
+         sleep=0.8,
+         js=("(function(){"
+             "var cards=document.querySelectorAll('#home-recent .recent-file-card');"
+             "if(cards.length!==3)return 'cards='+cards.length;"
+             "var first=cards[0].querySelector('.rf-name').textContent;"
+             "if(first!=='renamed-e2e.md')return 'first='+first;"
+             "var labels=document.querySelectorAll('#home-recent .recent-group-label');"
+             "if(labels.length!==2)return 'labels='+labels.length;"
+             "var rows=document.querySelectorAll('#home-recent .recent-row');"
+             "if(rows.length<1)return 'rows='+rows.length;"
+             "if(document.querySelectorAll('#home-recent .rr-save').length<1)return 'no save btn';"
+             "return true;})()"),
+         timeout=10,
+         setup2="window.Home.hide()", sleep2=0.3,
+         js2="!window.Home.isOpen()"),
 ]
 
 

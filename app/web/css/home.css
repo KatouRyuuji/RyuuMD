@@ -367,6 +367,63 @@
 .recent-row:hover .rr-save { display: inline-flex; }
 .recent-row .rr-save svg { width: 12px; height: 12px; }
 
+/* —— 最近打开分组：最近文件卡片 + 其他 —— */
+.recent-group-label {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin: 14px 0 8px;
+  user-select: none;
+}
+.recent-group-label:first-child { margin-top: 0; }
+.recent-files {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.recent-file-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  min-width: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.recent-file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary-shallow);
+}
+.recent-file-card.missing { opacity: 0.45; }
+.recent-file-card .rf-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--primary-bg);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+}
+.recent-file-card .rf-icon svg { width: 15px; height: 15px; }
+.recent-file-card .rf-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-file-card .rf-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* —— 首页内联小弹窗（重命名） —— */
 .mini-modal {
   width: min(420px, 92vw);
@@ -394,6 +451,7 @@
 /* 窄窗口适配 */
 @media (max-width: 760px) {
   .home-inner { padding: 24px 20px 48px; }
+  .recent-files { grid-template-columns: 1fr; }
   #home-greet { font-size: 24px; }
   .repo-row .repo-path { display: none; }
 }

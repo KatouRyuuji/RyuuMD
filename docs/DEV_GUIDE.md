@@ -45,7 +45,7 @@ app/web/
   js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放
 tests/
   test_api.py               Python 层单测（55 项，unittest，零三方依赖）
-  test_e2e.py               真实窗口 E2E（42 项，evaluate_js 探针）
+  test_e2e.py               真实窗口 E2E（43 项，evaluate_js 探针）
 ```
 
 ## 3. 架构与数据流
@@ -170,7 +170,7 @@ python main.py                        # 开发运行
 ## 6. 测试
 
 ```bash
-python run_tests.py                   # 单测(55) + E2E(42) 全量
+python run_tests.py                   # 单测(55) + E2E(43) 全量
 python -m unittest discover -s tests -p test_api.py   # 仅单测（快）
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```

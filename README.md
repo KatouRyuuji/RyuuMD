@@ -7,7 +7,7 @@
 
 - **即时渲染**：基于 Vditor IR 模式，所见即所得，接近 Typora 体验；渲染/源码切换保持阅读位置不跳。
 - **软件首页**：启动即见的工作台 —— 问候语、快速操作、仓库列表（**卡片 / 列表双视图**）、
-  最近打开；在各笔记目录间一键切换。
+  最近打开（**最近 3 个文件单独成卡**，文件夹等归入「其他」分组）；在各笔记目录间一键切换。
 - **仓库管理**（参考 Obsidian vault）：把任意目录保存为仓库，支持置顶、重命名、
   新窗口打开、在资源管理器中显示、移除（不动磁盘文件）；最近打开的文件夹可一键「存为仓库」。
 - **多窗口**：仓库卡片「新窗口打开」，不同笔记库并排写作。
@@ -25,7 +25,7 @@
 - **文件树管理**：侧栏右键文件即可重命名、移动到…、在资源管理器中显示、删除
   （移入回收站，误删可恢复）——直接操作磁盘上的真实文件。
 - **拖拽即开**：拖入 `.md` 文件或文件夹即可打开。
-- **会话记忆**：开启应用自动恢复上次浏览的文件夹与文件（可在设置改为「始终显示首页」）。
+- **启动即主页**：开机回到工作台，最近文件一触即达（可在设置改为「恢复上次会话」）。
 - **全本地**：无需联网，所有编辑器资源已内置（vendor/vditor）。
 
 ## 运行
@@ -85,7 +85,7 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（55 项），再跑真实窗口端到端测试（42 项）。
+先跑 Python API 单元测试（55 项），再跑真实窗口端到端测试（43 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 
@@ -119,7 +119,7 @@ app/web/vendor/vditor/  内置 Vditor 全量资源
 - `operation_style`：`notion` | `wolai`
 - `theme`：`light`（sky）| `dark`（vampire）
 - `display_mode`：`ir`（渲染）| `sv`（源码）
-- `startup_page`：`restore`（恢复上次会话，默认）| `home`（始终首页）
+- `startup_page`：`home`（始终首页，默认）| `restore`（恢复上次会话）
 - `home_view`：`card`（卡片）| `list`（列表），首页仓库视图偏好
 - `projects`：仓库列表 `[{id, name, path, pinned, created_at, last_opened_at}]`
 - `last_file` / `last_folder`：会话记忆

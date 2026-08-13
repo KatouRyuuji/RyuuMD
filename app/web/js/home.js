@@ -136,7 +136,7 @@
   }
 
   // ---------------------------------------------------------------
-  // 最近打开
+  // 最近打开（最近 3 个文件单独成卡，其余归入「其他」）
   // ---------------------------------------------------------------
   function renderRecent(items) {
     items = items || [];
@@ -146,17 +146,40 @@
       return;
     }
     recentEmpty.style.display = "none";
-    recentWrap.innerHTML = items
-      .map(
-        (it) => `
-        <div class="recent-row${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" title="${esc(it.path)}">
-          <span class="rr-icon">${it.kind === "folder" ? window.ICONS.folder : window.ICONS.fileText}</span>
-          <span class="rr-name">${esc(it.name)}</span>
-          <span class="rr-path">${esc(it.path)}</span>
-          ${it.kind === "folder" && it.exists ? `<button class="rr-save" title="保存为仓库">${window.ICONS.plus}存为仓库</button>` : ""}
-        </div>`
-      )
-      .join("");
+    const files = items.filter((it) => it.kind !== "folder").slice(0, 3);
+    const others = items.filter((it) => files.indexOf(it) < 0);
+    let html = "";
+    if (files.length) {
+      html += '<div class="recent-group-label">最近文件</div>'
+        + '<div class="recent-files">'
+        + files.map(fileCardHTML).join("")
+        + "</div>";
+    }
+    if (others.length) {
+      // 两组并存才标「其他」；只有一组时不贴标签，减少视觉噪声
+      if (files.length) html += '<div class="recent-group-label">其他</div>';
+      html += others.map(recentRowHTML).join("");
+    }
+    recentWrap.innerHTML = html;
+  }
+
+  function fileCardHTML(it) {
+    return `
+      <div class="recent-file-card${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" title="${esc(it.path)}">
+        <span class="rf-icon">${window.ICONS.fileText}</span>
+        <span class="rf-name">${esc(it.name)}</span>
+        <span class="rf-path">${esc(it.path)}</span>
+      </div>`;
+  }
+
+  function recentRowHTML(it) {
+    return `
+      <div class="recent-row${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" title="${esc(it.path)}">
+        <span class="rr-icon">${it.kind === "folder" ? window.ICONS.folder : window.ICONS.fileText}</span>
+        <span class="rr-name">${esc(it.name)}</span>
+        <span class="rr-path">${esc(it.path)}</span>
+        ${it.kind === "folder" && it.exists ? `<button class="rr-save" title="保存为仓库">${window.ICONS.plus}存为仓库</button>` : ""}
+      </div>`;
   }
 
   // ---------------------------------------------------------------
@@ -194,9 +217,9 @@
       openRepo(id);
     });
 
-    // 最近列表
+    // 最近列表（文件卡片与「其他」行共用同一委托）
     recentWrap.addEventListener("click", async (e) => {
-      const row = e.target.closest(".recent-row");
+      const row = e.target.closest(".recent-row, .recent-file-card");
       if (!row) return;
       const saveBtn = e.target.closest(".rr-save");
       if (saveBtn) {
