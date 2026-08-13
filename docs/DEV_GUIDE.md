@@ -36,16 +36,16 @@ app/web/
   css/slash.css             斜杠菜单
   js/icons.js               内联 SVG 图标集（feather 风格，currentColor）
   js/commands.js            斜杠命令定义（notion/wolai 两套触发词）
-  js/slash.js               斜杠菜单交互
+  js/slash.js               斜杠/右键菜单交互（含剪贴板组：复制/剪切/粘贴）
   js/sidebar.js             侧栏：文件树/大纲/最近（容器级事件委托）+ 文件右键管理菜单
   js/home.js                首页：仓库双视图/快速操作/最近/重命名弹窗
   js/welcome.js             首次欢迎窗口
   js/settings.js            设置弹窗（含默认应用入口）
-  js/editor.js              Vditor 封装：模式切换/大纲提取/主题/大文档策略
+  js/editor.js              Vditor 封装：模式切换（保持阅读位置）/大纲提取/主题/大文档策略
   js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放
 tests/
   test_api.py               Python 层单测（54 项，unittest，零三方依赖）
-  test_e2e.py               真实窗口 E2E（34 项，evaluate_js 探针）
+  test_e2e.py               真实窗口 E2E（39 项，evaluate_js 探针）
 ```
 
 ## 3. 架构与数据流
@@ -170,7 +170,7 @@ python main.py                        # 开发运行
 ## 6. 测试
 
 ```bash
-python run_tests.py                   # 单测(54) + E2E(34) 全量
+python run_tests.py                   # 单测(54) + E2E(39) 全量
 python -m unittest discover -s tests -p test_api.py   # 仅单测（快）
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```

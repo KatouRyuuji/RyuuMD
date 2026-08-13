@@ -1,9 +1,9 @@
 /* 命令菜单控制器（统一面板）。
    触发方式：
-     1. 在编辑区键入 "/"（行首或空白后）——边输入边过滤
-     2. 在编辑区右键——展示全部命令
+     1. 在编辑区键入 "/"（行首或空白后）——边输入边过滤（纯插入命令）
+     2. 在编辑区右键——顶部剪贴板组（复制/剪切/粘贴）+ 全部插入命令
    两种方式使用同一个 #slash-menu 面板，外观与行为完全一致。
-   操作：上下箭头选择，Tab / Enter 插入，Esc 关闭。
+   操作：上下箭头选择（跳过禁用项），Tab / Enter 插入，Esc 关闭。
    触发词与展示词随操作风格（notion=英文 / wolai=拼音）切换。 */
 (function () {
   const menu = document.getElementById("slash-menu");
@@ -59,9 +59,9 @@
         lastGroup = cmd.group;
       }
       const icon = window.ICONS[cmd.icon] || "";
-      const key = window.displayKey(cmd, style);
+      const key = cmd.keys != null ? cmd.keys : window.displayKey(cmd, style);
       html += `
-        <div class="slash-item${i === activeIdx ? " active" : ""}" data-idx="${i}">
+        <div class="slash-item${i === activeIdx ? " active" : ""}${cmd.disabled ? " disabled" : ""}" data-idx="${i}">
           <span class="si-icon">${icon}</span>
           <span class="si-body">
             <div class="si-title">${cmd.title}</div>
@@ -79,6 +79,7 @@
       });
       el.addEventListener("mousemove", () => {
         const idx = parseInt(el.dataset.idx, 10);
+        if (items[idx] && items[idx].disabled) return; // 禁用项不进入高亮
         if (idx !== activeIdx) { activeIdx = idx; highlight(); }
       });
     });
@@ -109,15 +110,48 @@
     position(ctx.rect, true);
   }
 
-  /* 右键模式：鼠标处展示全部命令 */
+  /* 右键模式：鼠标处展示剪贴板组 + 全部命令 */
   function showContext(x, y) {
-    items = window.filterCommands("", style);
+    items = clipboardItems().concat(window.filterCommands("", style));
     activeIdx = 0;
     mode = "context";
+    if (items[0] && items[0].disabled) step(1); // 首项禁用则落到首个可用项
     render();
     menu.classList.add("open");
     open = true;
     position({ left: x, right: x, top: y, bottom: y }, false);
+  }
+
+  /* 右键菜单的剪贴板伪命令（仅 context 模式，不参与 "/" 过滤）。
+     复制/剪切在无选区时禁用；粘贴始终可用（剪贴板为空/无权限时退化为提示）。 */
+  function clipboardItems() {
+    const sel = window.getSelection();
+    const hasSel = !!(sel && !sel.isCollapsed && inEditor(sel.anchorNode));
+    return [
+      { id: "clip-copy", clip: "copy", title: "复制", desc: "", group: "剪贴板",
+        icon: "copy", keys: "Ctrl+C", disabled: !hasSel },
+      { id: "clip-cut", clip: "cut", title: "剪切", desc: "", group: "剪贴板",
+        icon: "cut", keys: "Ctrl+X", disabled: !hasSel },
+      { id: "clip-paste", clip: "paste", title: "粘贴", desc: "", group: "剪贴板",
+        icon: "clipboard", keys: "Ctrl+V", disabled: false },
+    ];
+  }
+
+  /* 复制/剪切走 execCommand（菜单项 mousedown 已 preventDefault，编辑器选区不丢）；
+     粘贴读系统剪贴板后插入（Vditor insertValue 按当前选区替换/插入）。 */
+  function doClipboard(kind) {
+    if (!editor) return;
+    if (kind === "copy" || kind === "cut") {
+      try { document.execCommand(kind); } catch (e) { /* ignore */ }
+      return;
+    }
+    navigator.clipboard.readText().then((text) => {
+      if (!text) return;
+      editor.focus();
+      editor.insertValue(text, true);
+    }).catch(() => {
+      if (window.App && window.App.toast) window.App.toast("无法读取剪贴板，请按 Ctrl+V 粘贴");
+    });
   }
 
   function position(rect, below) {
@@ -137,13 +171,14 @@
     items = [];
   }
 
-  /* 插入选中命令；slash 模式先删除已键入的 "/查询" */
+  /* 插入选中命令；slash 模式先删除已键入的 "/查询"；剪贴板伪命令走 doClipboard */
   function choose() {
     const cmd = items[activeIdx];
     const wasSlash = mode === "slash";
     const ctx = wasSlash ? caretContext() : null;
+    if (!cmd || cmd.disabled) return; // 禁用项不响应、不关菜单
     close();
-    if (!cmd) return;
+    if (cmd.clip) { doClipboard(cmd.clip); return; }
     if (wasSlash && ctx) {
       const sel = window.getSelection();
       if (sel && sel.rangeCount) {
@@ -165,6 +200,17 @@
     else if (open && mode === "slash") close();
   }
 
+  /* 上下导航：跳过禁用项（如无选区时的复制/剪切） */
+  function step(dir) {
+    if (!items.length) return;
+    let i = activeIdx;
+    for (let n = 0; n < items.length; n++) {
+      i = (i + dir + items.length) % items.length;
+      if (!items[i].disabled) break;
+    }
+    activeIdx = i;
+  }
+
   /* 键盘导航：菜单打开时拦截 上/下/Tab/Enter/Esc */
   function onKeydown(e) {
     if (!open) return;
@@ -174,11 +220,11 @@
     e.__menuHandled = true;
     if (e.key === "ArrowDown") {
       e.preventDefault(); e.stopPropagation();
-      activeIdx = (activeIdx + 1) % Math.max(items.length, 1);
+      step(1);
       highlight();
     } else if (e.key === "ArrowUp") {
       e.preventDefault(); e.stopPropagation();
-      activeIdx = (activeIdx - 1 + items.length) % Math.max(items.length, 1);
+      step(-1);
       highlight();
     } else if (e.key === "Enter" || e.key === "Tab") {
       // Tab 与 Enter 都执行插入

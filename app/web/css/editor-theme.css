@@ -395,7 +395,7 @@
 }
 .vditor-ir { caret-color: var(--el); }
 .vditor-reset::selection,
-.vditor-reset *::selection { background: var(--el-so-shallow); }
+.vditor-reset *::selection { background: var(--selection-bg); } /* 与全局选区统一：el-so-shallow 与画布底色几乎无差，选中看不出 */
 
 /* IR 标记符号：未聚焦节点隐藏（Vditor 默认），聚焦节点淡显 */
 .vditor-ir__node--expand .vditor-ir__marker {

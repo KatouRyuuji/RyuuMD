@@ -11,6 +11,7 @@
   let changeDelay = 250;     // 变更防抖间隔；大文档拉长以限流全文序列化/遍历
   let pendingValue = null;   // 模式切换重建期间提交的内容，重建完成后再应用
   let cachedValue = "";      // setValue 注入的原文缓存：Vditor 未 settle 时 getValue 的回退
+  let pendingScroll = null;  // 模式切换时保存的阅读位置 { ratio, content }
   let curTheme = "light";
   let curMode = "ir";        // ir（渲染/即时渲染，Typora 式）| sv（源码）
   let everBuilt = false;     // 是否曾成功初始化（after 触发过）——重建看门狗的前提
@@ -119,7 +120,7 @@
     if (window.SlashMenu) window.SlashMenu.setStyle(s);
   }
 
-  /* 切换渲染/源码模式：保留内容，重建实例（Vditor 不支持运行时切 mode）。 */
+  /* 切换渲染/源码模式：保留内容与阅读位置，重建实例（Vditor 不支持运行时切 mode）。 */
   function setMode(nextMode) {
     const target = nextMode === "sv" ? "sv" : "ir";
     if (target === curMode || !vditor || !ready) {
@@ -127,6 +128,16 @@
       return;
     }
     const content = getValue();
+    // 记录当前阅读位置：两种模式内容高度不同（渲染 vs 源码），按滚动比例还原最稳。
+    // 绑定 content 快照：仅当重建后装回的仍是同一内容（纯切换）才还原，
+    // 装载新文档（如 loadDoc 大文档强制 sv）仍回文首。
+    const sc = activePanel();
+    if (sc) {
+      const max = sc.scrollHeight - sc.clientHeight;
+      pendingScroll = { ratio: max > 0 ? sc.scrollTop / max : 0, content };
+    } else {
+      pendingScroll = null;
+    }
     curMode = target;
     ready = false;
     try { vditor.destroy(); } catch (e) { /* ignore */ }
@@ -135,7 +146,9 @@
       // 重建期间若有新内容提交（如切模式后立刻 setValue），以新内容为准
       const next = pendingValue != null ? pendingValue : content;
       pendingValue = null;
-      setValue(next);
+      const restore = pendingScroll && next === pendingScroll.content ? pendingScroll : null;
+      pendingScroll = null;
+      setValue(next, restore);
       if (onModeChange) onModeChange(curMode);
     });
   }
@@ -180,7 +193,7 @@
     return v === "" && cachedValue ? cachedValue : v;
   }
 
-  function setValue(md) {
+  function setValue(md, restoreScroll) {
     cachedValue = md || "";
     if (!vditor || !ready) {
       // 编辑器正在重建（setMode 中）：先暂存，build 完成后由回调应用，不丢内容
@@ -189,15 +202,26 @@
     }
     noteSize((md || "").length);
     vditor.setValue(md || "");
-    // 装载新内容一律回到文首（切换文件不得停留在上一篇的滚动位置）
-    const sc = activePanel();
-    if (sc) sc.scrollTop = 0;
+    // 阅读位置：纯模式切换（restoreScroll 有值）按比例还原；装载新文档一律回文首
+    // （切换文件不得停留在上一篇的滚动位置）
+    const applyPos = () => {
+      const sc = activePanel();
+      if (!sc) return;
+      if (restoreScroll) {
+        const max = sc.scrollHeight - sc.clientHeight;
+        sc.scrollTop = Math.round(restoreScroll.ratio * Math.max(max, 0));
+      } else {
+        sc.scrollTop = 0;
+      }
+    };
+    applyPos();
     setTimeout(() => {
-      const sc2 = activePanel();
-      if (sc2) sc2.scrollTop = 0; // Vditor 渲染/聚焦可能异步改动滚动，再置一次
+      applyPos(); // Vditor 渲染/聚焦可能异步改动滚动，再置一次
       updateOutline(md || "");
       if (window.SlashMenu) window.SlashMenu.attach();
     }, 60);
+    // 图片/公式异步撑高内容后再校正一次（仅还原场景需要）
+    if (restoreScroll) setTimeout(applyPos, 240);
   }
 
   /* 提取标题生成大纲。渲染模式从 DOM 取并补 id；源码模式解析 md 文本。

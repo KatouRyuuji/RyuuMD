@@ -152,3 +152,12 @@
   padding: 2px 7px;
   border-radius: 5px;
 }
+
+/* 剪贴板项禁用态（无选区时复制/剪切不可点） */
+.slash-item.disabled { opacity: 0.38; cursor: default; }
+.slash-item.disabled.active { background: transparent; }
+.slash-item.disabled.active .si-icon {
+  background: var(--sidebar-bg);
+  color: var(--primary);
+  border-color: var(--border);
+}

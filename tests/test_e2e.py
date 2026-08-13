@@ -464,6 +464,96 @@ CASES = [
               "var sp=document.getElementById('sb-path').textContent;"
               "return sp.indexOf(" + JV('未保存文档') + ")>=0?true:'path='+sp;})()"),
          timeout=12),
+
+    # —— 体验优化：模式切换保持阅读位置 / 选区配色 / 右键剪贴板 ——
+    dict(name="T33 切源码模式保持阅读位置(滚动比例)",
+         setup=("var s='';for(var i=0;i<80;i++){s+='## '+(" + JV('章节') + ")+i+'\\n\\n'+(" + JV('内容') + ")+'\\n';}window.Editor.setValue(s);"),
+         sleep=1.2,
+         js="document.querySelectorAll('#outline-list .outline-item').length>=61",
+         timeout=15,
+         setup2=("var sc=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                 "sc.scrollTop=(sc.scrollHeight-sc.clientHeight)*0.6;"
+                 "window.__r0=sc.scrollTop/(sc.scrollHeight-sc.clientHeight);"
+                 "window.Editor.setMode('sv');"),
+         sleep2=2.0,
+         js2=("(function(){if(window.Editor.getMode()!=='sv'||!window.Editor.isReady())return 'not sv';"
+              "var sc=document.querySelector('#editor .vditor-sv');if(!sc)return 'no panel';"
+              "var max=sc.scrollHeight-sc.clientHeight;if(max<=0)return 'not scrollable';"
+              "var r=sc.scrollTop/max;"
+              "return (Math.abs(r-window.__r0)<0.15&&sc.scrollTop>500)?true:'r='+r+' top='+sc.scrollTop+' r0='+window.__r0;})()")),
+
+    dict(name="T34 切回渲染模式保持阅读位置",
+         setup="window.Editor.setMode('ir')",
+         sleep=1.8,
+         js="window.Editor.getMode()==='ir'&&window.Editor.isReady()",
+         timeout=15,
+         sleep2=1.0,
+         js2=("(function(){var sc=document.querySelector('#editor .vditor-ir .vditor-reset');if(!sc)return 'no panel';"
+              "var max=sc.scrollHeight-sc.clientHeight;if(max<=0)return 'not scrollable';"
+              "var r=sc.scrollTop/max;"
+              "return (Math.abs(r-window.__r0)<0.15&&sc.scrollTop>500)?true:'r='+r+' top='+sc.scrollTop;})()")),
+
+    dict(name="T35 选区配色:编辑器选区与底色拉开对比(亮色)",
+         js=("(function(){var el=document.querySelector('#editor .vditor-reset')||document.getElementById('editor');"
+             "var bg=getComputedStyle(el,'::selection').backgroundColor;"
+             "if(!bg||bg==='rgba(0, 0, 0, 0)'||bg==='transparent')return 'no selection style:'+bg;"
+             "if(bg.indexOf('234, 242, 248')>=0)return 'still faint #eaf2f8:'+bg;"
+             "if(bg.indexOf('52, 152, 219')<0)return 'unexpected:'+bg;"
+             "return true;})()")),
+
+    dict(name="T36 右键菜单剪贴板组:有选区可用、无选区禁用复制/剪切",
+         setup=("(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "var h=el.querySelector('h2');var r=document.createRange();"
+                "r.selectNodeContents(h);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);"
+                "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300}));})()"),
+         sleep=0.5,
+         js=("(function(){var m=document.getElementById('slash-menu');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var g=m.querySelector('.slash-group-label');"
+             "if(!g||g.textContent!=="+JV('剪贴板')+")return 'group='+(g?g.textContent:'null');"
+             "var items=m.querySelectorAll('.slash-item');"
+             "if(items.length<4)return 'items='+items.length;"
+             "for(var i=0;i<3;i++){if(items[i].classList.contains('disabled'))return 'item'+i+' disabled';}"
+             "return true;})()"),
+         # 第二阶段:清空选区再右键 → 复制/剪切禁用、粘贴仍可用
+         setup2=("window.getSelection().removeAllRanges();"
+                 "var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                 "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300}));"),
+         sleep2=0.4,
+         js2=("(function(){var items=document.querySelectorAll('#slash-menu .slash-item');"
+              "if(items.length<4)return 'items='+items.length;"
+              "if(!items[0].classList.contains('disabled')||!items[1].classList.contains('disabled'))return 'copy/cut not disabled';"
+              "if(items[2].classList.contains('disabled'))return 'paste disabled';"
+              "return true;})()")),
+
+    dict(name="T37 剪贴板接线:复制/剪切走 execCommand、粘贴走 readText 插入",
+         # 合成事件无真实用户手势,execCommand 与 OS 剪贴板读取会被 Chromium 拒绝,
+         # 故用 spy/stub 验证菜单→处理函数的接线;真实手势效果见手动清单。
+         setup=("window.__ec=[];window.__origEC=document.execCommand;"
+                "document.execCommand=function(k){window.__ec.push(k);return true;};"
+                "(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "var h=el.querySelector('h2');var r=document.createRange();"
+                "r.selectNodeContents(h);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);"
+                "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300}));})();"
+                # 菜单项监听的是 mousedown（preventDefault 保选区），click() 不会触发
+                "document.querySelectorAll('#slash-menu .slash-item')[0].dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"),
+         sleep=0.5,
+         js="window.__ec.join(',')==='copy'?true:'ec='+window.__ec.join(',')",
+         # 第二阶段:stub readText → 点粘贴 → 标记文本进文档;并还原 spy/stub
+         setup2=("window.__origRT=navigator.clipboard.readText;"
+                 "navigator.clipboard.readText=function(){return Promise.resolve('PASTE-E2E-标记');};"
+                 "window.getSelection().removeAllRanges();"
+                 "var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                 "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300}));"
+                 "document.querySelectorAll('#slash-menu .slash-item')[2].dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                 "window.__t37=0;"
+                 "setTimeout(function(){"
+                 "window.__t37=window.Editor.getValue().indexOf('PASTE-E2E-标记')>=0?1:-1;"
+                 "document.execCommand=window.__origEC;"
+                 "navigator.clipboard.readText=window.__origRT;},700);"),
+         sleep2=1.4,
+         js2="window.__t37===1?true:'t37='+window.__t37+' len='+window.Editor.getValue().length",
+         timeout=12),
 ]
 
 

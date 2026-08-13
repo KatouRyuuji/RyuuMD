@@ -43,6 +43,7 @@
   --shadow-sm: 0 2px 10px rgba(52, 152, 219, 0.08);
   --glass-bg: rgba(255, 255, 255, 0.86);
   --scrollbar-thumb: rgba(44, 62, 80, 0.28);   /* 半透明，浅底上也可见（--border 太浅会隐形） */
+  --selection-bg: rgba(52, 152, 219, 0.32);    /* 选区：与画布底色拉开足够对比（原 primary-bg 几乎不可见） */
 
   --radius: 10px;
   --radius-sm: 7px;
@@ -77,6 +78,7 @@
   --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.3);
   --glass-bg: rgba(25, 26, 32, 0.86);
   --scrollbar-thumb: rgba(248, 248, 242, 0.25);
+  --selection-bg: rgba(255, 85, 85, 0.38);
 }
 
 * {
@@ -97,7 +99,7 @@ body {
 }
 
 ::selection {
-  background: var(--primary-bg);
+  background: var(--selection-bg);
 }
 
 /* —— 自定义滚动条 —— */
