@@ -11,6 +11,10 @@
   let changeDelay = 250;     // 变更防抖间隔；大文档拉长以限流全文序列化/遍历
   let pendingValue = null;   // 模式切换重建期间提交的内容，重建完成后再应用
   let cachedValue = "";      // setValue 注入的原文缓存：Vditor 未 settle 时 getValue 的回退
+  let editedSinceSet = false; // setValue 后是否有真实用户输入（input 回调置位）；
+                             // 有则 getValue 信任 Vditor（含用户把文档清空返回 "" 的合法情形），
+                             // 不再回退缓存——否则清空操作会被旧缓存「复活」，脏标记与保存全错。
+                             // Vditor setValue 走 enableInput:false，不会触发 input，置位只来自真实编辑。
   let pendingScroll = null;  // 模式切换时保存的阅读位置 { ratio, content }
   let queuedMode = null;     // 重建期间收到的目标模式（快速连切），重建完成后补切
   let curTheme = "light";
@@ -66,6 +70,7 @@
         if (onReady) onReady();
       },
       input: () => {
+        editedSinceSet = true; // 真实编辑到达：Vditor model 已活，getValue 以它为准
         if (window.SlashMenu) window.SlashMenu.attach();
         scheduleChange();
       },
@@ -88,10 +93,14 @@
         if (vditor && panel) {
           clearInterval(guard);
           ready = true;
-          if (pendingValue != null) {
-            const pv = pendingValue;
-            pendingValue = null;
-            try { vditor.setValue(pv); } catch (e) { /* ignore */ }
+          // 不要在此直接应用 pendingValue:onReady(setMode 的回调)会以
+          // 「pendingValue ?? 切换前内容」统一装回;这里先 setValue 会被回调
+          // 再用旧内容覆盖一遍,新提交的内容反而丢失。看门狗只负责就绪判定,
+          // 内容与滚动位置的恢复与正常 after 路径保持同一入口。
+          setTheme(curTheme);
+          if (window.SlashMenu) {
+            window.SlashMenu.setEditor(vditor);
+            window.SlashMenu.attach();
           }
           bindCheckboxGuard();
           bindEditorClicks();
@@ -149,6 +158,9 @@
     }
     curMode = target;
     ready = false;
+    // destroy 前把携带内容写进缓存：重建窗口内 getValue(!ready) 以此为准
+    cachedValue = content;
+    editedSinceSet = false;
     try { vditor.destroy(); } catch (e) { /* ignore */ }
     document.getElementById("editor").innerHTML = "";
     build(() => {
@@ -200,15 +212,24 @@
   }
 
   function getValue() {
-    // 用户编辑期间以 Vditor 为准;setValue 刚注入而 Vditor 尚未 settle(常见于
-    // setValue 后立即 setMode)时,Vditor 可能仍返回旧值/空,此时回退到缓存,
-    // 避免「切文件后立刻切模式丢内容」。
-    const v = vditor && ready ? vditor.getValue() : "";
-    return v === "" && cachedValue ? cachedValue : v;
+    // 三态取值：
+    // 1) 重建进行中(!ready)：Vditor 不可用，唯一权威是 setMode 携带/暂存的内容
+    //    （cachedValue 由 setMode 在 destroy 前刷新为切换前全文），此时绝不能
+    //    把 "" 透传出去——否则重建窗口内的保存会把磁盘文件清空；
+    // 2) 就绪且非空：以 Vditor 为准；
+    // 3) 就绪但返回空：setValue 刚注入而 Vditor 尚未 settle(常见于 setValue 后
+    //    立即 setMode)时回退缓存；但 editedSinceSet 置位后(用户真实编辑过)，
+    //    空串是合法的「用户清空了文档」，必须原样返回，不能回退缓存复活旧内容。
+    //    (Vditor setValue 走 enableInput:false 不触发 input，置位只来自真实编辑)
+    if (!vditor) return cachedValue || "";
+    if (!ready) return cachedValue;
+    const v = vditor.getValue();
+    return v === "" && cachedValue && !editedSinceSet ? cachedValue : v;
   }
 
   function setValue(md, restoreScroll) {
     cachedValue = md || "";
+    editedSinceSet = false;
     if (!vditor || !ready) {
       // 编辑器正在重建（setMode 中）：先暂存，build 完成后由回调应用，不丢内容
       pendingValue = md || "";

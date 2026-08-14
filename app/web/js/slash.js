@@ -51,6 +51,12 @@
     return { kind: "slash", query: m[1], deleteLen: m[1].length + 1, rect };
   }
 
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
   function render() {
     if (!items.length) {
       menu.innerHTML = '<div class="slash-empty">没有匹配的命令</div>';
@@ -60,7 +66,7 @@
     let lastGroup = null;
     items.forEach((cmd, i) => {
       if (cmd.group !== lastGroup) {
-        html += `<div class="slash-group-label">${cmd.group}</div>`;
+        html += `<div class="slash-group-label">${esc(cmd.group)}</div>`;
         lastGroup = cmd.group;
       }
       const icon = window.ICONS[cmd.icon] || "";
@@ -69,10 +75,10 @@
         <div class="slash-item${i === activeIdx ? " active" : ""}${cmd.disabled ? " disabled" : ""}" data-idx="${i}">
           <span class="si-icon">${icon}</span>
           <span class="si-body">
-            <div class="si-title">${cmd.title}</div>
-            ${cmd.desc ? `<div class="si-desc">${cmd.desc}</div>` : ""}
+            <div class="si-title">${esc(cmd.title)}</div>
+            ${cmd.desc ? `<div class="si-desc">${esc(cmd.desc)}</div>` : ""}
           </span>
-          <span class="si-keys">${key}</span>
+          <span class="si-keys">${esc(key)}</span>
         </div>`;
     });
     menu.innerHTML = html;

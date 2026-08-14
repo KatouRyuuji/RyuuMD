@@ -264,8 +264,7 @@
     ["cloud-url", "cloud-user", "cloud-root", "cloud-pass",
      "cloud-auto-save", "cloud-auto-start", "cloud-sync-all", "cloud-insecure"].forEach((id) => {
       const el = document.getElementById(id);
-      const ev = el.type === "checkbox" || el.type === "password" ? "change" : "change";
-      el.addEventListener(ev, () => persist());
+      el.addEventListener("change", () => persist());
     });
 
     document.getElementById("cloud-test").addEventListener("click", async () => {

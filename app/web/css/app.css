@@ -441,6 +441,7 @@ body {
   cursor: pointer;
 }
 #sb-path:hover { color: var(--primary); }
+#sb-zoom {
   border: none;
   background: transparent;
   font-family: inherit;

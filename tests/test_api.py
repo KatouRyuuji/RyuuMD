@@ -65,6 +65,14 @@ class TestFileIO(unittest.TestCase):
         self.assertTrue(res["ok"])
         self.assertEqual(target.read_text(encoding="utf-8"), "内容")
 
+    def test_save_file_atomic_leaves_no_tmp(self):
+        # 原子写：临时文件写完即 os.replace 收走，目录不留 .tmp 残片
+        target = self.root / "a.md"
+        res = self.api.save_file(str(target), "内容")
+        self.assertTrue(res["ok"])
+        self.assertEqual(target.read_text(encoding="utf-8"), "内容")
+        self.assertEqual([p.name for p in self.root.iterdir()], ["a.md"])
+
     def test_new_file_appends_ext_and_rejects_dup(self):
         res = self.api.new_file(str(self.root), "新建文档")
         self.assertTrue(res["ok"])
@@ -376,6 +384,16 @@ class TestFileOps(unittest.TestCase):
         res = self.api.rename_file(str(b), "a.md")
         self.assertFalse(res["ok"])
         self.assertIn("已存在", res["error"])
+
+    def test_rename_case_only(self):
+        # 仅大小写变化也是有效改名：大小写不敏感文件系统上 target.exists() 恒真，
+        # 不得被「同名已存在」拦截、也不能静默不变（曾直接返回 ok 但未改名）
+        p = touch(self.root / "note.md", "# 内容")
+        res = self.api.rename_file(str(p), "NOTE.md")
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["name"], "NOTE.md")
+        self.assertEqual(Path(res["path"]).read_text(encoding="utf-8"), "# 内容")
+        self.assertIn("NOTE.md", [x.name for x in self.root.iterdir()])
 
     def test_rename_syncs_recent_and_last_file(self):
         p = touch(self.root / "r.md")

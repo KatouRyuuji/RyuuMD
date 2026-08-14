@@ -8,6 +8,7 @@
     currentFolder: null, // 当前工作文件夹
     dirty: false,
     lastSaved: "",
+    latestContent: "", // 编辑器最近一次已知内容（onEditorChange/装载/保存快照），保存竞态下重算脏标记用
     svForced: false,     // 当前文档因超过大文档阈值被强制为源码模式
     templates: [],
     diskMtime: 0,
@@ -209,6 +210,7 @@
     if (window.Home && window.Home.isOpen()) window.Home.hide(); // 打开文档即回编辑器
     state.currentPath = fileRes.path;
     state.lastSaved = fileRes.content;
+    state.latestContent = fileRes.content;
     state.dirty = false;
     // 大文档策略：超阈值且当前是渲染模式时切到源码模式，并明确告知用户
     const size = fileRes.size != null ? fileRes.size : (fileRes.content || "").length;
@@ -282,8 +284,17 @@
     const a = apiOrToast();
     if (!a) return;
     const content = window.Editor.getValue();
+    state.latestContent = content; // 保存起点快照
     if (state.currentPath) {
-      const res = await a.save_file(state.currentPath, content);
+      // _saving 门闩：磁盘守望在自己写盘的往返窗口内不得把 mtime 变化
+      // 误判为外部修改而重载（会把阅读位置刷回顶部）
+      state._saving = true;
+      let res;
+      try {
+        res = await a.save_file(state.currentPath, content);
+      } finally {
+        state._saving = false;
+      }
       if (res.ok) {
         markSaved(content);
         if (res.mtime) state.diskMtime = res.mtime;
@@ -298,6 +309,7 @@
       if (res.ok) {
         state.currentPath = res.path;
         markSaved(content);
+        if (res.mtime) state.diskMtime = res.mtime; // 与已保存分支一致，防守望误重载
         updateDocName(basename(res.path));
         window.Sidebar.markActive(res.path);
         updateStatusPath();
@@ -312,7 +324,10 @@
 
   function markSaved(content) {
     state.lastSaved = content;
-    state.dirty = false;
+    // 保存往返期间用户可能继续输入：以最新已知内容重算脏标记。
+    // 直接置 false 会把保存进行中产生的新编辑错标为「已保存」，
+    // 关闭时不弹确认、输入就此丢失。
+    state.dirty = state.latestContent != null ? state.latestContent !== content : false;
     updateDocName();
   }
 
@@ -364,6 +379,7 @@
   let autoSaveTimer = null;
   function onEditorChange(now) {
     if (now == null) now = window.Editor.getValue();
+    state.latestContent = now;
     state.dirty = now !== state.lastSaved;
     updateDocName();
     updateCount(now);
@@ -429,7 +445,7 @@
 
   function updateDocName(name) {
     const base = name || (state.currentPath ? basename(state.currentPath) : "未命名");
-    docNameEl.innerHTML = base + (state.dirty ? '<span class="dirty">●</span>' : "");
+    docNameEl.innerHTML = esc(base) + (state.dirty ? '<span class="dirty">●</span>' : "");
   }
 
   // ---------------------------------------------------------------
@@ -488,6 +504,7 @@
     if (window.Home && window.Home.isOpen()) window.Home.hide();
     state.currentPath = null;
     state.lastSaved = "";
+    state.latestContent = "";
     state.dirty = false;
     maybeRestoreMode();
     window.Editor.setValue("");
@@ -1193,7 +1210,7 @@
   }
 
   async function checkDiskChange() {
-    if (!state.currentPath || state.dirty) return;
+    if (!state.currentPath || state.dirty || state._saving) return;
     const a = api();
     if (!a || !a.file_stat) return;
     let res;

@@ -23,7 +23,7 @@ import webview
 from . import file_assoc
 from .cloud_sync import get_engine, public_cloud, save_cloud
 from .config import Config
-from .fsutil import IMAGE_EXTS, IGNORE_DIRS, MD_EXTS, recycle_file, skip_dir_name  # noqa: F401
+from .fsutil import IMAGE_EXTS, IGNORE_DIRS, MD_EXTS, atomic_write_text, recycle_file, skip_dir_name  # noqa: F401
 from .projects import ProjectStore
 from . import search as vault_search
 
@@ -148,8 +148,8 @@ class Api:
     def save_file(self, path: str, content: str) -> dict[str, Any]:
         try:
             p = Path(path)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(content, encoding="utf-8")
+            # 原子写：自动保存高频触发，崩溃/断电不得留下半截笔记
+            atomic_write_text(p, content)
             self.config.set("last_file", str(p))
             self._add_recent(str(p), "file")
             self._maybe_cloud_push(str(p))
@@ -231,7 +231,13 @@ class Api:
                 name += ".md"
             target = p.with_name(name)
             if os.path.normcase(str(target)) == os.path.normcase(str(p)):
-                return {"ok": True, "path": str(p), "name": p.name}
+                if str(target) == str(p):
+                    return {"ok": True, "path": str(p), "name": p.name}
+                # 仅大小写变化：大小写不敏感文件系统上 target.exists() 恒真，
+                # 不能被「同名已存在」拦截——直接改名（Windows/macOS 允许）
+                os.rename(p, target)
+                self._sync_path_refs(str(p), str(target))
+                return {"ok": True, "path": str(target), "name": target.name}
             if target.exists():
                 return {"ok": False, "error": "同名文件已存在"}
             os.rename(p, target)
@@ -791,9 +797,9 @@ class Api:
         try:
             if dest.is_file():
                 existing = dest.read_text(encoding="utf-8", errors="replace")
-                dest.write_text(existing.rstrip() + "\n" + block, encoding="utf-8")
+                atomic_write_text(dest, existing.rstrip() + "\n" + block)
             else:
-                dest.write_text("# " + dest.stem + "\n" + block, encoding="utf-8")
+                atomic_write_text(dest, "# " + dest.stem + "\n" + block)
             self._maybe_cloud_push(str(dest))
             st = dest.stat()
             return {

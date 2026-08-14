@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
+from pathlib import Path
 
 # 视为 markdown 的扩展名
 MD_EXTS = {".md", ".markdown", ".mdown", ".mkd", ".mdx"}
@@ -58,6 +60,32 @@ def count_md_files(root: str, budget: int = 800, max_depth: int = 5) -> tuple[in
         except OSError:
             continue
     return count, capped
+
+
+def atomic_write_bytes(path: "str | Path", data: bytes) -> None:
+    """原子写：同目录临时文件 + os.replace，进程崩溃/断电不留半截文件。
+
+    临时文件名带随机后缀，两个窗口同时保存同一文件也不会撞名；
+    失败时清理残片后原样抛错，由调用方兜底。
+    """
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=p.name + ".", suffix=".tmp", dir=str(p.parent))
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        os.replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_write_text(path: "str | Path", text: str) -> None:
+    """atomic_write_bytes 的 UTF-8 文本封装。"""
+    atomic_write_bytes(path, text.encode("utf-8"))
 
 
 def recycle_file(path: str) -> None:

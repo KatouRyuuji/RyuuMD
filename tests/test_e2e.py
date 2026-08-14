@@ -815,6 +815,22 @@ CASES = [
          setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T61 清空文档:真实编辑清空后 getValue 反映空文档(不回退旧内容)",
+         # 行为契约:用户清空文档后,getValue 必须如实返回空(实测 Vditor 清空后
+         # 序列化为 "\n"),不得因缓存回退等原因复活装载时的旧内容。
+         # 前置:T38 起模式停在 sv,先切回 ir 并装载内容
+         setup="window.Editor.setMode('ir');window.Editor.setValue(" + JV('# 待清空\n\n正文 XYZ') + ");",
+         sleep=1.5,
+         js="window.Editor.getMode()==='ir'&&window.Editor.isReady()&&window.Editor.getValue().indexOf('XYZ')>=0",
+         timeout=15,
+         # 第二阶段:模拟真实用户清空(聚焦→全选→删除,execCommand 产生可信 input
+         # 事件,Vditor 正常处理),防抖落定后内容必须为空白
+         setup2=("(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                 "if(!el)return;el.focus();document.execCommand('selectAll');document.execCommand('delete');})()"),
+         sleep2=1.2,
+         js2=("(function(){var v=window.Editor.getValue();"
+              "return v.trim()===''?true:'not empty len='+v.length+' head='+JSON.stringify(v.slice(0,20));})()")),
 ]
 
 

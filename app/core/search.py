@@ -20,6 +20,20 @@ MAX_HITS = 50
 SNIPPET_LEN = 160
 
 
+def _read_head(p: Path) -> str:
+    """只读文件前 MAX_FILE_READ 字节（按字节截断、UTF-8 容错解码）。
+
+    旧实现 read_text() 整文载入再切片，巨型 md（数百 MB）会全量进内存；
+    索引/搜索只需前缀摘要，有界读取即可。读失败返回空串（调用方按无命中处理）。
+    """
+    try:
+        with open(p, "rb") as f:
+            data = f.read(MAX_FILE_READ + 4)
+    except OSError:
+        return ""
+    return data[:MAX_FILE_READ].decode("utf-8", errors="replace")
+
+
 def iter_md_files(
     root: str | Path,
     max_files: int = MAX_INDEX_FILES,
@@ -129,10 +143,7 @@ def search_vault(root: str, query: str, max_hits: int = MAX_HITS) -> dict[str, A
                 return {"ok": True, "hits": hits, "truncated": True}
 
     for p in iter_md_files(root_p):
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
-        except OSError:
-            continue
+        text = _read_head(p)
         for i, line in enumerate(text.splitlines(), 1):
             if q_l in line.lower():
                 snippet = line.strip()
@@ -270,10 +281,7 @@ def find_backlinks(root: str, target_path: str, max_hits: int = 40) -> dict[str,
     for p in iter_md_files(root_p):
         if os.path.normcase(str(p)) == want:
             continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
-        except OSError:
-            continue
+        text = _read_head(p)
         matched = False
         for m in WIKI_RE.finditer(text):
             raw = m.group(1).strip().replace("\\", "/")
@@ -314,10 +322,7 @@ TAG_RE = re.compile(
 
 def _iter_notes(root_p: Path) -> Iterator[tuple[Path, str]]:
     for p in iter_md_files(root_p):
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
-        except OSError:
-            continue
+        text = _read_head(p)
         yield p, text
 
 
@@ -451,10 +456,7 @@ def list_broken_wikilinks(root: str, query: str = "", max_hits: int = MAX_HITS) 
     items: list[dict[str, Any]] = []
     truncated = False
     for p in files:
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
-        except OSError:
-            continue
+        text = _read_head(p)
         for i, line in _iter_source_lines(text):
             for m in WIKI_RE.finditer(line):
                 raw = m.group(1).strip()
@@ -485,10 +487,7 @@ def list_orphans(root: str, query: str = "", max_hits: int = MAX_HITS) -> dict[s
     files = list(iter_md_files(root_p))
     mentioned: set[str] = set()
     for p in files:
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_READ]
-        except OSError:
-            continue
+        text = _read_head(p)
         for m in WIKI_RE.finditer(text):
             t, _ = parse_wikilink(m.group(1))
             if t:

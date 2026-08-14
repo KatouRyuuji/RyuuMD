@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Optional, Protocol
 
 from .config import Config
-from .fsutil import IGNORE_DIRS, MD_EXTS
+from .fsutil import IGNORE_DIRS, MD_EXTS, atomic_write_bytes
 from .projects import ProjectStore
 from .webdav import DavError, WebDavClient
 
@@ -365,6 +365,17 @@ class CloudEngine:
             try:
                 action = self._decide(loc, rem, rec)
                 if action == "skip":
+                    if loc and rem and not rec:
+                        # 首次双方同尺寸跳过：补上本地指纹。否则此后本地同尺寸
+                        # 改动永远识别不出（每次都走「首次」分支按尺寸跳过），
+                        # 改动静默丢失；有指纹后下次同步即可正常判定上传/下载
+                        try:
+                            files_state[self._key(pid, rel)] = {
+                                "local_mtime": loc["mtime"],
+                                "sha": _sha(Path(loc["path"]).read_bytes()),
+                            }
+                        except OSError:
+                            pass
                     totals["skipped"] += 1
                     continue
                 if action == "upload":
@@ -382,7 +393,7 @@ class CloudEngine:
                     data = client.get(f"{prefix}/{rel}")
                     dest = Path(root) / rel
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(data)
+                    atomic_write_bytes(dest, data)
                     files_state[self._key(pid, rel)] = {
                         "local_mtime": dest.stat().st_mtime,
                         "sha": _sha(data),
@@ -394,7 +405,7 @@ class CloudEngine:
                     stamp = time.strftime("%Y%m%d-%H%M%S")
                     stem, ext = dest.stem, dest.suffix
                     conflict_path = dest.with_name(f"{stem}{CONFLICT_MARK}{stamp}{ext}")
-                    conflict_path.write_bytes(data)
+                    atomic_write_bytes(conflict_path, data)
                     local_data = Path(loc["path"]).read_bytes()
                     client.put(f"{prefix}/{rel}", local_data)
                     files_state[self._key(pid, rel)] = {
@@ -446,10 +457,10 @@ class CloudEngine:
                 return "conflict"
             return "upload"
         # 首次双方都有：hash 相同则记状态跳过，不同则较新者胜（比 mtime）
-        # 这里还没 GET，用 size 先筛
+        # 这里还没 GET，用 size 先筛（同尺寸跳过时的指纹补记由调用方负责）
         rem_size = getattr(rem, "size", 0) or 0
         if rem_size == loc["size"]:
-            return "skip"  # 大概率同一文件；记状态在 skip 前未写入，下次仍 skip
+            return "skip"  # 大概率同一文件；远端同尺寸异内容无法识别（需 GET，太贵）
         rem_mtime = getattr(rem, "mtime", 0) or 0
         if loc["mtime"] >= rem_mtime:
             return "upload"

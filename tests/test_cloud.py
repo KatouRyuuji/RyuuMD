@@ -208,6 +208,23 @@ class TestCloudEngine(unittest.TestCase):
         self.assertEqual(res["uploaded"], 0)
         self.assertGreaterEqual(res["skipped"], 1)
 
+    def test_same_size_skip_records_fingerprint(self):
+        # 首次同步双方同尺寸 → skip，但须补记本地指纹；
+        # 否则此后本地同尺寸改动永远走「首次」分支按尺寸跳过，改动静默丢失
+        pid, d = self._vault()
+        local = touch(d / "a.md", "abcd")
+        self.dav.put(f"{pid}/a.md", b"abcd")
+        res = self.engine.sync()
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["uploaded"], 0)
+        self.assertGreaterEqual(res["skipped"], 1)
+        # 本地改成同尺寸不同内容 → 有指纹应识别为本地改动并上传
+        local.write_text("wxyz", encoding="utf-8")
+        res2 = self.engine.sync()
+        self.assertTrue(res2["ok"], res2)
+        self.assertEqual(res2["uploaded"], 1)
+        self.assertEqual(self.dav.files[f"{pid}/a.md"][0], b"wxyz")
+
     def test_conflict_keeps_local_and_saves_remote_copy(self):
         pid, d = self._vault()
         local = touch(d / "note.md", "local-v1")

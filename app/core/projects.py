@@ -100,7 +100,8 @@ class ProjectStore:
             return {"ok": True, "project": existed, "existed": True}
         project = {
             "id": uuid.uuid4().hex[:12],
-            "name": (name or p.name or str(p)).strip(),
+            # 名字留白（含全空白）时回落到目录名，避免空名仓库
+            "name": (name or "").strip() or p.name or str(p),
             "path": str(p),
             "pinned": False,
             "cloud_enabled": False,

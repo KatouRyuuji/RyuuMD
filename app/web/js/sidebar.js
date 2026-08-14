@@ -42,7 +42,7 @@
     if (!tree || !tree.length) {
       filesEmpty.style.display = "block";
       filesEmpty.innerHTML = rootName
-        ? `「${rootName}」中没有 Markdown 文件<br><button class="btn" id="empty-new-file">新建笔记</button>`
+        ? `「${esc(rootName)}」中没有 Markdown 文件<br><button class="btn" id="empty-new-file">新建笔记</button>`
         : '还没有打开文件夹<br><button class="btn" id="empty-open-folder">打开文件夹</button>';
       rebindEmpty();
       fileTreeEl.innerHTML = "";

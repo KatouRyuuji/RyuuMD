@@ -23,7 +23,7 @@
 main.py                     进程入口：单实例判定、WindowManager、webview.start
 app/core/
   config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键，tmp+replace 原子写）
-  fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS/IMAGE_EXTS + skip_dir_name + count_md_files + recycle_file
+  fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS/IMAGE_EXTS + skip_dir_name + count_md_files + recycle_file + atomic_write_*（保存/云同步落盘统一原子写）
   api.py                    Api：暴露给 JS 的全部方法（每窗口一个实例；含文件管理 rename/move/delete、append_capture）
   search.py                 仓库 md 索引 / 全文搜索 / [[wikilink]] / 待办标签断链 / 未链接提及
   projects.py               ProjectStore：仓库增删改查/置顶/排序/打开计时
@@ -208,7 +208,7 @@ python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他
 ```
 
 - 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API/云同步/检索）；
-- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 62 项）；
+- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 63 项）；
 - 新增功能必须配套用例；中文注入断言一律用 `JV()`（json.dumps）；
 - 详见 `docs/TEST_PLAN.md`（含手动验证清单）。
 
