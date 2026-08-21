@@ -1,13 +1,60 @@
-/* 设置弹窗：操作风格切换、亮/暗主题、重开欢迎页。
-   变更即时回调 App 应用并持久化。 */
+/* 设置弹窗：通用 / 外观 / 云同步 三个分组标签页。
+   切换标签只显隐、不重渲染，避免云同步输入丢失。
+   变更即时回调 App 应用并持久化（无确定/取消）。 */
 (function () {
   const mask = document.getElementById("settings-mask");
   let cfg = null;
   let onApply = null; // (partialConfig) => void
 
+  const LIGHT_PALETTES = [
+    { id: "cherry", name: "樱桃红", color: "#aa1111" },
+    { id: "caramel", name: "焦糖橙", color: "#f59e0b" },
+    { id: "forest", name: "森绿", color: "#11aa63" },
+    { id: "mint", name: "薄荷青", color: "#3db8bf" },
+    { id: "sky", name: "天蓝", color: "#3498db" },
+    { id: "prussian", name: "普鲁士蓝", color: "#1D4E89" },
+    { id: "sakura", name: "樱花粉", color: "#ff7096" },
+    { id: "mauve", name: "淡紫", color: "#A06EB4" },
+  ];
+  const DARK_PALETTES = [
+    { id: "vampire", name: "吸血鬼", color: "#ff5555" },
+    { id: "radiation", name: "辐射", color: "#4cd964" },
+    { id: "abyss", name: "深渊", color: "#00f3ff" },
+  ];
+  const FONT_UI_PRESETS = [
+    { value: "", label: "默认（霞鹜文楷）" },
+    { value: "Microsoft YaHei", label: "微软雅黑" },
+    { value: "SimSun", label: "宋体" },
+    { value: "KaiTi", label: "楷体" },
+    { value: "Segoe UI", label: "Segoe UI" },
+    { value: "-apple-system, BlinkMacSystemFont, system-ui, \"Segoe UI\", \"Microsoft YaHei\", sans-serif", label: "系统默认" },
+    { value: "__custom__", label: "自定义…" },
+  ];
+  const FONT_MONO_PRESETS = [
+    { value: "", label: "默认（Cascadia Code）" },
+    { value: "Consolas", label: "Consolas" },
+    { value: "JetBrains Mono", label: "JetBrains Mono" },
+    { value: "Courier New", label: "Courier New" },
+    { value: "__custom__", label: "自定义…" },
+  ];
+
+  function swatchHtml(list) {
+    return list.map((p) =>
+      `<button type="button" class="palette-swatch" data-v="${p.id}" title="${p.name}" aria-label="${p.name}" style="background:${p.color}"></button>`
+    ).join("");
+  }
+
+  function optionHtml(list) {
+    return list.map((p) => `<option value="${escapeAttr(p.value)}">${p.label}</option>`).join("");
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
   function render() {
     mask.innerHTML = `
-      <div class="modal">
+      <div class="modal settings-modal" role="dialog" aria-modal="true" aria-label="设置">
         <div class="modal-head">
           <span class="badge">${window.ICONS.gear}</span>
           <div>
@@ -15,91 +62,136 @@
             <p>偏好将自动保存</p>
           </div>
         </div>
+        <div class="settings-tabs" role="tablist">
+          <button type="button" class="settings-tab active" data-tab="general" role="tab">通用</button>
+          <button type="button" class="settings-tab" data-tab="appearance" role="tab">外观</button>
+          <button type="button" class="settings-tab" data-tab="cloud" role="tab">云同步</button>
+        </div>
         <div class="modal-body">
-          <div class="setting-row">
-            <div>
-              <div class="label">操作风格</div>
-              <div class="desc">斜杠命令的触发词风格</div>
+          <div class="settings-pane active" data-pane="general">
+            <div class="setting-row">
+              <div>
+                <div class="label">操作风格</div>
+                <div class="desc">斜杠命令的触发词风格</div>
+              </div>
+              <div class="segmented" id="set-style">
+                <button data-v="notion">Typora + Notion</button>
+                <button data-v="wolai">Typora + Wolai</button>
+              </div>
             </div>
-            <div class="segmented" id="set-style">
-              <button data-v="notion">Typora + Notion</button>
-              <button data-v="wolai">Typora + Wolai</button>
+            <div class="setting-row">
+              <div>
+                <div class="label">启动时显示</div>
+                <div class="desc">首页 = 每次启动进入首页（默认）；上次会话 = 恢复退出前的文件夹与文档</div>
+              </div>
+              <div class="segmented" id="set-startup">
+                <button data-v="home">首页</button>
+                <button data-v="restore">上次会话</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">默认 Markdown 应用</div>
+                <div class="desc">双击 .md 文件直接用 RyuuMD 打开</div>
+              </div>
+              <button class="btn" id="set-default-app">设为默认</button>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">欢迎页</div>
+                <div class="desc">重看功能介绍与支持作者</div>
+              </div>
+              <button class="btn" id="set-welcome">打开</button>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">自动保存</div>
+                <div class="desc">已保存的文档在停止输入后自动写盘</div>
+              </div>
+              <button type="button" class="toggle" id="set-autosave" title="自动保存"></button>
+            </div>
+            <div class="write-panel">
+              <div class="label">日记目录</div>
+              <div class="desc">相对当前仓库，每日笔记保存为 YYYY-MM-DD.md</div>
+              <input class="field-input" id="set-daily-folder" placeholder="日记" spellcheck="false" />
             </div>
           </div>
-          <div class="setting-row">
-            <div>
-              <div class="label">主题外观</div>
-              <div class="desc">亮色 phycat sky / 暗色 phycat vampire</div>
+          <div class="settings-pane" data-pane="appearance">
+            <div class="setting-row">
+              <div>
+                <div class="label">主题外观</div>
+                <div class="desc">工具栏按钮在亮 / 暗之间对切；配色在下方分别记忆</div>
+              </div>
+              <div class="segmented" id="set-theme">
+                <button data-v="light">亮色</button>
+                <button data-v="dark">暗色</button>
+              </div>
             </div>
-            <div class="segmented" id="set-theme">
-              <button data-v="light">亮色</button>
-              <button data-v="dark">暗色</button>
+            <div class="setting-row">
+              <div>
+                <div class="label">亮色配色</div>
+                <div class="desc">点选即时保存。当前是暗色时只记住，切回亮色后生效</div>
+              </div>
+              <div class="palette-swatches" id="swatch-light">${swatchHtml(LIGHT_PALETTES)}</div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">暗色配色</div>
+                <div class="desc">点选即时保存。当前是亮色时只记住，切到暗色后生效</div>
+              </div>
+              <div class="palette-swatches" id="swatch-dark">${swatchHtml(DARK_PALETTES)}</div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">界面字体</div>
+                <div class="desc">外壳与编辑区正文；默认霞鹜文楷</div>
+              </div>
+              <div class="font-field">
+                <select class="field-input" id="set-font-ui">${optionHtml(FONT_UI_PRESETS)}</select>
+                <input class="field-input" id="set-font-ui-custom" placeholder="本机字体名" spellcheck="false" hidden />
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">等宽字体</div>
+                <div class="desc">源码模式与代码块；默认 Cascadia Code</div>
+              </div>
+              <div class="font-field">
+                <select class="field-input" id="set-font-mono">${optionHtml(FONT_MONO_PRESETS)}</select>
+                <input class="field-input" id="set-font-mono-custom" placeholder="本机字体名" spellcheck="false" hidden />
+              </div>
             </div>
           </div>
-          <div class="setting-row">
-            <div>
-              <div class="label">启动时显示</div>
-              <div class="desc">上次会话 = 自动恢复退出前的文件夹与文档</div>
+          <div class="settings-pane" data-pane="cloud">
+            <div class="setting-row">
+              <div>
+                <div class="label">启用云同步</div>
+                <div class="desc">官方不提供云端，勾选后使用你自己的 WebDAV</div>
+              </div>
+              <button type="button" class="toggle" id="cloud-enabled" title="启用云同步"></button>
             </div>
-            <div class="segmented" id="set-startup">
-              <button data-v="restore">上次会话</button>
-              <button data-v="home">首页</button>
+            <div class="cloud-panel" id="cloud-panel">
+              <p class="cloud-hint">适用于坚果云、Nextcloud、群晖、AList、Seafile 等 WebDAV。笔记仍保存在本地，云端只做同步副本。</p>
+              <div class="field-grid">
+                <label for="cloud-url">服务器地址</label>
+                <input class="field-input" id="cloud-url" placeholder="https://dav.jianguoyun.com/dav/" spellcheck="false" />
+                <label for="cloud-user">用户名</label>
+                <input class="field-input" id="cloud-user" placeholder="邮箱或账号" spellcheck="false" />
+                <label for="cloud-pass">密码</label>
+                <input class="field-input" id="cloud-pass" type="password" placeholder="" spellcheck="false" />
+                <label for="cloud-root">远端目录</label>
+                <input class="field-input" id="cloud-root" placeholder="RyuuMD" spellcheck="false" />
+              </div>
+              <label class="check-line"><input type="checkbox" id="cloud-auto-save" /> 保存后自动上传当前文件</label>
+              <label class="check-line"><input type="checkbox" id="cloud-auto-start" /> 启动时自动同步已开启的仓库</label>
+              <label class="check-line"><input type="checkbox" id="cloud-sync-all" /> 同步全部仓库（否则请在首页为单个仓库打开云同步）</label>
+              <label class="check-line"><input type="checkbox" id="cloud-insecure" /> 忽略 SSL 证书错误（仅内网 NAS 自签证书时勾选）</label>
+              <div class="cloud-actions">
+                <button class="btn" id="cloud-test">测试连接</button>
+                <button class="btn btn-primary" id="cloud-sync-now">立即同步</button>
+              </div>
+              <div id="cloud-status"></div>
             </div>
-          </div>
-          <div class="setting-row">
-            <div>
-              <div class="label">默认 Markdown 应用</div>
-              <div class="desc">双击 .md 文件直接用 RyuuMD 打开</div>
-            </div>
-            <button class="btn" id="set-default-app">设为默认</button>
-          </div>
-          <div class="setting-row">
-            <div>
-              <div class="label">欢迎页</div>
-              <div class="desc">重看功能介绍与支持作者</div>
-            </div>
-            <button class="btn" id="set-welcome">打开</button>
-          </div>
-          <div class="setting-row">
-            <div>
-              <div class="label">自动保存</div>
-              <div class="desc">已保存的文档在停止输入后自动写盘</div>
-            </div>
-            <button type="button" class="toggle" id="set-autosave" title="自动保存"></button>
-          </div>
-          <div class="write-panel">
-            <div class="label">日记目录</div>
-            <div class="desc">相对当前仓库，每日笔记保存为 YYYY-MM-DD.md</div>
-            <input class="field-input" id="set-daily-folder" placeholder="日记" spellcheck="false" />
-          </div>
-          <div class="setting-row">
-            <div>
-              <div class="label">启用云同步</div>
-              <div class="desc">官方不提供云端，勾选后使用你自己的 WebDAV</div>
-            </div>
-            <button type="button" class="toggle" id="cloud-enabled" title="启用云同步"></button>
-          </div>
-          <div class="cloud-panel" id="cloud-panel">
-            <p class="cloud-hint">适用于坚果云、Nextcloud、群晖、AList、Seafile 等 WebDAV。笔记仍保存在本地，云端只做同步副本。</p>
-            <div class="field-grid">
-              <label for="cloud-url">服务器地址</label>
-              <input class="field-input" id="cloud-url" placeholder="https://dav.jianguoyun.com/dav/" spellcheck="false" />
-              <label for="cloud-user">用户名</label>
-              <input class="field-input" id="cloud-user" placeholder="邮箱或账号" spellcheck="false" />
-              <label for="cloud-pass">密码</label>
-              <input class="field-input" id="cloud-pass" type="password" placeholder="" spellcheck="false" />
-              <label for="cloud-root">远端目录</label>
-              <input class="field-input" id="cloud-root" placeholder="RyuuMD" spellcheck="false" />
-            </div>
-            <label class="check-line"><input type="checkbox" id="cloud-auto-save" /> 保存后自动上传当前文件</label>
-            <label class="check-line"><input type="checkbox" id="cloud-auto-start" /> 启动时自动同步已开启的仓库</label>
-            <label class="check-line"><input type="checkbox" id="cloud-sync-all" /> 同步全部仓库（否则请在首页为单个仓库打开云同步）</label>
-            <label class="check-line"><input type="checkbox" id="cloud-insecure" /> 忽略 SSL 证书错误（仅内网 NAS 自签证书时勾选）</label>
-            <div class="cloud-actions">
-              <button class="btn" id="cloud-test">测试连接</button>
-              <button class="btn btn-primary" id="cloud-sync-now">立即同步</button>
-            </div>
-            <div id="cloud-status"></div>
           </div>
         </div>
         <div class="modal-foot">
@@ -107,9 +199,14 @@
         </div>
       </div>`;
 
+    bindTabs();
     bindSeg("set-style", "operation_style");
     bindSeg("set-theme", "theme");
     bindSeg("set-startup", "startup_page");
+    bindSwatches("swatch-light", "palette_light");
+    bindSwatches("swatch-dark", "palette_dark");
+    bindFont("set-font-ui", "set-font-ui-custom", "font_ui", FONT_UI_PRESETS);
+    bindFont("set-font-mono", "set-font-mono-custom", "font_mono", FONT_MONO_PRESETS);
     document.getElementById("set-close").addEventListener("click", close);
     // 重开欢迎页：关闭设置后走 App 的欢迎流程（含风格选择与持久化）
     document.getElementById("set-welcome").addEventListener("click", () => {
@@ -120,6 +217,63 @@
     bindAutoSave();
     bindCloud();
     syncActive();
+  }
+
+  function bindTabs() {
+    const tabs = mask.querySelectorAll(".settings-tab");
+    const panes = mask.querySelectorAll(".settings-pane");
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const id = tab.dataset.tab;
+        tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === id));
+        panes.forEach((p) => p.classList.toggle("active", p.dataset.pane === id));
+      });
+    });
+  }
+
+  function bindSwatches(id, key) {
+    document.getElementById(id).querySelectorAll(".palette-swatch").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        cfg[key] = btn.dataset.v;
+        syncSwatches();
+        if (onApply) onApply({ [key]: btn.dataset.v });
+      });
+    });
+  }
+
+  function bindFont(selectId, customId, key, presets) {
+    const sel = document.getElementById(selectId);
+    const custom = document.getElementById(customId);
+    const presetVals = presets.map((p) => p.value).filter((v) => v !== "__custom__");
+
+    function reflect() {
+      const cur = cfg[key] || "";
+      if (cur && presetVals.indexOf(cur) < 0) {
+        sel.value = "__custom__";
+        custom.value = cur;
+        custom.hidden = false;
+      } else {
+        sel.value = cur;
+        custom.hidden = true;
+      }
+    }
+
+    sel.addEventListener("change", () => {
+      if (sel.value === "__custom__") {
+        custom.hidden = false;
+        custom.focus();
+        return;
+      }
+      custom.hidden = true;
+      cfg[key] = sel.value;
+      if (onApply) onApply({ [key]: sel.value });
+    });
+    custom.addEventListener("change", () => {
+      const v = custom.value.trim();
+      cfg[key] = v;
+      if (onApply) onApply({ [key]: v });
+    });
+    reflect();
   }
 
   // —— 默认 Markdown 应用（Windows 文件关联）——
@@ -154,7 +308,7 @@
       try {
         const res = await a().set_default_md_app();
         if (!res.ok) {
-          if (window.App) window.App.toast("设置失败：" + (res.error || ""));
+          if (window.App) window.App.toast("设置失败：" + (res.error || ""), { type: "error" });
         } else if (res.status && res.status.is_default) {
           if (window.App) window.App.toast("已设为默认 Markdown 应用");
         }
@@ -248,7 +402,7 @@
           return res.cloud_sync;
         }
         if (res && !res.ok) {
-          if (window.App) window.App.toast("保存云设置失败：" + (res.error || ""));
+          if (window.App) window.App.toast("保存云设置失败：" + (res.error || ""), { type: "error" });
         }
         return null;
       }
@@ -274,7 +428,7 @@
       status.textContent = "正在测试连接…";
       const res = await api.test_cloud();
       status.textContent = res.ok ? (res.message || "连接成功") : ("失败：" + (res.error || ""));
-      if (window.App) window.App.toast(res.ok ? "WebDAV 连接成功" : "连接失败：" + (res.error || ""));
+      if (window.App) window.App.toast(res.ok ? "WebDAV 连接成功" : "连接失败：" + (res.error || ""), res.ok ? { type: "success" } : { type: "error" });
     });
 
     document.getElementById("cloud-sync-now").addEventListener("click", async () => {
@@ -284,7 +438,7 @@
       status.textContent = "正在同步…";
       const res = await api.sync_cloud("");
       status.textContent = res.message || (res.ok ? "同步完成" : (res.error || "同步失败"));
-      if (window.App) window.App.toast(res.ok ? (res.message || "同步完成") : "同步失败：" + (res.error || ""));
+      if (window.App) window.App.toast(res.ok ? (res.message || "同步完成") : "同步失败：" + (res.error || ""), res.ok ? undefined : { type: "error" });
     });
   }
 
@@ -302,7 +456,13 @@
   function syncActive() {
     setSeg("set-style", String(cfg.operation_style));
     setSeg("set-theme", String(cfg.theme));
-    setSeg("set-startup", String(cfg.startup_page || "restore"));
+    setSeg("set-startup", String(cfg.startup_page || "home"));
+    syncSwatches();
+  }
+
+  function syncSwatches() {
+    setSwatch("swatch-light", cfg.palette_light || "sky");
+    setSwatch("swatch-dark", cfg.palette_dark || "vampire");
   }
 
   function setSeg(id, val) {
@@ -313,20 +473,45 @@
     );
   }
 
+  function setSwatch(id, val) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelectorAll(".palette-swatch").forEach((b) =>
+      b.classList.toggle("selected", b.dataset.v === val)
+    );
+  }
+
+  let lastFocus = null;
+
+  function isOpen() {
+    return mask.classList.contains("open");
+  }
+
   function open(config, applyFn) {
     cfg = Object.assign({}, config);
     onApply = applyFn;
+    if (!isOpen()) {
+      lastFocus = document.activeElement;
+      if (window.App && window.App.registerEscape) window.App.registerEscape(close);
+    }
     render();
     mask.classList.add("open");
+    const closer = document.getElementById("set-close");
+    if (closer) closer.focus();
   }
 
   function close() {
+    if (window.App && window.App.unregisterEscape) window.App.unregisterEscape(close);
     mask.classList.remove("open");
+    if (lastFocus && typeof lastFocus.focus === "function") {
+      try { lastFocus.focus(); } catch (e) { /* 原焦点节点可能已卸 */ }
+    }
+    lastFocus = null;
   }
 
   mask.addEventListener("click", (e) => {
     if (e.target === mask) close();
   });
 
-  window.Settings = { open, close };
+  window.Settings = { open, close, isOpen };
 })();

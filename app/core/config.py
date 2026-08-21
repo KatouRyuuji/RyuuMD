@@ -20,8 +20,16 @@ DEFAULTS: dict[str, Any] = {
     # 操作风格：notion = typora+notion（/h1 等英文/符号触发）
     #          wolai  = typora+wolai（/bt1、/dmk 等拼音缩写触发）
     "operation_style": "notion",
-    # 主题：light = phycat sky，dark = phycat vampire
+    # 主题明暗：light | dark（决定 Vditor setTheme 与基础明暗；配色见 palette_*）
     "theme": "light",
+    # 亮色模式使用的 phycat 配色变体（cherry/caramel/forest/mint/sky/prussian/sakura/mauve）
+    "palette_light": "sky",
+    # 暗色模式使用的 phycat 配色变体（vampire/radiation/abyss）
+    "palette_dark": "vampire",
+    # 界面字体；空字符串 = 跟随主题默认（霞鹜文楷）
+    "font_ui": "",
+    # 等宽字体；空字符串 = 跟随主题默认（Cascadia Code）
+    "font_mono": "",
     # 显示模式：ir = 渲染模式（Typora 式即时渲染），sv = 源码模式
     "display_mode": "ir",
     # 是否已展示过首次欢迎窗口（含操作风格选择）
@@ -36,7 +44,8 @@ DEFAULTS: dict[str, Any] = {
     "projects": [],
     # 首页仓库视图：card = 卡片，list = 列表
     "home_view": "card",
-    # 启动页：home = 始终显示首页（默认），restore = 恢复上次会话（无会话则进首页）
+    # 启动页：home = 始终显示首页（默认）；restore = 恢复上次会话（无会话则进首页）。
+    # 前端仅在值为 restore 时走恢复；缺失 / 非法值一律按 home，避免缺字段误进恢复。
     "startup_page": "home",
     # 已保存文档在停止输入后自动写盘（Typora / Joplin 同款；未保存的新文档不弹框）
     "auto_save": True,
@@ -46,6 +55,12 @@ DEFAULTS: dict[str, Any] = {
     "editor_zoom": 100,
     # Typora 式可读宽度：正文限制最大行宽，居中排版
     "readable_width": False,
+    # 侧栏宽度（像素），拖拽右缘调整，范围 180–480，双击恢复 256
+    "sidebar_width": 256,
+    # 专注模式：淡化非当前段落并收起侧栏
+    "focus_mode": False,
+    # 打字机模式：当前行尽量保持在编辑区中部
+    "typewriter_mode": False,
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,

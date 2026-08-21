@@ -180,6 +180,26 @@ class TestSaveImageAndDaily(unittest.TestCase):
         self.assertIn("&lt;脚本&gt;", doc)
         self.assertIn("<p>正文</p>", doc)
         self.assertTrue(doc.startswith("<!DOCTYPE html>"))
+        # 未传 config 时回退 sky，避免老调用方丢默认配色
+        self.assertIn("#3498db", doc)
+        self.assertIn("#2c3e50", doc)
+
+    def test_wrap_html_export_follows_palette_and_font(self):
+        doc = wrap_html_export(
+            "导出",
+            "<p>正文</p>",
+            {
+                "theme": "dark",
+                "palette_dark": "abyss",
+                "font_ui": "KaiTi",
+                "font_mono": "Consolas",
+            },
+        )
+        self.assertIn("#00f3ff", doc)
+        self.assertIn("#0f111a", doc)
+        self.assertIn("KaiTi", doc)
+        self.assertIn("Consolas", doc)
+        self.assertNotIn("#3498db", doc)
 
 
 class TestTemplates(unittest.TestCase):

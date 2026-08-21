@@ -1,8 +1,7 @@
 /* ============================================================
    RyuuMD 编辑区主题 —— 忠实移植 phycat（Typora 主题）设计语言
-   亮色: phycat sky   暗色: phycat vampire
+   明暗由 [data-theme] 决定；色相由 [data-palette] 在 themes.css 覆盖。
    选择器从 Typora 的 #write 映射到 Vditor IR 的 .vditor-reset。
-   配色随 :root[data-theme] 切换。
    ============================================================ */
 
 /* —— phycat 元素色（亮色 sky） —— */
@@ -31,6 +30,18 @@
   --code-body-bg: rgba(0,0,0,0.22);
   --code-fg: #f8f8f2;
   --quote-emoji: "\1F319"; /* 🌙 */
+  /* 暗色代码高亮（默认 vampire / Dracula；radiation、abyss 在 themes.css 覆盖） */
+  --code-keyword: #ff79c6;
+  --code-variable: #f8f8f2;
+  --code-function: #50fa7b;
+  --code-param: #f1fa8c;
+  --code-string: #f1fa8c;
+  --code-comment: #6272a4;
+  --code-type: #8be9fd;
+  --code-property: #66d9ef;
+  --code-number: #bd93f9;
+  --code-meta: #ffb86c;
+  --code-selected-bg: #44475a;
 }
 
 .vditor {
@@ -40,7 +51,7 @@
 }
 .vditor-reset {
   color: var(--text) !important;
-  font-family: "LXGW WenKai", var(--font-ui) !important;
+  font-family: var(--font-ui) !important;
   font-size: 16px !important;
   line-height: 2.0 !important;
   letter-spacing: 0.4px;
@@ -144,15 +155,17 @@
   padding: 5px 14px !important;
   border-radius: 8px;
   background: var(--h2-bg);
-  box-shadow: 0 2px 5px rgba(52,152,219,.18);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--el), transparent 82%);
   transition: transform .3s ease, box-shadow .3s ease, background .3s ease;
 }
 .vditor-reset h2:hover {
   background: var(--el-deep);
   transform: scale(1.01);
-  box-shadow: 0 8px 20px rgba(52,152,219,.30);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--el), transparent 70%);
 }
-:root[data-theme="dark"] .vditor-reset h2 { box-shadow: 0 0 8px rgba(255,85,85,.4); }
+:root[data-theme="dark"] .vditor-reset h2 {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--el), transparent 60%);
+}
 
 /* H3：左侧竖条，悬停内缩 */
 .vditor-reset h3 {
@@ -435,4 +448,56 @@
 .vditor-hint button.vditor-hint--current {
   background: var(--el-so-shallow) !important;
   color: var(--el-deep) !important;
+}
+
+/* 暗色代码高亮：用 palette 的 --code-* 盖过 Vditor 注入的 github-dark */
+:root[data-theme="dark"] .vditor-reset .hljs-keyword,
+:root[data-theme="dark"] .vditor-reset .hljs-selector-tag,
+:root[data-theme="dark"] .vditor-reset .hljs-built_in,
+:root[data-theme="dark"] .vditor-reset .hljs-name,
+:root[data-theme="dark"] .vditor-reset .hljs-tag {
+  color: var(--code-keyword) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-variable,
+:root[data-theme="dark"] .vditor-reset .hljs-template-variable {
+  color: var(--code-variable) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-title,
+:root[data-theme="dark"] .vditor-reset .hljs-section,
+:root[data-theme="dark"] .vditor-reset .hljs-title.function_ {
+  color: var(--code-function) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-params {
+  color: var(--code-param) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-string,
+:root[data-theme="dark"] .vditor-reset .hljs-addition {
+  color: var(--code-string) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-comment,
+:root[data-theme="dark"] .vditor-reset .hljs-quote {
+  color: var(--code-comment) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-type,
+:root[data-theme="dark"] .vditor-reset .hljs-class .hljs-title,
+:root[data-theme="dark"] .vditor-reset .hljs-selector-class {
+  color: var(--code-type) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-attr,
+:root[data-theme="dark"] .vditor-reset .hljs-attribute,
+:root[data-theme="dark"] .vditor-reset .hljs-property {
+  color: var(--code-property) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-number,
+:root[data-theme="dark"] .vditor-reset .hljs-literal {
+  color: var(--code-number) !important;
+}
+:root[data-theme="dark"] .vditor-reset .hljs-meta,
+:root[data-theme="dark"] .vditor-reset .hljs-meta-keyword,
+:root[data-theme="dark"] .vditor-reset .hljs-doctag {
+  color: var(--code-meta) !important;
+}
+:root[data-theme="dark"] .vditor-reset code.hljs::selection,
+:root[data-theme="dark"] .vditor-reset code.hljs *::selection {
+  background: var(--code-selected-bg) !important;
 }

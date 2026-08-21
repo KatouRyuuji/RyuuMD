@@ -141,7 +141,10 @@ app/web/vendor/vditor/  内置 Vditor 全量资源
 配置写入 `%APPDATA%/RyuuMD/config.json`：
 
 - `operation_style`：`notion` | `wolai`
-- `theme`：`light`（sky）| `dark`（vampire）
+- `theme`：`light` | `dark`（基础明暗；配色见 palette_*）
+- `palette_light`：亮色配色，默认 `sky`（cherry/caramel/forest/mint/sky/prussian/sakura/mauve）
+- `palette_dark`：暗色配色，默认 `vampire`（vampire/radiation/abyss）
+- `font_ui` / `font_mono`：界面/等宽字体，空 = 主题默认（霞鹜文楷 / Cascadia Code）
 - `display_mode`：`ir`（渲染）| `sv`（源码）
 - `startup_page`：`home`（始终首页，默认）| `restore`（恢复上次会话）
 - `home_view`：`card`（卡片）| `list`（列表），首页仓库视图偏好

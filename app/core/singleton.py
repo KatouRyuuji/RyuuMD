@@ -1,17 +1,20 @@
 """单实例守护：第二个进程启动时把打开请求转发给已运行实例，由其开新窗口。
 
 机制（VSCode / Obsidian 同款思路，跨平台零依赖实现）：
-- 主实例监听 127.0.0.1 随机端口，端口与随机 token 写入
+- 主实例监听 127.0.0.1 随机端口，端口、随机 token、pid 写入
   %APPDATA%/RyuuMD/instance.json；
-- 新进程启动先读该文件尝试连接转发（1 秒超时），成功即退出自身 ——
+- 新进程启动先读该文件：若记录了 pid 且进程已死，直接删锁接管，不连端口；
+  否则尝试连接转发（0.4 秒超时），成功即退出自身 ——
   双击 md 文件不再冷启动整套 WebView2，秒开新窗口；
-- 连接失败（残留文件/主实例已死）则接管成为新的主实例。
+- 连接失败（残留文件/主实例已死）则删锁并接管成为新的主实例。
 - token 校验防止本机其他程序伪造请求。
+- 老格式锁文件（无 pid）保持兼容：跳过存活检查，按连接超时处理。
 """
 
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import socket
 import threading
@@ -22,6 +25,39 @@ from .config import Config
 
 def _lock_path(config: Config):
     return config.data_dir / "instance.json"
+
+
+def _unlink_lock(lock) -> None:
+    try:
+        lock.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _pid_alive(pid: int) -> bool:
+    """进程是否仍在。权限异常当作存活，避免误删锁把仍在跑的实例挤掉。"""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if handle:
+            kernel32.CloseHandle(handle)
+            return True
+        # 5 = ERROR_ACCESS_DENIED：无权限查询仍视为存活
+        return int(kernel32.GetLastError()) == 5
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return True
+    return True
 
 
 def try_forward(config: Config, path: str) -> bool:
@@ -36,9 +72,21 @@ def try_forward(config: Config, path: str) -> bool:
         info = json.loads(lock.read_text(encoding="utf-8"))
         port, token = int(info["port"]), str(info["token"])
     except Exception:  # noqa: BLE001
+        _unlink_lock(lock)
         return False
+
+    raw_pid = info.get("pid")
+    if raw_pid is not None:
+        try:
+            pid = int(raw_pid)
+        except (TypeError, ValueError):
+            pid = 0
+        if not _pid_alive(pid):
+            _unlink_lock(lock)
+            return False
+
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=1.0) as s:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.4) as s:
             payload = json.dumps(
                 {"token": token, "action": "open", "path": path or ""},
                 ensure_ascii=False,
@@ -47,6 +95,7 @@ def try_forward(config: Config, path: str) -> bool:
             s.settimeout(2.0)
             return s.recv(16).startswith(b"ok")
     except OSError:
+        _unlink_lock(lock)
         return False
 
 
@@ -66,7 +115,11 @@ class InstanceServer:
             self._sock.listen(4)
             port = self._sock.getsockname()[1]
             _lock_path(self.config).write_text(
-                json.dumps({"port": port, "token": self.token}), encoding="utf-8"
+                json.dumps(
+                    {"port": port, "token": self.token, "pid": os.getpid()},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
             )
         except OSError:
             return False
@@ -106,7 +159,4 @@ class InstanceServer:
                 self._sock.close()
         except OSError:
             pass
-        try:
-            _lock_path(self.config).unlink(missing_ok=True)
-        except OSError:
-            pass
+        _unlink_lock(_lock_path(self.config))

@@ -695,6 +695,10 @@ class TestSingleton(unittest.TestCase):
         server = InstanceServer(cfg, on_open=received.append)
         self.assertTrue(server.start())
         try:
+            import json as _json
+            info = _json.loads((cfg.data_dir / "instance.json").read_text(encoding="utf-8"))
+            self.assertIn("pid", info)
+            self.assertEqual(int(info["pid"]), os.getpid())
             self.assertTrue(try_forward(cfg, "C:/some/path.md"))
             self.assertTrue(try_forward(cfg, ""))  # 空路径 = 唤起新窗口
             import time as _t
@@ -715,6 +719,33 @@ class TestSingleton(unittest.TestCase):
         cfg = _C()
         (cfg.data_dir / "instance.json").unlink(missing_ok=True)
         self.assertFalse(try_forward(cfg, "a.md"))
+
+    def test_stale_lock_dead_pid_cleared(self):
+        import json as _json
+
+        from app.core.config import Config as _C
+        from app.core.singleton import try_forward
+
+        cfg = _C()
+        lock = cfg.data_dir / "instance.json"
+        lock.write_text(
+            _json.dumps({"port": 1, "token": "x", "pid": 99999999}),
+            encoding="utf-8",
+        )
+        self.assertFalse(try_forward(cfg, "a.md"))
+        self.assertFalse(lock.is_file())
+
+    def test_stale_lock_no_pid_connect_fail_cleared(self):
+        import json as _json
+
+        from app.core.config import Config as _C
+        from app.core.singleton import try_forward
+
+        cfg = _C()
+        lock = cfg.data_dir / "instance.json"
+        lock.write_text(_json.dumps({"port": 1, "token": "x"}), encoding="utf-8")
+        self.assertFalse(try_forward(cfg, "a.md"))
+        self.assertFalse(lock.is_file())
 
     def test_bad_token_denied(self):
         import json as _json
@@ -742,6 +773,7 @@ class TestConfig(unittest.TestCase):
     def test_defaults_and_update(self):
         cfg = Config()
         self.assertEqual(cfg.get("theme"), "light")
+        self.assertEqual(cfg.get("startup_page"), "home")
         cfg.update({"theme": "dark", "custom": 1})
         # 新实例读到持久化值(同一 APPDATA 目录)
         cfg2 = Config()
@@ -762,6 +794,49 @@ class TestConfig(unittest.TestCase):
         cfg.set("theme", "dark")
         self.assertFalse((cfg.data_dir / "config.json.tmp").exists())
         self.assertEqual(Config().get("theme"), "dark")
+
+    def test_palette_and_font_defaults(self):
+        from app.core.config import DEFAULTS
+        self.assertEqual(DEFAULTS["palette_light"], "sky")
+        self.assertEqual(DEFAULTS["palette_dark"], "vampire")
+        self.assertEqual(DEFAULTS["font_ui"], "")
+        self.assertEqual(DEFAULTS["font_mono"], "")
+        self.assertEqual(DEFAULTS["sidebar_width"], 256)
+        self.assertEqual(DEFAULTS["focus_mode"], False)
+        self.assertEqual(DEFAULTS["typewriter_mode"], False)
+        cfg = Config()
+        self.assertEqual(cfg.get("palette_light"), "sky")
+        self.assertEqual(cfg.get("palette_dark"), "vampire")
+        self.assertEqual(cfg.get("font_ui"), "")
+        self.assertEqual(cfg.get("font_mono"), "")
+        self.assertEqual(cfg.get("sidebar_width"), 256)
+        self.assertEqual(cfg.get("focus_mode"), False)
+        self.assertEqual(cfg.get("typewriter_mode"), False)
+
+    def test_update_config_writes_palette_and_font(self):
+        api = make_api()
+        res = api.update_config({
+            "palette_light": "sakura",
+            "palette_dark": "abyss",
+            "font_ui": "KaiTi",
+            "font_mono": "Consolas",
+            "sidebar_width": 320,
+            "focus_mode": True,
+            "typewriter_mode": True,
+        })
+        self.assertTrue(res["ok"])
+        data = api.get_config()
+        self.assertEqual(data["palette_light"], "sakura")
+        self.assertEqual(data["palette_dark"], "abyss")
+        self.assertEqual(data["font_ui"], "KaiTi")
+        self.assertEqual(data["font_mono"], "Consolas")
+        self.assertEqual(data["sidebar_width"], 320)
+        self.assertTrue(data["focus_mode"])
+        self.assertTrue(data["typewriter_mode"])
+        data2 = make_api().get_config()
+        self.assertEqual(data2["palette_light"], "sakura")
+        self.assertEqual(data2["font_mono"], "Consolas")
+        self.assertEqual(data2["sidebar_width"], 320)
 
 
 class TestAssets(unittest.TestCase):

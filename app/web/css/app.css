@@ -1,23 +1,12 @@
 /* ============================================================
    RyuuMD 主题 —— 应用外壳（侧栏 / 标题栏 / 菜单 / 弹窗）
-   亮色: phycat sky   暗色: phycat vampire
-   现代化、扁平化、简约高效
+   明暗由 html[data-theme=light|dark] 决定；配色由 html[data-palette] 覆盖。
+   此处 :root 是 sky，[data-theme=dark] 是 vampire；11 变体见 themes.css。
+   亮色画布/边框用 color-mix 随 --primary 淡染，换 palette 后不再残留 sky 蓝。
    ============================================================ */
 
-/* 本地字体（来自 phycat） */
-@font-face {
-  font-family: "LXGW WenKai";
-  src: url("../assets/fonts/LXGWWenKai-Regular.ttf") format("truetype");
-  font-weight: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Cascadia Code";
-  src: url("../assets/fonts/Cascadia-Code-Regular.ttf") format("truetype");
-  font-weight: normal;
-  font-display: swap;
-}
-
+/* 本地字体（霞鹜文楷 / Cascadia Code）改由 app.js 在首屏后动态加载 css/fonts.css，
+   避免 25MB 字体与启动关键路径抢磁盘 IO。--font-ui/--font-mono 回退栈仍在下方。 */
 
 :root {
   /* —— phycat sky（亮色，核心蓝 #3498db） —— */
@@ -27,23 +16,23 @@
   --primary-bg: #eaf2f8;
   --primary-bg-soft: #f4faff;
 
-  /* 取自参考图：面板纯白、编辑画布浅蓝、激活文件蓝 */
-  --bg: #eef6fc;                 /* 编辑画布底色 */
+  /* 面板纯白；画布/悬停/边框随 --primary 淡染（sky 下约等于原 #eef6fc / #e7eef6） */
+  --bg: color-mix(in srgb, var(--primary), #ffffff 92%);
   --bg-elevated: #ffffff;        /* 工具栏/侧栏/状态栏/卡片 */
   --sidebar-bg: #ffffff;
-  --sidebar-border: #e7eef6;
+  --sidebar-border: color-mix(in srgb, var(--primary), #ffffff 88%);
   --text: #2c3e50;
   --text-secondary: #5b7187;
   --text-muted: #93a6b8;
-  --border: #e7eef6;
-  --hover-bg: #eef6fc;
+  --border: color-mix(in srgb, var(--primary), #ffffff 88%);
+  --hover-bg: color-mix(in srgb, var(--primary), #ffffff 92%);
   --active-bg: #5296d5;          /* 激活文件背景（实蓝） */
   --active-fg: #ffffff;          /* 激活文件文字 */
-  --shadow: 0 8px 30px rgba(52, 152, 219, 0.12);
-  --shadow-sm: 0 2px 10px rgba(52, 152, 219, 0.08);
+  --shadow: 0 8px 30px color-mix(in srgb, var(--primary), transparent 88%);
+  --shadow-sm: 0 2px 10px color-mix(in srgb, var(--primary), transparent 92%);
   --glass-bg: rgba(255, 255, 255, 0.86);
   --scrollbar-thumb: rgba(44, 62, 80, 0.28);   /* 半透明，浅底上也可见（--border 太浅会隐形） */
-  --selection-bg: rgba(52, 152, 219, 0.32);    /* 选区：与画布底色拉开足够对比（原 primary-bg 几乎不可见） */
+  --selection-bg: color-mix(in srgb, var(--primary), transparent 68%);    /* 选区随主色，与画布拉开对比 */
 
   --radius: 10px;
   --radius-sm: 7px;
@@ -52,6 +41,11 @@
 
   --font-ui: "LXGW WenKai", -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+
+  --danger: #c0392b;
+  --danger-fg: #ffffff;
+  --success: #1e8449;
+  --success-fg: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -78,7 +72,12 @@
   --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.3);
   --glass-bg: rgba(25, 26, 32, 0.86);
   --scrollbar-thumb: rgba(248, 248, 242, 0.25);
-  --selection-bg: rgba(255, 85, 85, 0.38);
+  --selection-bg: color-mix(in srgb, var(--primary), transparent 62%);
+
+  --danger: #ff6b6b;
+  --danger-fg: #1a1b20;
+  --success: #2ed573;
+  --success-fg: #102015;
 }
 
 * {
@@ -137,6 +136,8 @@ body {
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
   z-index: 20;
 }
 
@@ -149,6 +150,7 @@ body {
   gap: 8px;
   margin-right: 8px;
   user-select: none;
+  flex-shrink: 0;
 }
 .tb-title .logo {
   width: 24px;
@@ -173,6 +175,8 @@ body {
   color: var(--text-secondary);
   /* 工具栏按钮带文字后可用空间变小，收紧避免挤压按钮 */
   max-width: 30vw;
+  min-width: 0;
+  flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -195,6 +199,7 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   font-family: inherit;
+  flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
 }
 .icon-btn:hover {
@@ -220,16 +225,17 @@ body {
   white-space: nowrap;
 }
 
-/* —— 主体三栏 —— */
+/* —— 主体：侧栏 + 编辑器（#home 覆盖层锚定于此，勿漏 position） —— */
 #body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
-/* 侧栏（文件 / 大纲共用容器） */
+/* 侧栏（文件 / 大纲 / 最近 / 链接） */
 #sidebar {
-  width: 256px;
+  width: var(--sidebar-width, 256px);
   flex-shrink: 0;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--sidebar-border);
@@ -242,6 +248,29 @@ body {
   width: 0;
   margin-left: 0;
   border-right: none;
+}
+#sidebar.resizing {
+  transition: none;
+}
+#sidebar-resizer {
+  width: 5px;
+  margin-left: -2px;
+  margin-right: -2px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  position: relative;
+  z-index: 4;
+  align-self: stretch;
+  background: transparent;
+  user-select: none;
+}
+#sidebar-resizer:hover,
+#sidebar.resizing + #sidebar-resizer {
+  background: var(--primary);
+}
+#sidebar.collapsed + #sidebar-resizer {
+  display: none;
+  pointer-events: none;
 }
 
 .side-tabs {
@@ -473,6 +502,32 @@ body {
   color: #fff;
   font-weight: 600;
 }
+.sb-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.sb-view {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.sb-view svg { width: 13px; height: 13px; }
+.sb-view:hover {
+  color: var(--primary);
+  background: var(--hover-bg);
+}
+.sb-view.active {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
 
 /* ============================================================
    通用按钮
@@ -577,6 +632,97 @@ body {
   justify-content: flex-end;
   gap: 10px;
   align-items: center;
+}
+.confirm-msg {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+/* 设置弹窗：分组标签页 */
+.modal.settings-modal {
+  width: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal.settings-modal .modal-head,
+.modal.settings-modal .settings-tabs,
+.modal.settings-modal .modal-foot {
+  flex-shrink: 0;
+}
+.modal.settings-modal .modal-body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.settings-tab:hover { color: var(--primary); }
+.settings-tab.active {
+  color: var(--primary);
+  font-weight: 600;
+  border-bottom-color: var(--primary);
+}
+.settings-pane { display: none; }
+.settings-pane.active { display: block; }
+
+.palette-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 280px;
+}
+.palette-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text), transparent 82%);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.palette-swatch:hover { transform: scale(1.08); }
+.palette-swatch.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--primary);
+}
+.palette-swatch.selected::after {
+  content: "✓";
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.55);
+}
+.font-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 200px;
+  max-width: 240px;
 }
 
 /* 设置项 */
@@ -946,7 +1092,7 @@ body {
   justify-content: center;
   /* 不用 backdrop-filter 模糊：全屏模糊在显示/隐藏瞬间都要重新光栅化整个背景层，
      与 drop 后的 Vditor 渲染叠加会造成明显卡顿；适度提高不透明度保证可读性 */
-  background: rgba(52, 152, 219, 0.28);
+  background: color-mix(in srgb, var(--primary), transparent 72%);
   pointer-events: none;
 }
 #drop-hint.show { display: flex; }
@@ -960,26 +1106,48 @@ body {
   color: var(--primary);
 }
 
-/* Toast */
+/* Toast 堆叠（最多 3 条，自底部向上） */
 #toast {
   position: fixed;
   bottom: 26px;
   left: 50%;
-  transform: translateX(-50%) translateY(20px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 3000;
+}
+.toast-item {
   background: var(--text);
   color: var(--bg);
   padding: 9px 18px;
   border-radius: 20px;
   font-size: 12.5px;
   opacity: 0;
-  pointer-events: none;
-  transition: all 0.25s;
-  z-index: 3000;
+  transform: translateY(12px);
+  transition: opacity 0.25s, transform 0.25s;
+  max-width: min(520px, 86vw);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
 }
-#toast.show {
+.toast-item.show {
   opacity: 0.95;
-  transform: translateX(-50%) translateY(0);
+  transform: none;
 }
+.toast-item.toast-error {
+  background: var(--danger);
+  color: var(--danger-fg);
+  opacity: 0;
+}
+.toast-item.toast-error.show { opacity: 1; }
+.toast-item.toast-success {
+  background: var(--success);
+  color: var(--success-fg);
+  opacity: 0;
+}
+.toast-item.toast-success.show { opacity: 1; }
 
 /* ============================================================
    文件树右键菜单（重命名 / 移动 / 删除真实文件）
@@ -1022,3 +1190,17 @@ body {
 .ctx-item.danger { color: #e74c3c; }
 .ctx-item.danger .ci-icon { color: #e74c3c; }
 .ctx-item.danger:hover { background: rgba(231, 76, 60, 0.1); }
+
+/* 窄窗：工具栏只留图标，title/aria-label 补偿文字 */
+@media (max-width: 1080px) {
+  .icon-btn .ib-label { display: none; }
+  .icon-btn { padding: 0 8px; }
+  .tb-doc-name { max-width: 18vw; }
+}
+@media (max-width: 960px) {
+  .tb-title > span:not(.logo) { display: none; }
+  .tb-title { margin-right: 4px; }
+  .icon-btn { padding: 0 6px; }
+  #toolbar { gap: 2px; padding: 0 8px; }
+  .tb-doc-name { max-width: 12vw; }
+}

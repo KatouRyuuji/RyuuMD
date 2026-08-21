@@ -32,6 +32,8 @@
     // 后续绑定永远不执行 → 启动后所有按钮无响应（间歇性，重启碰运气）。
     bindToolbar();
     bindModeBar();
+    bindViewToggles();
+    bindSidebarResize();
     bindShortcuts();
     bindDragDrop();
     bindPasteImages();
@@ -47,8 +49,13 @@
     }
 
     applyTheme(state.config.theme);
+    applyFonts();
     applyZoom(state.config.editor_zoom || 100, true);
     applyReadable(!!state.config.readable_width, true);
+    applySidebarWidth(state.config.sidebar_width || 256);
+    if (state.config.focus_mode) applyFocusVisual(true);
+    if (state.config.typewriter_mode) window.Editor.toggleTypewriter(true);
+    syncViewToggles();
     window.SlashMenu.setStyle(state.config.operation_style);
     window.Editor.setOpStyle(state.config.operation_style);
 
@@ -72,16 +79,6 @@
       newDoc,
       openFileDialog: openFile,
       toast,
-    });
-
-    window.Editor.init({
-      theme: themeMode(),
-      mode: state.config.display_mode,
-      change: onEditorChange,
-      outline: (hs) => window.Sidebar.renderOutline(hs),
-      onReady: afterEditorReady,
-      modeChange: (m) => syncModeButtons(m),
-      docDir: () => state.currentPath ? dirname(state.currentPath) : "",
     });
 
     window.Palette.init({
@@ -114,14 +111,24 @@
         return a.vault_index(state.currentFolder || "", kind, q || "", state.currentPath || "");
       },
     });
+
+    // 与编辑器无关的后台任务：不等 Vditor，避免首页被 lute.min.js 堵住
+    loadRecent();
+    refreshCloudBadge();
+    maybeStartCloudSync();
+
+    decideStartup();
   }
 
   // 后端不可用时的最小配置（welcome_shown=true：异常时不再弹欢迎窗添乱）
   function defaultConfig() {
     return {
-      theme: "light", operation_style: "notion", display_mode: "ir",
+      theme: "light", palette_light: "sky", palette_dark: "vampire",
+      font_ui: "", font_mono: "",
+      operation_style: "notion", display_mode: "ir",
       welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
-      readable_width: false,
+      readable_width: false, sidebar_width: 256, focus_mode: false, typewriter_mode: false,
+      startup_page: "home",
     };
   }
 
@@ -145,14 +152,125 @@
     return a;
   }
 
-  async function afterEditorReady() {
-    // 会话恢复/欢迎流程失败不得拖死编辑器（mask 常驻也会拦截所有按钮）
+  // ---------------------------------------------------------------
+  // 启动决策 + 编辑器惰性创建
+  // ---------------------------------------------------------------
+  // 为何惰性：Vditor 首次构建会动态加载 lute.min.js（约 4MB）。旧流程把
+  // 首页也挂在 after 上，用户一直盯着编辑器空壳。现在 boot 拿到 config
+  // 后立刻决定去向：首页立即 Home.show()；只有 initial path / restore
+  // / 用户打开文档时才 await ensureEditor()。
+
+  let editorP = null; // 共享的创建 Promise，并发调用合并为一次 init
+
+  function waitEditorReady() {
+    // setMode 重建时 isReady() 会短暂为假；已成功 init 过则等面板回来，不重新 init
+    return new Promise((resolve) => {
+      let n = 0;
+      const t = setInterval(() => {
+        n++;
+        if (window.Editor && window.Editor.isReady()) { clearInterval(t); resolve(true); }
+        else if (n > 200) { clearInterval(t); resolve(false); } // ~20s
+      }, 100);
+    });
+  }
+
+  function ensureEditor() {
+    if (window.Editor && window.Editor.isReady()) return Promise.resolve(true);
+    if (editorP) {
+      return editorP.then((ok) => {
+        if (!ok) return false;
+        if (window.Editor.isReady()) return true;
+        return waitEditorReady();
+      });
+    }
+    editorP = bootEditor().then((ok) => {
+      if (!ok) editorP = null; // 失败后允许下次打开再试
+      return ok;
+    });
+    return editorP;
+  }
+
+  function bootEditor() {
+    return new Promise((resolve) => {
+      let settled = false;
+      let gen = 0;
+      const WAIT = 7000;
+
+      function finish(ok) {
+        if (settled) return;
+        settled = true;
+        scheduleFontLoad();
+        if (!ok) toast("编辑器启动失败，请再试一次打开文档");
+        resolve(!!ok);
+      }
+
+      function readyCb(myGen) {
+        return function () {
+          if (myGen !== gen) return;
+          finish(true);
+        };
+      }
+
+      function start(isRetry) {
+        gen += 1;
+        const opts = {
+          theme: themeMode(),
+          mode: state.config && state.config.display_mode,
+          change: onEditorChange,
+          outline: (hs) => window.Sidebar.renderOutline(hs),
+          onReady: readyCb(gen),
+          modeChange: (m) => syncModeButtons(m),
+          docDir: () => state.currentPath ? dirname(state.currentPath) : "",
+        };
+        // 看门狗重试走 rebuild（销毁后重建）；首次走 init
+        if (isRetry && window.Editor.rebuild) window.Editor.rebuild(opts.onReady);
+        else window.Editor.init(opts);
+      }
+
+      start(false);
+      setTimeout(() => {
+        if (settled) return;
+        // 看门狗：首次 7s 未 ready（after 丢失 / lute 卡住）则销毁重建一次；
+        // 二次仍失败则 toast，不阻塞首页。
+        start(true);
+        setTimeout(() => { if (!settled) finish(false); }, WAIT);
+      }, WAIT);
+    });
+  }
+
+  function scheduleEditorWarmup() {
+    // 首页已可见：空闲时预热 Vditor，首次点开文档基本无感。
+    // requestIdleCallback 在 WebView2 忙时可能很晚，用 timeout 兜底。
+    const kick = function () { ensureEditor(); };
+    if (window.requestIdleCallback) window.requestIdleCallback(kick, { timeout: 2000 });
+    else setTimeout(kick, 200);
+  }
+
+  function scheduleFontLoad() {
+    // 首屏已出（首页显示或编辑器就绪，取先到者）后再挂 25MB 字体，
+    // 加载前走 --font-ui 系统字体回退，swap 后自动换。
+    if (scheduleFontLoad._done) return;
+    scheduleFontLoad._done = true;
+    const inject = function () {
+      if (document.getElementById("ryuu-fonts")) return;
+      const link = document.createElement("link");
+      link.id = "ryuu-fonts";
+      link.rel = "stylesheet";
+      link.href = "css/fonts.css";
+      document.head.appendChild(link);
+    };
+    requestAnimationFrame(function () {
+      if (window.requestIdleCallback) window.requestIdleCallback(inject, { timeout: 1500 });
+      else setTimeout(inject, 80);
+    });
+  }
+
+  async function decideStartup() {
     try {
-      // 首次启动 -> 欢迎窗口
       if (!state.config.welcome_shown) await runWelcome();
 
       // 命令行/拖到图标/单实例转发/新窗口传入的初始路径优先。
-      // 改为向后端主动拉取（每窗口独立），消除 evaluate_js 注入的时序竞态。
+      // 向后端主动拉取（每窗口独立），消除 evaluate_js 注入的时序竞态。
       let initial = "";
       try {
         const a = api();
@@ -161,29 +279,35 @@
       if (!initial && window.__INITIAL_PATH__) initial = window.__INITIAL_PATH__;
       if (initial) {
         await openPath(initial);
+        scheduleFontLoad();
         return;
       }
 
-      // 启动页策略：home = 始终首页；restore = 恢复上次会话（无会话则进首页）
-      if (state.config.startup_page === "home") {
-        window.Home.show();
+      // 仅 restore 才恢复会话；home / 缺失 / 非法值一律首页
+      if (state.config.startup_page === "restore") {
+        const restored = await restoreSession();
+        if (!restored) {
+          window.Home.show();
+          scheduleEditorWarmup();
+        }
+        scheduleFontLoad();
         return;
       }
-      const restored = await restoreSession();
-      if (!restored) window.Home.show();
+
+      window.Home.show();
+      scheduleFontLoad();
+      scheduleEditorWarmup();
     } catch (e) {
-      // 恢复失败不致命：确保欢迎/弹窗 mask 不残留，编辑器可用
       document.querySelectorAll(".modal-mask.open").forEach((m) => m.classList.remove("open"));
-      toast("会话恢复失败，已打开空白文档");
-    } finally {
-      loadRecent(); // 初始化「最近」列表（无会话恢复时也要拉一次）
-      refreshCloudBadge();
-      maybeStartCloudSync();
+      window.Home.show();
+      scheduleFontLoad();
+      scheduleEditorWarmup();
+      toast("会话恢复失败，已打开首页");
     }
   }
 
   // 欢迎窗口完整流程：展示 → 持久化所选操作风格与「不再显示」。
-  // 首次启动（afterEditorReady）与「设置 → 欢迎页」共用同一入口。
+  // 首次启动（decideStartup）与「设置 → 欢迎页」共用同一入口。
   async function runWelcome() {
     const res = await window.Welcome.show(state.config.operation_style);
     await applyConfig({ operation_style: res.style, welcome_shown: res.dontShow });
@@ -192,10 +316,12 @@
   async function restoreSession() {
     const a = apiOrToast();
     if (!a) return false;
-    const res = await a.restore_session();
+    // 整树扫描与编辑器创建并行，避免串行把恢复路径拉得更长
+    const pair = await Promise.all([a.restore_session(), ensureEditor()]);
+    const res = pair[0];
     let restored = false;
     if (res && res.folder && res.folder.ok) { applyFolder(res.folder, false); restored = true; }
-    if (res && res.file && res.file.ok) { loadDoc(res.file); restored = true; }
+    if (res && res.file && res.file.ok) { await loadDoc(res.file); restored = true; }
     return restored;
   }
 
@@ -203,7 +329,8 @@
   // 文档加载 / 保存
   // ---------------------------------------------------------------
   const scrollMem = {};
-  function loadDoc(fileRes, opts) {
+  async function loadDoc(fileRes, opts) {
+    if (!(await ensureEditor())) return;
     if (state.currentPath && window.Editor.getScrollRatio) {
       scrollMem[state.currentPath] = window.Editor.getScrollRatio();
     }
@@ -212,7 +339,9 @@
     state.lastSaved = fileRes.content;
     state.latestContent = fileRes.content;
     state.dirty = false;
-    // 大文档策略：超阈值且当前是渲染模式时切到源码模式，并明确告知用户
+    // 大文档策略：超阈值且当前是渲染模式时先切源码再写入，避免 ir 全量渲染卡死。
+    // 小文档反过来：先写入再 maybeRestoreMode。若先切 ir，setMode 会把上一篇
+    // 大文档带进重建，Vditor 异步 setValue(大文档) 可能盖掉随后的小文档。
     const size = fileRes.size != null ? fileRes.size : (fileRes.content || "").length;
     if (size > LARGE_DOC_BYTES) {
       if (window.Editor.getMode() === "ir") {
@@ -220,10 +349,11 @@
         window.Editor.setMode("sv");
         toast("文档较大（" + fmtBytes(size) + "），已用源码模式打开以保持流畅，可在右下角切回渲染模式");
       }
+      window.Editor.setValue(fileRes.content);
     } else {
+      window.Editor.setValue(fileRes.content);
       maybeRestoreMode();
     }
-    window.Editor.setValue(fileRes.content);
     if (fileRes.path) window.Sidebar.markActive(fileRes.path);
     updateDocName(fileRes.name || basename(fileRes.path));
     updateStatusPath();
@@ -253,18 +383,20 @@
     if (!(await maybeConfirmDiscard())) return;
     const a = apiOrToast();
     if (!a) return;
-    const res = await a.read_file(path);
-    if (res.ok) loadDoc(res, opts);
+    const pair = await Promise.all([a.read_file(path), ensureEditor()]);
+    const res = pair[0];
+    if (res.ok) await loadDoc(res, opts);
     else toast("打开失败：" + (res.error || ""));
   }
 
   async function openPath(path) {
     const a = apiOrToast();
     if (!a) return;
-    const res = await a.open_path(path);
+    const pair = await Promise.all([a.open_path(path), ensureEditor()]);
+    const res = pair[0];
     if (!res.ok) { toast("无法打开：" + (res.error || "")); return; }
     if (res.tree !== undefined) applyFolder(res, true);
-    else loadDoc(res);
+    else await loadDoc(res);
   }
 
   // 文件夹打开/刷新的统一处理；后端超限截断时明确提示（隐藏/巨型目录已被后端过滤）
@@ -283,6 +415,7 @@
     const silent = opts && opts.silent;
     const a = apiOrToast();
     if (!a) return;
+    if (!(await ensureEditor())) return;
     const content = window.Editor.getValue();
     state.latestContent = content; // 保存起点快照
     if (state.currentPath) {
@@ -355,14 +488,15 @@
     if (!(await maybeConfirmDiscard())) return;
     const a = apiOrToast();
     if (!a) return;
-    const res = await a.open_path(path);
+    const pair = await Promise.all([a.open_path(path), ensureEditor()]);
+    const res = pair[0];
     if (!res.ok) {
       toast("无法打开（可能已移动或删除）：" + basename(path));
       a.remove_recent(path).then(loadRecent);
       return;
     }
     if (res.tree !== undefined) applyFolder(res, true);
-    else loadDoc(res);
+    else await loadDoc(res);
   }
 
   async function clearRecent() {
@@ -426,8 +560,9 @@
   // ---------------------------------------------------------------
   function bindModeBar() {
     document.querySelectorAll(".sb-mode").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         const m = btn.dataset.mode;
+        if (!(await ensureEditor())) return;
         // 不在此按 getMode() 去重：快速连切时 getMode 是重建目的地而非最终意图，
         // 统一交给 Editor.setMode 仲裁（同模式幂等、重建中排队补切）
         window.Editor.setMode(m);
@@ -443,6 +578,96 @@
     );
   }
 
+  function bindViewToggles() {
+    on("sb-readable", () => toggleReadable());
+    on("sb-focus", () => toggleFocus());
+    on("sb-typewriter", () => toggleTypewriter());
+  }
+
+  function syncViewToggles() {
+    const wrap = document.getElementById("editor-wrap");
+    const map = {
+      "sb-readable": wrap && wrap.classList.contains("readable-width"),
+      "sb-focus": wrap && wrap.classList.contains("focus-mode"),
+      "sb-typewriter": wrap && wrap.classList.contains("typewriter-mode"),
+    };
+    Object.keys(map).forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle("active", !!map[id]);
+      el.setAttribute("aria-pressed", map[id] ? "true" : "false");
+    });
+  }
+
+  function applyFocusVisual(on) {
+    const side = document.getElementById("sidebar");
+    const next = window.Editor.toggleFocusMode(on == null ? null : !!on);
+    if (side) {
+      if (next) {
+        if (state._sideBeforeFocus == null) {
+          state._sideBeforeFocus = side.classList.contains("collapsed");
+        }
+        side.classList.add("collapsed");
+      } else {
+        if (state._sideBeforeFocus === false) side.classList.remove("collapsed");
+        state._sideBeforeFocus = null;
+      }
+    }
+    syncViewToggles();
+    return next;
+  }
+
+  function applySidebarWidth(px) {
+    let w = parseInt(px, 10);
+    if (isNaN(w)) w = 256;
+    w = Math.max(180, Math.min(480, w));
+    document.documentElement.style.setProperty("--sidebar-width", w + "px");
+    return w;
+  }
+
+  function bindSidebarResize() {
+    const handle = document.getElementById("sidebar-resizer");
+    const side = document.getElementById("sidebar");
+    if (!handle || !side) return;
+    const MIN = 180, MAX = 480, DEF = 256;
+    let dragging = false, startX = 0, startW = 0, onMove = null, onUp = null;
+
+    function stopDrag(persist) {
+      if (!dragging) return;
+      dragging = false;
+      side.classList.remove("resizing");
+      if (onMove) document.removeEventListener("mousemove", onMove);
+      if (onUp) document.removeEventListener("mouseup", onUp);
+      onMove = onUp = null;
+      if (persist) {
+        const w = applySidebarWidth(side.getBoundingClientRect().width || DEF);
+        applyConfig({ sidebar_width: w });
+      }
+    }
+
+    handle.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || side.classList.contains("collapsed")) return;
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      startW = side.getBoundingClientRect().width || DEF;
+      side.classList.add("resizing");
+      onMove = (ev) => {
+        if (!dragging) return;
+        applySidebarWidth(Math.max(MIN, Math.min(MAX, startW + (ev.clientX - startX))));
+      };
+      onUp = () => stopDrag(true);
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+    handle.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      stopDrag(false);
+      applySidebarWidth(DEF);
+      applyConfig({ sidebar_width: DEF });
+    });
+  }
+
   function updateDocName(name) {
     const base = name || (state.currentPath ? basename(state.currentPath) : "未命名");
     docNameEl.innerHTML = esc(base) + (state.dirty ? '<span class="dirty">●</span>' : "");
@@ -452,7 +677,7 @@
   // 工具栏 / 快捷键
   // ---------------------------------------------------------------
   function bindToolbar() {
-    on("btn-home", () => window.Home.toggle());
+    on("btn-home", () => toggleHome());
     on("btn-sidebar", () => {
       document.getElementById("sidebar").classList.toggle("collapsed");
     });
@@ -495,12 +720,14 @@
     if (!(await maybeConfirmDiscard())) return;
     const a = apiOrToast();
     if (!a) return;
-    const res = await a.open_file_dialog();
-    if (res && res.ok) loadDoc(res);
+    const pair = await Promise.all([a.open_file_dialog(), ensureEditor()]);
+    const res = pair[0];
+    if (res && res.ok) await loadDoc(res);
   }
 
   async function newDoc() {
     if (!(await maybeConfirmDiscard())) return;
+    if (!(await ensureEditor())) return;
     if (window.Home && window.Home.isOpen()) window.Home.hide();
     state.currentPath = null;
     state.lastSaved = "";
@@ -515,6 +742,27 @@
     window.Editor.focus();
   }
 
+  function toggleHome() {
+    if (window.Home && window.Home.isOpen()) {
+      window.Home.hide();
+      ensureEditor(); // 从首页回到编辑器：尚未预热则开始创建
+    } else if (window.Home) {
+      window.Home.show();
+    }
+  }
+
+  async function setEditorMode(m) {
+    if (!(await ensureEditor())) return;
+    window.Editor.setMode(m);
+    syncModeButtons(m);
+    applyConfig({ display_mode: m });
+  }
+
+  async function openFindBar(opts) {
+    if (!(await ensureEditor())) return;
+    if (window.FindBar) window.FindBar.open(opts);
+  }
+
   function openSettings() {
     window.Settings.open(state.config, applyConfig);
   }
@@ -526,7 +774,10 @@
     const persist = Object.assign({}, partial);
     delete persist.cloud_sync;
     if (a && Object.keys(persist).length) await a.update_config(persist);
-    if ("theme" in partial) applyTheme(partial.theme);
+    if ("theme" in partial || "palette_light" in partial || "palette_dark" in partial) {
+      applyTheme(state.config.theme);
+    }
+    if ("font_ui" in partial || "font_mono" in partial) applyFonts();
     if ("operation_style" in partial) {
       window.SlashMenu.setStyle(partial.operation_style);
       window.Editor.setOpStyle(partial.operation_style);
@@ -534,6 +785,12 @@
     if ("cloud_sync" in partial) refreshCloudBadge();
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
+    if ("focus_mode" in partial) applyFocusVisual(!!partial.focus_mode);
+    if ("typewriter_mode" in partial) {
+      window.Editor.toggleTypewriter(!!partial.typewriter_mode);
+      syncViewToggles();
+    }
+    if ("sidebar_width" in partial) applySidebarWidth(partial.sidebar_width);
   }
 
   function refreshCloudBadge() {
@@ -565,13 +822,16 @@
   function bindShortcuts() {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        // 分层：Palette / 查找条自处理或由此关闭 → 弹窗栈 → 首页
         if (window.Palette && window.Palette.isOpen()) return;
         if (window.FindBar && window.FindBar.isOpen()) {
           window.FindBar.close();
           return;
         }
-        if (window.Home.isOpen() && !document.querySelector(".modal-mask.open")) {
+        if (dismissEscape()) return;
+        if (window.Home && window.Home.isOpen()) {
           window.Home.hide();
+          ensureEditor();
         }
         return;
       }
@@ -589,12 +849,12 @@
       else if (k === "f") {
         e.preventDefault();
         if (e.shiftKey) window.Palette.openSearch();
-        else window.FindBar.open();
+        else openFindBar();
       }
       else if (k === "h") {
         e.preventDefault();
-        if (e.shiftKey) window.Home.toggle();
-        else window.FindBar.open({ replace: true });
+        if (e.shiftKey) toggleHome();
+        else openFindBar({ replace: true });
       }
       else if (k === "d" && e.shiftKey) {
         e.preventDefault();
@@ -603,6 +863,10 @@
       else if (k === "b" && e.shiftKey) {
         e.preventDefault();
         document.getElementById("sidebar").classList.toggle("collapsed");
+      }
+      else if (k === "l" && e.shiftKey) {
+        e.preventDefault();
+        toggleTheme();
       }
       else if (k === "=" || k === "+" || e.key === "Add") {
         e.preventDefault();
@@ -626,13 +890,48 @@
   // ---------------------------------------------------------------
   // 主题
   // ---------------------------------------------------------------
+  const LIGHT_PALETTES = ["cherry", "caramel", "forest", "mint", "sky", "prussian", "sakura", "mauve"];
+  const DARK_PALETTES = ["vampire", "radiation", "abyss"];
+  const FONT_UI_FALLBACK = '-apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif';
+  const FONT_MONO_FALLBACK = '"JetBrains Mono", Consolas, monospace';
+
   function themeMode() {
     return state.config.theme === "dark" ? "dark" : "light";
   }
 
+  function currentPalette(mode) {
+    if (mode === "dark") {
+      const p = state.config.palette_dark || "vampire";
+      return DARK_PALETTES.indexOf(p) >= 0 ? p : "vampire";
+    }
+    const p = state.config.palette_light || "sky";
+    return LIGHT_PALETTES.indexOf(p) >= 0 ? p : "sky";
+  }
+
+  function quoteFontFamily(name) {
+    const v = String(name || "").trim();
+    if (!v) return "";
+    if (v.indexOf(",") >= 0) return v;
+    if (/^["'].*["']$/.test(v)) return v;
+    if (/[^a-zA-Z0-9_-]/.test(v)) return '"' + v.replace(/"/g, "") + '"';
+    return v;
+  }
+
+  function applyFonts() {
+    const style = document.documentElement.style;
+    const ui = ((state.config && state.config.font_ui) || "").trim();
+    const mono = ((state.config && state.config.font_mono) || "").trim();
+    if (ui) style.setProperty("--font-ui", quoteFontFamily(ui) + ", " + FONT_UI_FALLBACK);
+    else style.removeProperty("--font-ui");
+    if (mono) style.setProperty("--font-mono", quoteFontFamily(mono) + ", " + FONT_MONO_FALLBACK);
+    else style.removeProperty("--font-mono");
+  }
+
   function applyTheme(theme) {
     const mode = theme === "dark" ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", mode);
+    const root = document.documentElement;
+    root.setAttribute("data-theme", mode);
+    root.setAttribute("data-palette", currentPalette(mode));
     // 只替换按钮内的图标容器，保留旁边的「主题」文字
     const themeIcon = document.querySelector("#btn-theme .ib-icon");
     if (themeIcon) themeIcon.innerHTML = window.ICONS[mode === "dark" ? "sun" : "moon"];
@@ -807,17 +1106,22 @@
     const res = await a.resolve_wikilink(state.currentFolder || "", name, state.currentPath || "");
     if (!res.ok) { toast(res.error || "无法解析链接"); return; }
     if (res.exists) {
-      openFileByPath(res.path, { heading: res.heading || "" });
+      await openFileByPath(res.path, { heading: res.heading || "" });
       return;
     }
-    if (!window.confirm("笔记「" + name + "」不存在，是否创建？")) return;
+    if (!(await window.App.confirm({
+      title: "创建笔记",
+      message: "笔记「" + name + "」不存在，是否创建？",
+      okText: "创建",
+      cancelText: "取消",
+    }))) return;
     const suggested = res.suggested || "";
     const folder = dirname(suggested) || state.currentFolder || "";
     const fname = basename(suggested).replace(/\.md$/i, "");
     const created = await a.new_file(folder, fname);
     if (!created.ok) { toast(created.error || "创建失败"); return; }
     const file = await a.read_file(created.path);
-    if (file.ok) loadDoc(file);
+    if (file.ok) await loadDoc(file);
     refreshFolder();
   }
 
@@ -840,13 +1144,14 @@
     if (!(await maybeConfirmDiscard())) return;
     const res = await a.open_daily_note(state.currentFolder || "", (state.config && state.config.daily_note_folder) || "");
     if (!res.ok) { toast(res.error || "无法打开日记"); return; }
-    loadDoc(res);
+    await loadDoc(res);
     refreshFolder();
   }
 
   async function exportHtml() {
     const a = apiOrToast();
     if (!a || !a.save_html_dialog) return;
+    if (!(await ensureEditor())) return;
     const html = window.Editor.getHTML ? window.Editor.getHTML() : "";
     const name = (state.currentPath ? basename(state.currentPath).replace(/\.md$/i, "") : "导出") + ".html";
     const res = await a.save_html_dialog(html, name);
@@ -855,14 +1160,8 @@
   }
 
   function toggleFocus() {
-    const on = window.Editor.toggleFocusMode();
-    const side = document.getElementById("sidebar");
-    if (on) {
-      state._sideBeforeFocus = side.classList.contains("collapsed");
-      side.classList.add("collapsed");
-    } else if (state._sideBeforeFocus === false) {
-      side.classList.remove("collapsed");
-    }
+    const on = applyFocusVisual(null);
+    applyConfig({ focus_mode: on });
     toast(on ? "已进入专注模式" : "已退出专注模式");
   }
 
@@ -885,8 +1184,8 @@
       { id: "capture", title: "快速收集", keys: "", group: "文件", run: captureQuick },
       { id: "quick-open", title: "快速打开笔记", keys: "Ctrl+P", group: "导航", run: () => window.Palette.openFiles() },
       { id: "search", title: "在仓库中搜索", keys: "Ctrl+Shift+F", group: "导航", run: () => window.Palette.openSearch() },
-      { id: "find", title: "在本文查找", keys: "Ctrl+F", group: "导航", run: () => window.FindBar.open() },
-      { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => window.FindBar.open({ replace: true }) },
+      { id: "find", title: "在本文查找", keys: "Ctrl+F", group: "导航", run: () => openFindBar() },
+      { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => openFindBar({ replace: true }) },
       { id: "goto-line", title: "转到行", keys: "Ctrl+G", group: "导航", run: goToLine },
       { id: "locate", title: "在目录中定位当前文件", keys: "", group: "导航", run: locateInTree },
       { id: "new-here", title: "在当前文件夹新建笔记", keys: "", group: "文件", run: newNoteBeside },
@@ -896,9 +1195,9 @@
       { id: "orphans", title: "孤立笔记", keys: "", group: "仓库", run: () => window.Palette.openOrphans() },
       { id: "mentions", title: "未链接提及", keys: "", group: "仓库", run: openMentions },
       { id: "stats", title: "仓库统计", keys: "", group: "仓库", run: showVaultStats },
-      { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => window.Home.toggle() },
+      { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => toggleHome() },
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
-      { id: "theme", title: "切换主题", keys: "", group: "视图", run: toggleTheme },
+      { id: "theme", title: "切换主题", keys: "Ctrl+Shift+L", group: "视图", run: toggleTheme },
       { id: "focus", title: "专注模式", keys: "", group: "视图", run: toggleFocus },
       { id: "typewriter", title: "打字机模式", keys: "", group: "视图", run: toggleTypewriter },
       { id: "readable", title: "切换可读宽度", keys: "", group: "视图", run: toggleReadable },
@@ -907,8 +1206,8 @@
       { id: "zoom-in", title: "放大编辑区", keys: "Ctrl+=", group: "视图", run: () => adjustZoom(10) },
       { id: "zoom-out", title: "缩小编辑区", keys: "Ctrl+-", group: "视图", run: () => adjustZoom(-10) },
       { id: "zoom-reset", title: "重置缩放", keys: "Ctrl+0", group: "视图", run: () => applyZoom(100) },
-      { id: "ir", title: "渲染模式", keys: "", group: "视图", run: () => { window.Editor.setMode("ir"); syncModeButtons("ir"); applyConfig({ display_mode: "ir" }); } },
-      { id: "sv", title: "源码模式", keys: "", group: "视图", run: () => { window.Editor.setMode("sv"); syncModeButtons("sv"); applyConfig({ display_mode: "sv" }); } },
+      { id: "ir", title: "渲染模式", keys: "", group: "视图", run: () => setEditorMode("ir") },
+      { id: "sv", title: "源码模式", keys: "", group: "视图", run: () => setEditorMode("sv") },
       { id: "settings", title: "设置", keys: "", group: "应用", run: openSettings },
       { id: "cloud", title: "立即云同步", keys: "", group: "应用", run: runCloudSync },
       { id: "date", title: "插入今天日期", keys: "", group: "插入", run: () => window.Editor.insertValue(todayStamp(false)) },
@@ -944,6 +1243,8 @@
 
   function toggleTypewriter() {
     const on = window.Editor.toggleTypewriter();
+    applyConfig({ typewriter_mode: on });
+    syncViewToggles();
     toast(on ? "已进入打字机模式" : "已退出打字机模式");
   }
 
@@ -955,6 +1256,7 @@
     if (!state.config) state.config = {};
     state.config.readable_width = next;
     if (!silent && api()) api().update_config({ readable_width: next });
+    syncViewToggles();
     return next;
   }
 
@@ -970,6 +1272,7 @@
   }
 
   async function goToLine() {
+    if (!(await ensureEditor())) return;
     const md = window.Editor.getValue ? window.Editor.getValue() : "";
     const total = md ? md.split("\n").length : 1;
     const raw = await promptText({
@@ -1039,7 +1342,7 @@
       }
       try {
         const fileRes = await a.read_file(res.path);
-        if (fileRes && fileRes.ok) loadDoc(fileRes);
+        if (fileRes && fileRes.ok) await loadDoc(fileRes);
       } catch (e) { /* 重载失败仍算收集成功 */ }
     }
     toast("已写入收集箱");
@@ -1082,6 +1385,7 @@
   }
 
   async function insertTemplate(path) {
+    if (!(await ensureEditor())) return;
     const a = apiOrToast();
     if (!a || !a.render_template) return;
     const title = state.currentPath ? basename(state.currentPath).replace(/\.md$/i, "") : "";
@@ -1100,7 +1404,7 @@
     if (!(await maybeConfirmDiscard())) return;
     const res = await a.new_from_template(dir, it.path, name);
     if (!res.ok) { toast(res.error || "创建失败"); return; }
-    loadDoc(res);
+    await loadDoc(res);
     refreshFolder();
     toast("已创建：" + (res.name || name));
   }
@@ -1141,12 +1445,14 @@
     copyText("[[" + stem + "]]", "已复制双链");
   }
 
-  function copyAsHtml() {
+  async function copyAsHtml() {
+    if (!(await ensureEditor())) return;
     const html = window.Editor.getHTML ? window.Editor.getHTML() : "";
     copyText(html, "已复制 HTML");
   }
 
-  function copyAsMarkdown() {
+  async function copyAsMarkdown() {
+    if (!(await ensureEditor())) return;
     copyText(window.Editor.getValue() || "", "已复制 Markdown");
   }
 
@@ -1158,7 +1464,7 @@
     const res = await a.duplicate_file(state.currentPath);
     if (!res.ok) { toast(res.error || "复制失败"); return; }
     const file = await a.read_file(res.path);
-    if (file.ok) loadDoc(file);
+    if (file.ok) await loadDoc(file);
     refreshFolder();
     toast("已复制：" + res.name);
   }
@@ -1226,7 +1532,7 @@
     if (state.diskMtime && res.mtime > state.diskMtime + 0.4) {
       const file = await a.read_file(state.currentPath);
       if (file && file.ok && !state.dirty) {
-        loadDoc(file);
+        await loadDoc(file);
         toast("文件已从磁盘重新载入");
       }
     } else if (res.mtime) {
@@ -1248,7 +1554,7 @@
     const res = await a.new_file(dir, fname);
     if (!res.ok) { toast(res.error || "创建失败"); return; }
     const file = await a.read_file(res.path);
-    if (file.ok) loadDoc(file);
+    if (file.ok) await loadDoc(file);
     refreshFolder();
     toast("已创建：" + res.name);
   }
@@ -1317,7 +1623,7 @@
     const mask = document.getElementById("input-modal-mask");
     return new Promise((resolve) => {
       mask.innerHTML = `
-        <div class="modal mini-modal">
+        <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
           <div class="modal-head">
             <span class="badge">${window.ICONS.edit}</span>
             <div><h2>${esc(title)}</h2><p>${esc(sub || "")}</p></div>
@@ -1334,12 +1640,15 @@
       const input = document.getElementById("pm-input");
       input.value = value || "";
       function done(val) {
+        unregisterEscape(onEsc);
         mask.removeEventListener("click", onMask);
         mask.classList.remove("open");
         mask.innerHTML = "";
         resolve(val);
       }
+      function onEsc() { done(null); }
       function onMask(e) { if (e.target === mask) done(null); }
+      registerEscape(onEsc);
       mask.addEventListener("click", onMask);
       document.getElementById("pm-ok").addEventListener("click", () => {
         const v = input.value.trim();
@@ -1400,7 +1709,12 @@
     const a = apiOrToast();
     if (!a) return;
     // 风险操作确认：明确告知去向（回收站可恢复）
-    if (!window.confirm("确定把「" + basename(path) + "」移入回收站？\n可从系统回收站恢复。")) return;
+    if (!(await window.App.confirm({
+      title: "移入回收站",
+      message: "确定把「" + basename(path) + "」移入回收站？\n可从系统回收站恢复。",
+      okText: "移入回收站",
+      cancelText: "取消",
+    }))) return;
     const res = await a.delete_file(path);
     if (!res.ok) { toast("删除失败：" + (res.error || "")); return; }
     if (state.currentPath === path) {
@@ -1421,7 +1735,12 @@
   // ---------------------------------------------------------------
   async function maybeConfirmDiscard() {
     if (!state.dirty) return true;
-    return window.confirm("当前文档有未保存的更改，是否放弃？");
+    return window.App.confirm({
+      title: "放弃更改",
+      message: "当前文档有未保存的更改，是否放弃？",
+      okText: "放弃",
+      cancelText: "取消",
+    });
   }
 
   function basename(p) {
@@ -1454,20 +1773,116 @@
     if (el) el.addEventListener("click", fn);
   }
 
-  let toastTimer = null;
-  function toast(msg) {
-    const el = document.getElementById("toast");
-    el.textContent = msg;
-    el.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+  // Esc 弹窗栈：后开先关，由 bindShortcuts 统一弹出，避免各弹窗抢 window.keydown
+  const escapeStack = [];
+  function registerEscape(fn) {
+    if (typeof fn !== "function") return;
+    unregisterEscape(fn);
+    escapeStack.push(fn);
+  }
+  function unregisterEscape(fn) {
+    const i = escapeStack.lastIndexOf(fn);
+    if (i >= 0) escapeStack.splice(i, 1);
+  }
+  function dismissEscape() {
+    if (!escapeStack.length) return false;
+    const fn = escapeStack.pop();
+    if (fn) fn();
+    return true;
+  }
+
+  let confirmPending = null;
+  function confirmDialog(opts) {
+    opts = opts || {};
+    const title = opts.title || "确认";
+    const message = opts.message || "";
+    const okText = opts.okText || "确定";
+    const cancelText = opts.cancelText || "取消";
+    const mask = document.getElementById("confirm-mask");
+    if (!mask) return Promise.resolve(false);
+    if (confirmPending) confirmPending(false);
+    return new Promise((resolve) => {
+      mask.innerHTML = `
+        <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+          <div class="modal-head">
+            <span class="badge">${window.ICONS.gear}</span>
+            <div><h2>${esc(title)}</h2></div>
+          </div>
+          <div class="modal-body">
+            <p class="confirm-msg">${esc(message)}</p>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" id="cf-cancel">${esc(cancelText)}</button>
+            <button class="btn btn-primary" id="cf-ok">${esc(okText)}</button>
+          </div>
+        </div>`;
+      mask.classList.add("open");
+      let settled = false;
+      function done(ok) {
+        if (settled) return;
+        settled = true;
+        if (confirmPending === done) confirmPending = null;
+        unregisterEscape(onEsc);
+        mask.removeEventListener("click", onMask);
+        mask.classList.remove("open");
+        mask.innerHTML = "";
+        resolve(!!ok);
+      }
+      function onEsc() { done(false); }
+      function onMask(e) { if (e.target === mask) done(false); }
+      confirmPending = done;
+      registerEscape(onEsc);
+      mask.addEventListener("click", onMask);
+      document.getElementById("cf-cancel").addEventListener("click", () => done(false));
+      const okBtn = document.getElementById("cf-ok");
+      okBtn.addEventListener("click", () => done(true));
+      okBtn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); done(true); }
+      });
+      okBtn.focus();
+    });
+  }
+
+  const TOAST_MAX = 3;
+  const toastItems = [];
+  function toast(msg, opts) {
+    opts = opts || {};
+    const host = document.getElementById("toast");
+    if (!host) return;
+    let type = opts.type;
+    if (!type) type = /失败/.test(String(msg || "")) ? "error" : "info";
+    const duration = opts.duration != null ? opts.duration : (type === "error" ? 4000 : 2200);
+    while (toastItems.length >= TOAST_MAX) removeToast(toastItems[0]);
+    const el = document.createElement("div");
+    el.className = "toast-item toast-" + type;
+    el.textContent = String(msg == null ? "" : msg);
+    host.appendChild(el);
+    const item = { el, timer: null };
+    toastItems.push(item);
+    requestAnimationFrame(() => el.classList.add("show"));
+    item.timer = setTimeout(() => removeToast(item), duration);
+  }
+  function removeToast(item) {
+    const i = toastItems.indexOf(item);
+    if (i < 0) return;
+    toastItems.splice(i, 1);
+    clearTimeout(item.timer);
+    item.el.classList.remove("show");
+    setTimeout(() => {
+      if (item.el.parentNode) item.el.parentNode.removeChild(item.el);
+    }, 260);
   }
 
   window.App = {
     openFolder,
     openFile,
+    openPath,
+    ensureEditor,
     save,
     toast,
+    confirm: confirmDialog,
+    registerEscape,
+    unregisterEscape,
     showWelcome: runWelcome,
     syncCloud: runCloudSync,
     listVaultFiles,

@@ -20,6 +20,7 @@
   let curTheme = "light";
   let curMode = "ir";        // ir（渲染/即时渲染，Typora 式）| sv（源码）
   let everBuilt = false;     // 是否曾成功初始化（after 触发过）——重建看门狗的前提
+  let buildId = 0;           // 构建代数：销毁重建后作废旧实例的 after / 看门狗
   let changeCb = null;
   let outlineCb = null;
   let onModeChange = null;
@@ -34,10 +35,46 @@
     getDocDir = docDir || null;
     curTheme = theme === "dark" ? "dark" : "light";
     curMode = mode === "sv" ? "sv" : "ir";
+    if (vditor) {
+      rebuild(onReady);
+      return;
+    }
+    build(onReady);
+  }
+
+  /* 销毁当前实例并重建。ensureEditor 看门狗在首次 after 丢失时走这条路径。 */
+  function rebuild(onReady) {
+    ready = false;
+    if (vditor) {
+      try { vditor.destroy(); } catch (e) { /* ignore */ }
+      vditor = null;
+    }
+    const el = document.getElementById("editor");
+    if (el) el.innerHTML = "";
+    // 销毁重建时面板会很快出现，启用现有面板看门狗兜底 after/rAF 丢失
+    everBuilt = true;
     build(onReady);
   }
 
   function build(onReady) {
+    const myId = ++buildId;
+    let readyNotified = false;
+    // after 与面板看门狗可能先后触发：只通知一次。
+    // 否则第二次 onReady 会用 setMode 闭包里的旧 content 再 setValue，盖掉新文档。
+    function notifyReady() {
+      if (myId !== buildId || readyNotified) return;
+      readyNotified = true;
+      ready = true;
+      everBuilt = true;
+      setTheme(curTheme);
+      if (window.SlashMenu) {
+        window.SlashMenu.setEditor(vditor);
+        window.SlashMenu.attach();
+      }
+      bindCheckboxGuard();
+      bindEditorClicks();
+      if (onReady) onReady();
+    }
     vditor = new Vditor("editor", {
       mode: curMode,
       cdn: "vendor/vditor",
@@ -57,18 +94,7 @@
         math: { engine: "KaTeX" },
         markdown: { toc: true, footnotes: true, autoSpace: true },
       },
-      after: () => {
-        ready = true;
-        everBuilt = true;
-        setTheme(curTheme);
-        if (window.SlashMenu) {
-          window.SlashMenu.setEditor(vditor);
-          window.SlashMenu.attach();
-        }
-        bindCheckboxGuard();
-        bindEditorClicks();
-        if (onReady) onReady();
-      },
+      after: () => { notifyReady(); },
       input: () => {
         editedSinceSet = true; // 真实编辑到达：Vditor model 已活，getValue 以它为准
         if (window.SlashMenu) window.SlashMenu.attach();
@@ -84,6 +110,7 @@
       let n = 0;
       const guard = setInterval(() => {
         n++;
+        if (myId !== buildId) { clearInterval(guard); return; }
         if (ready) { clearInterval(guard); return; }
         // 就绪信号:当前模式面板已存在于 DOM。setMode 已 destroy 旧实例并清空容器,
         // 新面板出现即代表重建推进;不要求 offsetHeight(后台/重建布局可能滞后为 0)。
@@ -92,19 +119,8 @@
         );
         if (vditor && panel) {
           clearInterval(guard);
-          ready = true;
-          // 不要在此直接应用 pendingValue:onReady(setMode 的回调)会以
-          // 「pendingValue ?? 切换前内容」统一装回;这里先 setValue 会被回调
-          // 再用旧内容覆盖一遍,新提交的内容反而丢失。看门狗只负责就绪判定,
-          // 内容与滚动位置的恢复与正常 after 路径保持同一入口。
-          setTheme(curTheme);
-          if (window.SlashMenu) {
-            window.SlashMenu.setEditor(vditor);
-            window.SlashMenu.attach();
-          }
-          bindCheckboxGuard();
-          bindEditorClicks();
-          if (onReady) onReady();
+          // 与 after 共用 notifyReady：避免看门狗先就绪、after 再带旧 content 覆盖
+          notifyReady();
         } else if (n > 150) { // ~15s 放弃,避免无限轮询
           clearInterval(guard);
         }
@@ -139,13 +155,21 @@
     const target = nextMode === "sv" ? "sv" : "ir";
     // 目标就是当前模式（含正在重建前往的模式）：撤销补切队列，无需动作
     if (target === curMode) { queuedMode = null; return; }
-    if (!vditor || !ready) {
+    if (!vditor) {
+      // 尚未创建实例：只记下目标模式，ensureEditor/init 会用 curMode
+      curMode = target;
+      queuedMode = null;
+      return;
+    }
+    if (!ready) {
       // 重建进行中：只记录目标模式，不动 curMode（保持与在建实例一致），完成后补切。
       // 直接改 curMode 会让按钮状态/面板选择器与真实面板错位（快速连切实测可复现）。
       queuedMode = target;
       return;
     }
-    const content = getValue();
+    // setValue 刚写入时 Vditor 可能尚未 settle，getValue() 仍是旧全文。
+    // 用户未再编辑则以 cachedValue 为准，避免大文档→小文档切模式把旧文带进重建。
+    const content = !editedSinceSet ? cachedValue : getValue();
     // 记录当前阅读位置：两种模式内容高度不同（渲染 vs 源码），按滚动比例还原最稳。
     // 绑定 content 快照：仅当重建后装回的仍是同一内容（纯切换）才还原，
     // 装载新文档（如 loadDoc 大文档强制 sv）仍回文首。
@@ -543,6 +567,7 @@
 
   window.Editor = {
     init,
+    rebuild,
     setTheme,
     setOpStyle,
     setMode,

@@ -6,7 +6,7 @@
 
 隔离与防阻塞:
 - 启动前将 APPDATA 指到临时目录(配置不污染用户数据);
-- hook window.confirm 恒 true(未保存确认框不阻塞自动化);
+- hook window.confirm 与 App.confirm 恒 true(未保存确认框不阻塞自动化);
 - 大文档/小文档等文件全部落在临时目录。
 
 运行: python tests/test_e2e.py   (或根目录 run_tests.py)
@@ -50,7 +50,9 @@ _TMP = tempfile.TemporaryDirectory(prefix="ryuumd-e2e-files-")
 TMP = Path(_TMP.name)
 SMALL_MD = TMP / "small.md"
 BIG_MD = TMP / "big.md"
+HOME_MD = TMP / "home-open.md"
 SMALL_MD.write_text("# 小文档\n\n普通正文。\n", encoding="utf-8")
+HOME_MD.write_text("# 首页打开\n\nensureEditor 探测。\n", encoding="utf-8")
 # 大文档夹具:真实笔记形态(多行短行、结构多样),体积 > 512KB 以触发大文档策略。
 # 不用「单段 56 万字重复」这类病态输入——它对 Vditor sv 全量高亮是硬性能边界,
 # 会卡死 WebView2 主线程,属已知边界(见 TEST_PLAN 手动项),不代表真实使用。
@@ -104,8 +106,9 @@ def JV(s: str) -> str:
 #   js: 断言表达式,返回布尔真即通过(在超时窗口内轮询)
 # ----------------------------------------------------------------------------
 CASES = [
-    dict(name="T00 首启无会话:显示首页(空态+快速操作)", sleep=0,
-         # 临时 APPDATA 下无上次会话,welcome 关闭后应落到首页;验毕隐藏首页继续编辑器用例
+    dict(name="T00 启动页 home:有 last_file 仍显示首页", sleep=0,
+         # startup_page=home 且 config 预置了 last_file：不得误走恢复会话。
+         # welcome 关闭后应落到首页;验毕隐藏首页继续后续用例
          js=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
              "if(document.querySelectorAll('#home .quick-card').length!==3)return 'quick cards';"
              "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'repo empty hidden';"
@@ -114,7 +117,19 @@ CASES = [
          setup2="window.Home.hide()", sleep2=0.3,
          js2="!window.Home.isOpen()"),
 
-    dict(name="T01 启动:全局对象就绪、编辑器 ready", sleep=0,
+    dict(name="T00b 首页打开文档:ensureEditor 后可读回内容",
+         # 用独立夹具，避免 currentPath 指向 small.md 后被后续用例自动保存污染 T18/T19
+         setup="window.Home.show();window.App.openPath(" + JV(str(HOME_MD)) + ")",
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.Home&&window.Home.isOpen())return 'home still open';"
+             "if(!window.Editor||!window.Editor.isReady())return 'editor not ready';"
+             "var v=window.Editor.getValue();"
+             "return v.indexOf(" + JV("首页打开") + ")>=0?true:'content='+v.slice(0,40);})()")),
+
+    dict(name="T01 启动:全局对象就绪、编辑器 ready",
+         setup="window.App.ensureEditor()", sleep=0,
+         timeout=20,
          js="!!(window.App&&window.Editor&&window.Sidebar&&window.Welcome&&window.Settings&&window.SlashMenu&&window.Home&&window.Palette&&window.FindBar&&window.Editor.isReady())"),
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
@@ -191,19 +206,27 @@ CASES = [
     dict(name="T11 主题切换:dark 生效、图标换 sun、文字保留",
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js=("document.documentElement.getAttribute('data-theme')==='dark'"
+             "&&document.documentElement.getAttribute('data-palette')==='vampire'"
              "&&document.querySelector('#btn-theme .ib-icon').innerHTML.indexOf('<svg')>=0"
              "&&document.querySelector('#btn-theme .ib-label').textContent.trim().length>0")),
 
     dict(name="T11b 主题切回 light",
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
-         js="document.documentElement.getAttribute('data-theme')==='light'"),
+         js=("document.documentElement.getAttribute('data-theme')==='light'"
+             "&&document.documentElement.getAttribute('data-palette')==='sky'")),
 
-    dict(name="T12 设置弹窗:打开含自动保存与云同步的七行设置并可关闭",
+    dict(name="T12 设置弹窗:三个分组 tab、外观配色与字体、云同步默认收起",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
          js=("(function(){var m=document.getElementById('settings-mask');"
-             "return m.classList.contains('open')&&m.querySelectorAll('.setting-row').length===7"
-             "&&document.getElementById('set-autosave')&&document.getElementById('set-daily-folder')"
-             "&&document.getElementById('cloud-enabled')&&!document.getElementById('cloud-panel').classList.contains('show');})()"),
+             "if(!m.classList.contains('open'))return 'not open';"
+             "if(m.querySelectorAll('.settings-tab').length!==3)return 'tabs='+m.querySelectorAll('.settings-tab').length;"
+             "if(!document.getElementById('set-autosave')||!document.getElementById('set-daily-folder'))return 'missing general';"
+             "var light=m.querySelectorAll('#swatch-light .palette-swatch').length;"
+             "var dark=m.querySelectorAll('#swatch-dark .palette-swatch').length;"
+             "if(light!==8||dark!==3)return 'swatch '+light+'+'+dark;"
+             "if(!document.getElementById('set-font-ui')||!document.getElementById('set-font-mono'))return 'missing font';"
+             "if(!document.getElementById('cloud-enabled')||document.getElementById('cloud-panel').classList.contains('show'))return 'cloud';"
+             "return true;})()"),
          setup2="document.getElementById('set-close').click()", sleep2=0.4,
          js2="!document.getElementById('settings-mask').classList.contains('open')"),
 
@@ -263,14 +286,18 @@ CASES = [
                 "document.querySelectorAll('#file-tree .tree-item.file')[0].click();"),
          sleep=1.0,
          # 第一阶段:大文档触发自动 sv 且内容加载完成
-         js=("(function(){if(window.Editor.getMode()!=='sv')return 'mode='+window.Editor.getMode();"
+         js=("(function(){if(!window.Editor.isReady())return 'not ready';"
+             "if(window.Editor.getMode()!=='sv')return 'mode='+window.Editor.getMode();"
              "return window.Editor.getValue().length>400000?true:'len='+window.Editor.getValue().length;})()"),
          timeout=25,
-         # 第二阶段:点开小文档恢复 ir
+         # 第二阶段:点开小文档恢复 ir（须等 isReady，避免大文档 sv 重建未完成就断言）
          setup2="document.querySelectorAll('#file-tree .tree-item.file')[1].click()",
-         sleep2=1.0,
-         js2=("(function(){if(window.Editor.getMode()!=='ir')return 'mode='+window.Editor.getMode();"
-              "return window.Editor.getValue().indexOf("+JV('小文档')+")>=0?true:'content';})()")),
+         sleep2=1.2,
+         js2=("(function(){if(!window.Editor.isReady())return 'not ready';"
+              "if(window.Editor.getMode()!=='ir')return 'mode='+window.Editor.getMode();"
+              "var v=window.Editor.getValue();"
+              "return v.indexOf("+JV('小文档')+")>=0?true:'content';})()"),
+         timeout2=20),
 
     dict(name="T19 字数统计:经 loadDoc 路径统计正确",
          # 字数统计由 app.js 在 loadDoc / 编辑变化时调用 updateCount,去空白字符计数。
@@ -279,9 +306,11 @@ CASES = [
          # (# 与句号非空白字符,计入)。
          setup="document.querySelectorAll('#file-tree .tree-item.file')[1].click()",
          sleep=1.5,
-         js=("(function(){var sc=document.getElementById('sb-count').textContent.trim();"
+         js=("(function(){if(!window.Editor.isReady())return 'not ready';"
+             "if(window.Editor.getValue().indexOf("+JV('小文档')+")<0)return 'content';"
+             "var sc=document.getElementById('sb-count').textContent.trim();"
              "return sc==='9 '+(" + JV('字') + ")?true:'count='+sc;})()"),
-         timeout=12),
+         timeout=20),
 
     dict(name="T20 保存后无脏标记:点开文件本身不脏",
          # loadDoc 后 lastSaved=内容,dirty=false,文档名不应有 ●
@@ -507,12 +536,14 @@ CASES = [
               "return (Math.abs(r-window.__r0)<0.15&&sc.scrollTop>500)?true:'r='+r+' top='+sc.scrollTop;})()")),
 
     dict(name="T35 选区配色:编辑器选区与底色拉开对比(亮色)",
+         # sky #3498db：rgba(52,152,219,x) 或 color-mix 解析后的 color(srgb …)
          js=("(function(){var el=document.querySelector('#editor .vditor-reset')||document.getElementById('editor');"
              "var bg=getComputedStyle(el,'::selection').backgroundColor;"
              "if(!bg||bg==='rgba(0, 0, 0, 0)'||bg==='transparent')return 'no selection style:'+bg;"
              "if(bg.indexOf('234, 242, 248')>=0)return 'still faint #eaf2f8:'+bg;"
-             "if(bg.indexOf('52, 152, 219')<0)return 'unexpected:'+bg;"
-             "return true;})()")),
+             "if(bg.indexOf('52, 152, 219')>=0)return true;"
+             "if(/0\\.20\\d+/.test(bg)&&/0\\.59\\d+/.test(bg)&&/0\\.85\\d+/.test(bg))return true;"
+             "return 'unexpected:'+bg;})()")),
 
     dict(name="T36 右键菜单剪贴板组:有选区可用、无选区禁用复制/剪切",
          setup=("(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
@@ -816,6 +847,51 @@ CASES = [
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
 
+    dict(name="T62 设置弹窗:Esc 关闭且 dialog 无障碍",
+         setup="document.getElementById('btn-settings').click()",
+         sleep=0.4,
+         js=("(function(){var m=document.getElementById('settings-mask');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "var d=m.querySelector('[role=dialog]');"
+             "if(!d||d.getAttribute('aria-modal')!=='true')return 'no dialog';"
+             "if(!document.getElementById('btn-home').getAttribute('aria-label'))return 'no toolbar aria';"
+             "return true;})()"),
+         setup2="window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.4,
+         js2="!document.getElementById('settings-mask').classList.contains('open')"),
+
+    dict(name="T63 状态栏视图开关:可读宽度按钮可切换",
+         setup="document.getElementById('sb-readable').click()",
+         sleep=0.3,
+         js=("document.getElementById('editor-wrap').classList.contains('readable-width')"
+             "&&document.getElementById('sb-readable').classList.contains('active')"
+             "&&!!document.getElementById('sb-focus')&&!!document.getElementById('sb-typewriter')"),
+         setup2="document.getElementById('sb-readable').click()",
+         sleep2=0.3,
+         js2="!document.getElementById('editor-wrap').classList.contains('readable-width')"),
+
+    dict(name="T64 侧栏拖拽手柄与默认宽度",
+         js=("(function(){var h=document.getElementById('sidebar-resizer');"
+             "if(!h)return 'no handle';"
+             "if(h.getAttribute('role')!=='separator')return 'role';"
+             "var w=getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();"
+             "return (w==='256px')?true:'w='+w;})()")),
+
+    dict(name="T65 确认框:Esc 取消",
+         setup=("(function(){window.App.confirm=window.__ryuuConfirm;"
+                "window.__cf=null;"
+                "window.App.confirm({title:"+JV("测试确认")+",message:"+JV("是否继续")+","
+                "okText:"+JV("确定")+",cancelText:"+JV("取消")+"}).then(function(v){window.__cf=v;});})()"),
+         sleep=0.4,
+         js=("document.getElementById('confirm-mask').classList.contains('open')"
+             "&&!!document.querySelector('#confirm-mask [role=dialog]')"),
+         setup2="window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.4,
+         js2=("(function(){var open=document.getElementById('confirm-mask').classList.contains('open');"
+              "var v=window.__cf;"
+              "window.App.confirm=function(){return Promise.resolve(true);};"
+              "return (!open&&v===false)?true:'open='+open+' cf='+v;})()")),
+
     dict(name="T61 清空文档:真实编辑清空后 getValue 反映空文档(不回退旧内容)",
          # 行为契约:用户清空文档后,getValue 必须如实返回空(实测 Vditor 清空后
          # 序列化为 "\n"),不得因缓存回退等原因复活装载时的旧内容。
@@ -866,6 +942,8 @@ def _run(window):
     time.sleep(4.5)  # 等 boot 完成(含会话恢复/首启欢迎流程)
     # 防阻塞:未保存确认框恒「确认」;并关闭可能弹出的首启欢迎窗
     ev("window.confirm=function(){return true;};window.alert=function(){};"
+       "if(window.App&&window.App.confirm){window.__ryuuConfirm=window.App.confirm;"
+       "window.App.confirm=function(){return Promise.resolve(true);};}"
        "(function(){var w=document.getElementById('welcome-mask');"
        "if(w.classList.contains('open')){var b=document.getElementById('welcome-start');if(b)b.click();}})()")
     time.sleep(0.5)
@@ -885,7 +963,7 @@ def _run(window):
                 if c.get("setup2"):
                     ev(c["setup2"])
                 time.sleep(c.get("sleep2", 0.4))
-                ok, last = _check(ev, c["js2"], c.get("timeout", 8))
+                ok, last = _check(ev, c["js2"], c.get("timeout2", c.get("timeout", 8)))
             results.append((c["name"], ok, "" if ok else last))
             print(("PASS" if ok else "FAIL"), A(c["name"]), flush=True)
         except Exception as e:  # noqa: BLE001
@@ -903,6 +981,12 @@ def _run(window):
 
 def main() -> int:
     config = Config()
+    # 预置 last_file + startup_page=home：断言「有上次文档也不恢复」，只进首页
+    config.update({
+        "startup_page": "home",
+        "last_file": str(SMALL_MD),
+        "last_folder": str(REPO_DIR),
+    })
     api = Api(config)
     index = str(ROOT / "app" / "web" / "index.html")
     # 说明:Vditor 渲染依赖窗口 rAF/焦点,E2E 须真实窗口运行;跑前请关闭其他 RyuuMD/

@@ -13,7 +13,7 @@
     { icon: "slash", title: "斜杠命令", desc: "输入 / 呼出菜单，标题、表格、公式一键插入" },
     { icon: "lock", title: "全本地 · 隐私安全", desc: "无需联网与账号，文件始终留在你的电脑里" },
     { icon: "toc", title: "文件树与大纲", desc: "侧栏浏览文件夹，大纲一点即达，长文不迷路" },
-    { icon: "palette", title: "亮暗双主题", desc: "phycat sky / vampire 配色，养眼也护眼" },
+    { icon: "palette", title: "phycat 全系列主题", desc: "8 套亮色 + 3 套暗色配色，还可自选界面与等宽字体" },
     { icon: "drag", title: "拖拽即开", desc: "拖入 .md 或文件夹直接打开，记忆上次会话" },
   ];
 
@@ -46,7 +46,7 @@
 
   function render() {
     mask.innerHTML = `
-      <div class="modal welcome">
+      <div class="modal welcome" role="dialog" aria-modal="true" aria-label="欢迎使用 RyuuMD">
         <div class="modal-head">
           <span class="badge">md</span>
           <div>
@@ -107,11 +107,23 @@
     img.src = "assets/QRCode.png";
   }
 
+  function isOpen() {
+    return mask.classList.contains("open");
+  }
+
   function finish() {
-    const dontShow = document.getElementById("welcome-dontshow").checked;
+    if (window.App && window.App.unregisterEscape) window.App.unregisterEscape(close);
+    const box = document.getElementById("welcome-dontshow");
+    const dontShow = box ? box.checked : true;
     mask.classList.remove("open");
     const result = { style: chosenStyle, dontShow };
     if (resolveFn) resolveFn(result);
+    resolveFn = null;
+  }
+
+  function close() {
+    if (!isOpen()) return;
+    finish();
   }
 
   /* 返回 Promise<{style, dontShow}> */
@@ -124,8 +136,11 @@
       );
     }
     mask.classList.add("open");
+    if (window.App && window.App.registerEscape) window.App.registerEscape(close);
+    const start = document.getElementById("welcome-start");
+    if (start) start.focus();
     return new Promise((res) => (resolveFn = res));
   }
 
-  window.Welcome = { show };
+  window.Welcome = { show, close, isOpen };
 })();

@@ -5,7 +5,7 @@
 - 拖入 md 文件或文件夹即可打开
 - 以仓库形式管理笔记目录，首页快速切换，支持多窗口
 - 单实例：双击 md 文件复用已运行实例，在新窗口中秒开
-- phycat sky（亮）/ vampire（暗）配色
+- phycat 全系列配色（亮 8 + 暗 3），可换界面/等宽字体
 """
 
 from __future__ import annotations

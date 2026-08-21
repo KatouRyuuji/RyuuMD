@@ -63,7 +63,7 @@
       if (repos && repos.ok) renderRepos(repos.items);
       if (recent && recent.ok) renderRecent(recent.items);
     } catch (e) {
-      toast("首页数据加载失败");
+      toast("首页数据加载失败", { type: "error" });
     }
   }
 
@@ -200,7 +200,7 @@
   // ---------------------------------------------------------------
   function bindStatic() {
     // 快速操作
-    on("hq-new", () => { hide(); handlers.newDoc && handlers.newDoc(); });
+    on("hq-new", () => { handlers.newDoc && handlers.newDoc(); });
     on("hq-open-file", () => handlers.openFileDialog && handlers.openFileDialog());
     on("hq-add-repo", addRepo);
     on("repo-empty-add", addRepo);
@@ -241,7 +241,7 @@
         if (res && res.ok) {
           toast(res.existed ? "该目录已在仓库列表中" : "已保存为仓库");
           refresh();
-        } else toast("保存失败：" + ((res && res.error) || ""));
+        } else toast("保存失败：" + ((res && res.error) || ""), { type: "error" });
         return;
       }
       handlers.openPath && handlers.openPath(row.dataset.path);
@@ -280,7 +280,7 @@
       toast(res.existed ? "该目录已在仓库列表中" : "已添加仓库：" + res.project.name);
       refresh();
     } else if (res && !res.cancelled) {
-      toast("添加失败：" + (res.error || ""));
+      toast("添加失败：" + (res.error || ""), { type: "error" });
     }
   }
 
@@ -303,14 +303,22 @@
       refresh();
     } else if (act === "new-window") {
       const res = await a.open_project_new_window(id);
-      if (!res.ok) toast("打开失败：" + (res.error || ""));
+      if (!res.ok) toast("打开失败：" + (res.error || ""), { type: "error" });
     } else if (act === "rename") {
       openRenameModal(repo);
     } else if (act === "reveal") {
       const res = await a.reveal_in_explorer(repo.path);
       if (!res.ok) toast(res.error || "无法打开资源管理器");
     } else if (act === "remove") {
-      if (!window.confirm(`把「${repo.name}」从仓库列表移除？\n（仅移除记录，不会删除磁盘文件）`)) return;
+      const ok = window.App && window.App.confirm
+        ? await window.App.confirm({
+            title: "移除仓库",
+            message: `把「${repo.name}」从仓库列表移除？\n（仅移除记录，不会删除磁盘文件）`,
+            okText: "移除",
+            cancelText: "取消",
+          })
+        : window.confirm(`把「${repo.name}」从仓库列表移除？\n（仅移除记录，不会删除磁盘文件）`);
+      if (!ok) return;
       await a.remove_project(id);
       toast("已移除");
       refresh();
@@ -321,8 +329,9 @@
   // 重命名小弹窗
   // ---------------------------------------------------------------
   function openRenameModal(repo) {
+    if (isModalOpen()) closeModal();
     modalMask.innerHTML = `
-      <div class="modal mini-modal">
+      <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="重命名仓库">
         <div class="modal-head">
           <span class="badge">${window.ICONS.edit}</span>
           <div><h2>重命名仓库</h2><p>${esc(repo.path)}</p></div>
@@ -336,6 +345,7 @@
         </div>
       </div>`;
     modalMask.classList.add("open");
+    if (window.App && window.App.registerEscape) window.App.registerEscape(closeModal);
     const input = document.getElementById("mm-name");
     input.focus();
     input.select();
@@ -345,7 +355,7 @@
       if (!name) { toast("名称不能为空"); return; }
       const res = await api().rename_project(repo.id, name);
       if (res && res.ok) { closeModal(); refresh(); }
-      else toast("重命名失败：" + ((res && res.error) || ""));
+      else toast("重命名失败：" + ((res && res.error) || ""), { type: "error" });
     };
     document.getElementById("mm-ok").addEventListener("click", submit);
     document.getElementById("mm-cancel").addEventListener("click", closeModal);
@@ -355,7 +365,12 @@
     });
   }
 
+  function isModalOpen() {
+    return modalMask.classList.contains("open");
+  }
+
   function closeModal() {
+    if (window.App && window.App.unregisterEscape) window.App.unregisterEscape(closeModal);
     modalMask.classList.remove("open");
     modalMask.innerHTML = "";
   }
@@ -409,8 +424,8 @@
       .replace(/"/g, "&quot;");
   }
 
-  function toast(msg) {
-    if (handlers.toast) handlers.toast(msg);
+  function toast(msg, opts) {
+    if (handlers.toast) handlers.toast(msg, opts);
   }
 
   function on(id, fn) {
@@ -418,5 +433,5 @@
     if (el) el.addEventListener("click", fn);
   }
 
-  window.Home = { init, show, hide, toggle, isOpen, refresh };
+  window.Home = { init, show, hide, toggle, isOpen, refresh, isModalOpen, closeModal };
 })();

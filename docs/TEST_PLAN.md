@@ -11,12 +11,12 @@
 统一入口：根目录 `run_tests.py`（先单测后 E2E，任一失败退出码非零）。
 
 > E2E 全程使用**临时 APPDATA**（隔离用户真实配置）与临时目录文件，
-> 并 hook `window.confirm` 恒为 true（防未保存确认框阻塞自动化）。
+> 并 hook `window.confirm` / `App.confirm` 恒为 true（防未保存确认框阻塞自动化）。
 
 ## 当前实测结果
 
-- **单元测试：108/108 通过**（原 105 项 + 原子写/仅大小写重命名/云同步指纹 3 项）。
-- **E2E:63/63 通过**（原 62 项 + T61 清空文档行为契约）。
+- **单元测试：113/113 通过**。
+- **E2E:68/68 通过**。
 - 多窗口/单实例已做真实进程冒烟：主实例启动写锁 → 第二进程 254ms 秒退
   （转发成功）→ 主实例新窗口打开目标文档（last_file 证实）。
 
@@ -124,7 +124,7 @@
 | E1 | 按钮文字 | 7 个 .icon-btn 均有非空 .ib-label | E2E | ✅ T02 |
 | E2 | 图标注入 | [data-icon] 均注入 <svg>；文字未被覆盖 | E2E | ✅ T03 |
 | E3 | 主题切换 | data-theme 切换；按钮图标 sun/moon 换且文字保留；持久化 | E2E | ✅ T11 |
-| E4 | 设置弹窗 | 打开/7 行设置（含自动保存）/云同步面板默认隐藏/关闭 | E2E | ✅ T12 / T42 / T47 |
+| E4 | 设置弹窗 | 打开/3 个分组 tab/外观 8+3 swatch 与字体下拉/云同步面板默认隐藏/关闭 | E2E | ✅ T12 / T42 / T47 |
 | E5 | 保存 | Ctrl+S 写盘并清除脏标记 ●（合成快捷键真实写盘回读验证） | E2E | ✅ T40 |
 | E6 | 快捷键 | Ctrl+O/N、Ctrl+Shift+B | 手动 | ⬜ 合成事件与真实键位一致性有限 |
 | E7 | 未保存确认 | dirty 时切文件弹确认 | 手动 | ⬜ confirm 已被 E2E hook，需人工 |
@@ -186,8 +186,8 @@
 
 | 编号 | 特性 | 测试点 | 方式 | 自动化 |
 | --- | --- | --- | --- | --- |
-| K1 | 首启进首页 | 无会话首启：welcome 关闭后首页可见、3 快速操作、空态提示 | E2E | ✅ T00 |
-| K2 | 启动页策略 | startup_page=home 始终首页（默认，T00 隐含）；=restore 恢复上次会话 | 单测/E2E | ✅（home 档 T00 隐含）⬜（restore 档手动） |
+| K1 | 首启进首页 | startup_page=home 且 config 有 last_file：welcome 关闭后仍进首页、3 快速操作、空态提示 | E2E | ✅ T00 |
+| K2 | 启动页策略 | 仅 restore 才恢复；home/缺失/非法一律首页。首页打开文档走 ensureEditor | 单测/E2E | ✅ T00 / T00b ⬜（restore 档手动） |
 | K3 | 仓库增删改 | add 去重（大小写不敏感）/rename 空名拒绝/remove/失效标记不丢弃 | 单测 | ✅ TestProjects |
 | K4 | 排序 | 置顶最前 → last_opened_at 倒序 | 单测 | ✅ test_pin_and_sort_order |
 | K5 | 打开计时 | open_project 返回树并 touch | 单测 | ✅ |

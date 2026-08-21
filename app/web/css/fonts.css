@@ -1,0 +1,15 @@
+/* 本地字体（来自 phycat）。由 app.js 在首屏渲染后动态插入，
+   避免 25MB 霞鹜文楷与启动关键路径抢磁盘 IO。font-display:swap：
+   加载前走 --font-ui/--font-mono 里的系统字体回退，加载完自动替换。 */
+@font-face {
+  font-family: "LXGW WenKai";
+  src: url("../assets/fonts/LXGWWenKai-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Cascadia Code";
+  src: url("../assets/fonts/Cascadia-Code-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}

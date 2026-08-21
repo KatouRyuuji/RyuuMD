@@ -906,7 +906,7 @@ class Api:
             return {"ok": False, "cancelled": True}
         path = result if isinstance(result, str) else result[0]
         title = Path(path).stem
-        doc = wrap_html_export(title, html or "")
+        doc = wrap_html_export(title, html or "", self.config.all())
         try:
             Path(path).write_text(doc, encoding="utf-8")
             return {"ok": True, "path": str(path)}
@@ -975,20 +975,71 @@ def apply_template_vars(text: str, title: str = "", now: datetime | None = None)
     return out
 
 
-def wrap_html_export(title: str, body: str) -> str:
-    """把 Vditor HTML 片段包成可独立打开的文档（相对图片路径保持原样）。"""
+# 导出 HTML 用的最小色表（主色 / 深色 / 背景 / 文字 / 次要文字）。
+# 色值摘自 typora-theme-phycat 各变体 :root，sky/vampire 与应用默认对齐。
+_EXPORT_PALETTES: dict[str, dict[str, str]] = {
+    "cherry": {"primary": "#aa1111", "deep": "#9a0036", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#ffa6a6"},
+    "caramel": {"primary": "#f59e0b", "deep": "#b45309", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#fbbf24"},
+    "forest": {"primary": "#11aa63", "deep": "#009a52", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#80c3a4"},
+    "mint": {"primary": "#3db8bf", "deep": "#089ba3", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#7aeaf0"},
+    "sky": {"primary": "#3498db", "deep": "#2980b9", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#e7eef6"},
+    "prussian": {"primary": "#1D4E89", "deep": "#003153", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#6BA3CC"},
+    "sakura": {"primary": "#ff7096", "deep": "#e91e63", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#ffb7cd"},
+    "mauve": {"primary": "#A06EB4", "deep": "#6A3F7A", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#D4B6E0"},
+    "vampire": {"primary": "#ff5555", "deep": "#ff3b3b", "bg": "#20222a", "text": "#f8f8f2", "muted": "#b7bdca", "border": "#2f313c"},
+    "radiation": {"primary": "#4cd964", "deep": "#3db854", "bg": "#1b1d1b", "text": "#e6e6e6", "muted": "#99a699", "border": "#333933"},
+    "abyss": {"primary": "#00f3ff", "deep": "#00c4d0", "bg": "#0f111a", "text": "#d6deeb", "muted": "#7e8c9f", "border": "#1f2233"},
+}
+_LIGHT_PALETTE_IDS = frozenset(
+    {"cherry", "caramel", "forest", "mint", "sky", "prussian", "sakura", "mauve"}
+)
+_DARK_PALETTE_IDS = frozenset({"vampire", "radiation", "abyss"})
+_UI_FONT_FALLBACK = "'LXGW WenKai','Segoe UI','Microsoft YaHei',sans-serif"
+_MONO_FONT_FALLBACK = "'Cascadia Code',Consolas,monospace"
+
+
+def _safe_css_font(name: str, fallback: str) -> str:
+    """把用户字体名拼进 CSS font-family，去掉可注入字符。"""
+    raw = (name or "").strip().replace("<", "").replace(">", "").replace("{", "").replace("}", "")
+    raw = raw.replace("\n", " ").replace('"', "'")
+    if not raw:
+        return fallback
+    if "," in raw:
+        return f"{raw},{fallback}"
+    return f"'{raw}',{fallback}"
+
+
+def _export_palette_id(config: Optional[dict[str, Any]]) -> str:
+    cfg = config or {}
+    if cfg.get("theme") == "dark":
+        pal = str(cfg.get("palette_dark") or "vampire")
+        return pal if pal in _DARK_PALETTE_IDS else "vampire"
+    pal = str(cfg.get("palette_light") or "sky")
+    return pal if pal in _LIGHT_PALETTE_IDS else "sky"
+
+
+def wrap_html_export(title: str, body: str, config: Optional[dict[str, Any]] = None) -> str:
+    """把 Vditor HTML 片段包成可独立打开的文档（相对图片路径保持原样）。
+
+    配色/字体跟随当前 theme + palette + font_*；未传 config 时回退 sky + 霞鹜文楷。
+    """
     safe_title = html_lib.escape(title or "导出")
+    cfg = config or {}
+    pal = _EXPORT_PALETTES[_export_palette_id(cfg)]
+    ui = _safe_css_font(str(cfg.get("font_ui") or ""), _UI_FONT_FALLBACK)
+    mono = _safe_css_font(str(cfg.get("font_mono") or ""), _MONO_FONT_FALLBACK)
     return (
         "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
         "<meta charset=\"UTF-8\" />\n"
         f"<title>{safe_title}</title>\n"
         "<style>\n"
         "body{max-width:800px;margin:2.2em auto;padding:0 1.2em 3em;"
-        "font-family:'LXGW WenKai','Segoe UI','Microsoft YaHei',sans-serif;"
-        "line-height:1.75;color:#2c3e50;}\n"
-        "img{max-width:100%;} pre,code{font-family:Consolas,monospace;}\n"
-        "blockquote{border-left:4px solid #3498db;margin:0;padding:.2em 1em;color:#5b7187;}\n"
-        "table{border-collapse:collapse;} th,td{border:1px solid #e7eef6;padding:.4em .7em;}\n"
+        f"font-family:{ui};"
+        f"line-height:1.75;color:{pal['text']};background:{pal['bg']};}}\n"
+        f"img{{max-width:100%;}} pre,code{{font-family:{mono};}}\n"
+        f"blockquote{{border-left:4px solid {pal['primary']};margin:0;padding:.2em 1em;color:{pal['muted']};}}\n"
+        f"table{{border-collapse:collapse;}} th,td{{border:1px solid {pal['border']};padding:.4em .7em;}}\n"
+        f"a{{color:{pal['deep']};}}\n"
         "</style>\n</head>\n<body>\n"
         f"{body}\n"
         "</body>\n</html>\n"

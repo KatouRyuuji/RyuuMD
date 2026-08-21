@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN" data-theme="light" data-palette="sky">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/editor-theme.css" />
+  <link rel="stylesheet" href="css/themes.css" />
   <link rel="stylesheet" href="css/slash.css" />
   <link rel="stylesheet" href="css/home.css" />
   <link rel="stylesheet" href="css/palette.css" />
@@ -21,29 +22,29 @@
         <span>RyuuMD</span>
       </div>
       <!-- 图标放在 .ib-icon（data-icon 注入目标）里，文字放 .ib-label，互不覆盖 -->
-      <button class="icon-btn" id="btn-home" title="首页 (Ctrl+Shift+H)"><span class="ib-icon" data-icon="home"></span><span class="ib-label">首页</span></button>
-      <button class="icon-btn" id="btn-sidebar" title="切换侧栏 (Ctrl+Shift+B)"><span class="ib-icon" data-icon="sidebar"></span><span class="ib-label">侧栏</span></button>
-      <button class="icon-btn" id="btn-open-folder" title="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
-      <button class="icon-btn" id="btn-open-file" title="打开文件 (Ctrl+O)"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
-      <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
-      <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
-      <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
+      <button class="icon-btn" id="btn-home" title="首页 (Ctrl+Shift+H)" aria-label="首页"><span class="ib-icon" data-icon="home"></span><span class="ib-label">首页</span></button>
+      <button class="icon-btn" id="btn-sidebar" title="切换侧栏 (Ctrl+Shift+B)" aria-label="切换侧栏"><span class="ib-icon" data-icon="sidebar"></span><span class="ib-label">侧栏</span></button>
+      <button class="icon-btn" id="btn-open-folder" title="打开文件夹" aria-label="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
+      <button class="icon-btn" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
+      <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
+      <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
+      <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
 
       <div class="tb-spacer"></div>
 
       <span class="tb-doc-name" id="doc-name">未打开文件</span>
-      <button class="icon-btn" id="btn-theme" title="切换主题"><span class="ib-icon" data-icon="moon"></span><span class="ib-label">主题</span></button>
-      <button class="icon-btn" id="btn-settings" title="设置"><span class="ib-icon" data-icon="gear"></span><span class="ib-label">设置</span></button>
+      <button class="icon-btn" id="btn-theme" title="切换主题 (Ctrl+Shift+L)" aria-label="切换主题"><span class="ib-icon" data-icon="moon"></span><span class="ib-label">主题</span></button>
+      <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置"><span class="ib-icon" data-icon="gear"></span><span class="ib-label">设置</span></button>
     </div>
 
     <!-- 主体 -->
     <div id="body">
       <aside id="sidebar">
         <div class="side-tabs">
-          <button class="side-tab active" data-panel="files">目录</button>
-          <button class="side-tab" data-panel="outline">大纲</button>
-          <button class="side-tab" data-panel="recent">最近</button>
-          <button class="side-tab" data-panel="links">链接</button>
+          <button class="side-tab active" data-panel="files" aria-label="目录">目录</button>
+          <button class="side-tab" data-panel="outline" aria-label="大纲">大纲</button>
+          <button class="side-tab" data-panel="recent" aria-label="最近">最近</button>
+          <button class="side-tab" data-panel="links" aria-label="链接">链接</button>
         </div>
         <div class="side-panel active" id="panel-files">
           <div class="side-empty" id="files-empty">
@@ -68,6 +69,7 @@
           <div id="links-list"></div>
         </div>
       </aside>
+      <div id="sidebar-resizer" title="拖拽调整侧栏宽度，双击恢复默认" role="separator" aria-orientation="vertical" aria-label="调整侧栏宽度"></div>
 
       <main id="editor-wrap">
         <div id="find-bar">
@@ -94,6 +96,11 @@
             <span id="sb-count" class="sb-item">0 字</span>
             <button type="button" class="sb-item" id="sb-zoom" title="Ctrl+= 放大 / Ctrl+- 缩小 / Ctrl+0 重置">100%</button>
             <button type="button" class="sb-item sb-cloud" id="sb-cloud" title="云同步" style="display:none">云同步</button>
+            <div class="sb-views" id="sb-views">
+              <button type="button" class="sb-view" id="sb-readable" data-icon="readable" title="可读宽度" aria-label="可读宽度" aria-pressed="false"></button>
+              <button type="button" class="sb-view" id="sb-focus" data-icon="focus" title="专注模式" aria-label="专注模式" aria-pressed="false"></button>
+              <button type="button" class="sb-view" id="sb-typewriter" data-icon="typewriter" title="打字机模式" aria-label="打字机模式" aria-pressed="false"></button>
+            </div>
             <div class="sb-modes" id="sb-modes">
               <button class="sb-mode active" data-mode="ir">渲染</button>
               <button class="sb-mode" data-mode="sv">源码</button>
@@ -163,8 +170,8 @@
   <!-- 拖放提示 -->
   <div id="drop-hint"><div class="inner">松开以打开 Markdown 文件或文件夹</div></div>
 
-  <!-- Toast -->
-  <div id="toast"></div>
+  <!-- Toast 堆叠容器 -->
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <!-- 命令面板：快速打开 / 命令 / 仓库搜索 -->
   <div id="palette-mask">
@@ -185,6 +192,7 @@
   <div class="modal-mask" id="welcome-mask"></div>
   <div class="modal-mask" id="home-modal-mask"></div>
   <div class="modal-mask" id="input-modal-mask"></div>
+  <div class="modal-mask" id="confirm-mask"></div>
 
   <script src="vendor/vditor/dist/index.min.js"></script>
   <script src="js/icons.js"></script>
