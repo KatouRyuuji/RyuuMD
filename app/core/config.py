@@ -47,6 +47,9 @@ DEFAULTS: dict[str, Any] = {
     # 启动页：home = 始终显示首页（默认）；restore = 恢复上次会话（无会话则进首页）。
     # 前端仅在值为 restore 时走恢复；缺失 / 非法值一律按 home，避免缺字段误进恢复。
     "startup_page": "home",
+    # 已有窗口运行时再次启动程序：new = 新开一个窗口（默认）；focus = 仅激活当前窗口。
+    # 双击 md 文件（带路径）不受此项影响，始终开新窗口。
+    "second_launch": "new",
     # 已保存文档在停止输入后自动写盘（Typora / Joplin 同款；未保存的新文档不弹框）
     "auto_save": True,
     # 每日笔记子目录（相对当前仓库根），默认「日记」

@@ -6,6 +6,7 @@
 - 新进程启动先读该文件：若记录了 pid 且进程已死，直接删锁接管，不连端口；
   否则尝试连接转发（0.4 秒超时），成功即退出自身 ——
   双击 md 文件不再冷启动整套 WebView2，秒开新窗口；
+- 主实例收到请求立即应答，再异步建窗（应答与建窗耗时解耦）；
 - 连接失败（残留文件/主实例已死）则删锁并接管成为新的主实例。
 - token 校验防止本机其他程序伪造请求。
 - 老格式锁文件（无 pid）保持兼容：跳过存活检查，按连接超时处理。
@@ -147,8 +148,16 @@ class InstanceServer:
                         conn.sendall(b"denied")
                         continue
                     if msg.get("action") == "open":
-                        self.on_open(str(msg.get("path") or ""))
                         conn.sendall(b"ok")
+                        # 先应答再建窗：建窗要 Invoke 回 UI 线程，慢机器上耗时可能
+                        # 超过转发方 recv 超时 —— 超时会让第二进程误删活锁、退化为
+                        # 完整实例（双实例互踩配置/锁）。应答与建窗解耦后转发秒回。
+                        threading.Thread(
+                            target=self.on_open,
+                            args=(str(msg.get("path") or ""),),
+                            daemon=True,
+                            name="ryuumd-open-window",
+                        ).start()
             except Exception:  # noqa: BLE001
                 # 单条坏请求不影响服务循环
                 continue

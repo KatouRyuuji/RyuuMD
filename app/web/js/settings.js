@@ -91,6 +91,16 @@
             </div>
             <div class="setting-row">
               <div>
+                <div class="label">再次启动程序</div>
+                <div class="desc">已有窗口在运行时再次启动（双击图标）：新开窗口或仅激活当前窗口；双击 md 文件始终开新窗口</div>
+              </div>
+              <div class="segmented" id="set-second-launch">
+                <button data-v="new">新开窗口</button>
+                <button data-v="focus">激活当前窗口</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
                 <div class="label">默认 Markdown 应用</div>
                 <div class="desc">双击 .md 文件直接用 RyuuMD 打开</div>
               </div>
@@ -203,6 +213,7 @@
     bindSeg("set-style", "operation_style");
     bindSeg("set-theme", "theme");
     bindSeg("set-startup", "startup_page");
+    bindSeg("set-second-launch", "second_launch");
     bindSwatches("swatch-light", "palette_light");
     bindSwatches("swatch-dark", "palette_dark");
     bindFont("set-font-ui", "set-font-ui-custom", "font_ui", FONT_UI_PRESETS);
@@ -457,6 +468,7 @@
     setSeg("set-style", String(cfg.operation_style));
     setSeg("set-theme", String(cfg.theme));
     setSeg("set-startup", String(cfg.startup_page || "home"));
+    setSeg("set-second-launch", String(cfg.second_launch || "new"));
     syncSwatches();
   }
 

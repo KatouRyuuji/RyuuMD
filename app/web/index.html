@@ -29,6 +29,7 @@
       <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
       <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
       <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
+      <button class="icon-btn" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
 
       <div class="tb-spacer"></div>
 
@@ -190,6 +191,14 @@
   <!-- 弹窗挂载点 -->
   <div class="modal-mask" id="settings-mask"></div>
   <div class="modal-mask" id="welcome-mask"></div>
+  <!-- 后端桥等待遮罩：js_api 注入偶发迟到时给出可视反馈与重载出口（app.js showBackendPending） -->
+  <div class="modal-mask" id="backend-pending">
+    <div class="modal" style="width:340px;text-align:center;padding:28px 24px">
+      <p style="margin:0 0 6px">正在连接后端…</p>
+      <p style="margin:0 0 14px;font-size:12px;color:var(--text-muted,#8aa)">首次或计算机繁忙时可能需要几秒钟</p>
+      <button class="btn" id="backend-reload" hidden>仍无法连接？点击重新加载</button>
+    </div>
+  </div>
   <div class="modal-mask" id="home-modal-mask"></div>
   <div class="modal-mask" id="input-modal-mask"></div>
   <div class="modal-mask" id="confirm-mask"></div>

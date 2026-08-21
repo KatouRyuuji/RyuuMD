@@ -77,8 +77,11 @@ main()                          （进程级，仅一次）
 
 - **每窗口一个 Api 实例**：`initial_path` 是窗口私有状态，`_window` 绑定各自窗口；
 - **Config 全局共享**：主题/偏好改动即时落盘，新窗口启动即读到；
-- pywebview 支持主循环启动后从任意线程 `create_window`（InstanceServer
-  的 daemon 线程直接调用即可）。
+- pywebview 支持主循环启动后从任意线程 `create_window`；`WindowManager.create`
+  用锁串行化（转发线程与前端 `open_new_window` 桥线程可能并发触发，
+  pywebview 的 `create_window` 非线程安全）；
+- 转发请求的 `on_open` 在独立 daemon 线程执行（应答先行），即「建窗线程」，
+  与接收循环互不阻塞。
 
 ### 3.3 窗口启动数据流（前端视角）
 
@@ -90,6 +93,9 @@ Vditor `after` 上。
 boot()
  ├─ 绑定按钮/快捷键/拖放（前置，不依赖后端）
  ├─ waitForApi() → get_config()
+ │   永久等待桥就绪（2.5s 后显示「正在连接后端…」遮罩，20s 后给出
+ │   「重新加载」出口：reload 会重新触发 js_api 注入，可自愈；
+ │   不可 8s 放弃——桥迟到时放弃会留下僵尸窗口：toast 后端异常 + 首页无数据）
  ├─ 应用主题/字体/缩放等（不触碰未建的 Vditor；setTheme 等空操作）
  ├─ Home.init / Palette.init
  ├─ loadRecent / refreshCloudBadge / maybeStartCloudSync  ← 不等编辑器
@@ -135,8 +141,11 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 - 主实例绑定 `127.0.0.1:随机端口`，端口 + 随机 token + **pid** 写
   `%APPDATA%/RyuuMD/instance.json`；
 - 新进程先 `try_forward`：若锁内 pid 已死则直接删锁接管（不连端口）；
-  否则 0.4s 连接超时。成功 → 主实例 `manager.create(path)` 开新窗口，
+  否则 0.4s 连接超时。成功 → 主实例**先应答 `ok` 再异步** `manager.create(path)`
+  开新窗口（应答与建窗耗时解耦，慢机器上转发方也不会超时误删活锁），
   本进程退出；失败（残留文件/主实例已死）→ 删锁并自己接管为主实例；
+- 空路径转发（再次启动程序）受 `second_launch` 配置分流：`new`（默认）开新窗口；
+  `focus` 只 `restore + show` 激活已有窗口。带路径（双击 md 文件）始终开新窗口；
 - 老格式锁（无 pid）保持兼容，按连接超时处理；
 - 一行 JSON 协议 `{token, action:"open", path}`，token 不符回 `denied`；
 - `webview.start()` 返回（全窗口关闭）后 `server.stop()` 删锁文件。

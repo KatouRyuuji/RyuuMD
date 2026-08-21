@@ -38,14 +38,19 @@
     bindDragDrop();
     bindPasteImages();
 
-    // 后端通道兜底：js_api 注入失败/超时不得拖死 boot，降级默认配置继续，
-    // 保证 UI 可交互；功能调用处另有 apiOrToast 给出明确提示而非静默失败。
+    // 后端通道兜底：js_api 注入偶发迟到（慢盘/杀软扫描时子窗口注入可达数秒级）。
+    // 历史 bug：8s 超时放弃 → 桥随后才到 → 窗口沦为僵尸（toast「后端连接异常」
+    // + 首页无数据）。改为永久等待 + 「正在连接后端」可视反馈 + 手动重载出口。
+    const pendingTimer = setTimeout(showBackendPending, 2500);
     try {
       await waitForApi();
       state.config = await api().get_config();
     } catch (e) {
       state.config = defaultConfig();
       toast("后端连接异常，已以默认配置启动；请尝试重启应用");
+    } finally {
+      clearTimeout(pendingTimer);
+      hideBackendPending();
     }
 
     applyTheme(state.config.theme);
@@ -133,6 +138,8 @@
   }
 
   function waitForApi() {
+    // 只在桥真正就绪时 resolve，永不放弃：放弃会得到一个看似正常实则全残的窗口，
+    // 比「明确等待中」糟糕得多。桥永远不来的极端情况由等待遮罩上的重载按钮兜底。
     return new Promise((resolve) => {
       if (api()) return resolve();
       window.addEventListener("pywebviewready", () => resolve(), { once: true });
@@ -140,9 +147,24 @@
       const t = setInterval(() => {
         if (api()) { clearInterval(t); resolve(); }
       }, 60);
-      // 超时降级：js_api 注入异常时不无限等待（曾致 boot 卡死、按钮全灭）
-      setTimeout(() => { clearInterval(t); resolve(); }, 8000);
     });
+  }
+
+  // 后端等待遮罩：2.5s 未就绪即显示；20s 仍未就绪给出「重新加载」出口
+  // （重载会再次触发 navigation_completed → pywebview 重新注入桥，可自愈）。
+  function showBackendPending() {
+    const m = document.getElementById("backend-pending");
+    if (!m) return;
+    m.classList.add("open");
+    setTimeout(() => {
+      const b = document.getElementById("backend-reload");
+      if (b && m.classList.contains("open")) b.hidden = false;
+    }, 20000);
+  }
+
+  function hideBackendPending() {
+    const m = document.getElementById("backend-pending");
+    if (m) m.classList.remove("open");
   }
 
   // api 的就绪检查 + 用户提示：按钮点击后静默抛错会被感知为「按钮没反应」
@@ -686,12 +708,14 @@
     on("btn-new", newDoc);
     on("btn-save", save);
     on("btn-search", () => window.Palette.openSearch());
+    on("btn-new-window", openNewWindow);
     on("btn-theme", toggleTheme);
     on("btn-settings", openSettings);
     on("btn-clear-recent", clearRecent);
     on("sb-cloud", runCloudSync);
     on("sb-zoom", () => applyZoom(100));
     on("sb-path", locateInTree);
+    on("backend-reload", () => location.reload());
 
     // 侧栏标签切换（目录 / 大纲 / 最近）：tab 的 data-panel 对应 panel-<name> 面板
     document.querySelectorAll(".side-tab").forEach((tab) => {
@@ -1300,6 +1324,14 @@
   function moveCurrent() {
     const p = requireSavedFile();
     if (p) moveFileFlow(p);
+  }
+
+  async function openNewWindow() {
+    // 工具栏「新窗口」：空白新窗口（显示首页），不带当前文档上下文
+    const a = apiOrToast();
+    if (!a || !a.open_new_window) return;
+    const res = await a.open_new_window("");
+    if (!res.ok) toast(res.error || "无法打开新窗口");
   }
 
   async function openCurrentNewWindow() {

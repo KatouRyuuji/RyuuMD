@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from pathlib import Path
 
 import webview
@@ -47,23 +48,40 @@ class WindowManager:
     def __init__(self, config: Config) -> None:
         self.config = config
         self._index = resource_path("app", "web", "index.html")
+        # 建窗串行化：转发线程与前端 open_new_window 桥线程可能并发触发，
+        # pywebview 的 create_window 非线程安全（windows 列表/事件注册）
+        self._create_lock = threading.Lock()
 
     def create(self, initial_path: str = "") -> "webview.Window":
-        api = Api(self.config, window_manager=self, initial_path=initial_path)
-        window = webview.create_window(
-            title=APP_NAME,
-            url=self._index,
-            js_api=api,
-            width=int(self.config.get("window_width", 1280)),
-            height=int(self.config.get("window_height", 820)),
-            min_size=(880, 600),
-            background_color="#f4faff",
-            text_select=True,
-        )
-        api.bind_window(window)
-        self._bind_drop(window)
-        self._bind_size_memory(window)
-        return window
+        with self._create_lock:
+            api = Api(self.config, window_manager=self, initial_path=initial_path)
+            window = webview.create_window(
+                title=APP_NAME,
+                url=self._index,
+                js_api=api,
+                width=int(self.config.get("window_width", 1280)),
+                height=int(self.config.get("window_height", 820)),
+                min_size=(880, 600),
+                background_color="#f4faff",
+                text_select=True,
+            )
+            api.bind_window(window)
+            self._bind_drop(window)
+            self._bind_size_memory(window)
+            return window
+
+    def focus_first(self) -> bool:
+        """激活已有窗口（「再次启动程序 = 激活当前窗口」时由转发触发）。"""
+        try:
+            wins = list(webview.windows)
+            if not wins:
+                return False
+            win = wins[0]
+            win.restore()  # 最小化时还原
+            win.show()     # 置前激活
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     # ------------------------------------------------------------------
     # 拖放（每个窗口独立注册）
@@ -142,8 +160,16 @@ def main() -> None:
 
     manager = WindowManager(config)
 
-    # 接管为主实例：监听后续进程的转发请求 → 开新窗口
-    server = InstanceServer(config, on_open=lambda path: manager.create(path))
+    # 接管为主实例：监听后续进程的转发请求。
+    # 空路径（再次启动程序）且用户设为「激活当前窗口」时只置前已有窗口；
+    # 带路径（双击 md 文件）是明确打开意图，始终开新窗口。
+    def _on_open(path: str) -> None:
+        if not path and config.get("second_launch", "new") == "focus":
+            if manager.focus_first():
+                return
+        manager.create(path)
+
+    server = InstanceServer(config, on_open=_on_open)
     server.start()
 
     manager.create(initial)
