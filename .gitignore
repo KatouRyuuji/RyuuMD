@@ -7,3 +7,4 @@ venv/
 *.spec.bak
 .pytest_cache/
 .workflow/
+tests/ui-shots/
