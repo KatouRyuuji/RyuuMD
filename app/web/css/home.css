@@ -368,6 +368,9 @@
 .recent-row .rr-save svg { width: 12px; height: 12px; }
 
 /* —— 最近打开分组：最近文件卡片 + 其他 —— */
+/* .home-recent 是多列 grid：分组标签与卡片区须跨满整行，否则会与 recent-row 挤进同一行网格 */
+.recent-group-label,
+.recent-files { grid-column: 1 / -1; }
 .recent-group-label {
   font-size: 11.5px;
   color: var(--text-muted);
