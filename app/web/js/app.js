@@ -595,9 +595,11 @@
   }
 
   function syncModeButtons(m) {
-    document.querySelectorAll(".sb-mode").forEach((b) =>
-      b.classList.toggle("active", b.dataset.mode === m)
-    );
+    document.querySelectorAll(".sb-mode").forEach((b) => {
+      const active = b.dataset.mode === m;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-pressed", active ? "true" : "false");
+    });
   }
 
   function bindViewToggles() {
@@ -644,6 +646,8 @@
     if (isNaN(w)) w = 256;
     w = Math.max(180, Math.min(480, w));
     document.documentElement.style.setProperty("--sidebar-width", w + "px");
+    const handle = document.getElementById("sidebar-resizer");
+    if (handle) handle.setAttribute("aria-valuenow", String(w));
     return w;
   }
 
@@ -688,6 +692,18 @@
       applySidebarWidth(DEF);
       applyConfig({ sidebar_width: DEF });
     });
+    handle.addEventListener("keydown", (e) => {
+      if (side.classList.contains("collapsed")) return;
+      let next = Math.round(side.getBoundingClientRect().width || DEF);
+      if (e.key === "ArrowLeft") next -= 16;
+      else if (e.key === "ArrowRight") next += 16;
+      else if (e.key === "Home") next = MIN;
+      else if (e.key === "End") next = MAX;
+      else return;
+      e.preventDefault();
+      const width = applySidebarWidth(next);
+      applyConfig({ sidebar_width: width });
+    });
   }
 
   function updateDocName(name) {
@@ -718,13 +734,32 @@
     on("backend-reload", () => location.reload());
 
     // 侧栏标签切换（目录 / 大纲 / 最近）：tab 的 data-panel 对应 panel-<name> 面板
-    document.querySelectorAll(".side-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".side-tab").forEach((t) => t.classList.remove("active"));
-        tab.classList.add("active");
-        document.querySelectorAll(".side-panel").forEach((p) =>
-          p.classList.toggle("active", p.id === "panel-" + tab.dataset.panel)
-        );
+    const sideTabs = Array.from(document.querySelectorAll(".side-tab"));
+    function activateSideTab(tab) {
+      sideTabs.forEach((t) => {
+        const active = t === tab;
+        t.classList.toggle("active", active);
+        t.setAttribute("aria-selected", active ? "true" : "false");
+        t.tabIndex = active ? 0 : -1;
+      });
+      document.querySelectorAll(".side-panel").forEach((p) => {
+        const active = p.id === "panel-" + tab.dataset.panel;
+        p.classList.toggle("active", active);
+        p.hidden = !active;
+      });
+    }
+    sideTabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => activateSideTab(tab));
+      tab.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
+        e.preventDefault();
+        let next = index;
+        if (e.key === "ArrowLeft") next = (index - 1 + sideTabs.length) % sideTabs.length;
+        if (e.key === "ArrowRight") next = (index + 1) % sideTabs.length;
+        if (e.key === "Home") next = 0;
+        if (e.key === "End") next = sideTabs.length - 1;
+        sideTabs[next].focus();
+        activateSideTab(sideTabs[next]);
       });
     });
 
@@ -845,6 +880,26 @@
 
   function bindShortcuts() {
     window.addEventListener("keydown", (e) => {
+      if (e.key === "Tab") {
+        const openMasks = Array.from(document.querySelectorAll(".modal-mask.open"));
+        const mask = openMasks[openMasks.length - 1];
+        if (mask) {
+          const focusable = Array.from(mask.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )).filter((el) => el.offsetParent !== null);
+          if (focusable.length) {
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && (!mask.contains(document.activeElement) || document.activeElement === first)) {
+              e.preventDefault();
+              last.focus();
+            } else if (!e.shiftKey && (!mask.contains(document.activeElement) || document.activeElement === last)) {
+              e.preventDefault();
+              first.focus();
+            }
+          }
+        }
+      }
       if (e.key === "Escape") {
         // 分层：Palette / 查找条自处理或由此关闭 → 弹窗栈 → 首页
         if (window.Palette && window.Palette.isOpen()) return;
@@ -1654,6 +1709,7 @@
   function promptText({ title, sub, value, maxLen, emptyMsg }) {
     const mask = document.getElementById("input-modal-mask");
     return new Promise((resolve) => {
+      const returnFocus = document.activeElement;
       mask.innerHTML = `
         <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
           <div class="modal-head">
@@ -1661,7 +1717,7 @@
             <div><h2>${esc(title)}</h2><p>${esc(sub || "")}</p></div>
           </div>
           <div class="modal-body">
-            <input class="mm-input" id="pm-input" maxlength="${maxLen || 120}" />
+            <input class="mm-input" id="pm-input" aria-label="${esc(title)}" maxlength="${maxLen || 120}" />
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" id="pm-cancel">取消</button>
@@ -1676,6 +1732,9 @@
         mask.removeEventListener("click", onMask);
         mask.classList.remove("open");
         mask.innerHTML = "";
+        if (returnFocus && typeof returnFocus.focus === "function") {
+          try { returnFocus.focus(); } catch (e) { /* 触发节点可能已被重绘 */ }
+        }
         resolve(val);
       }
       function onEsc() { done(null); }
@@ -1834,6 +1893,7 @@
     if (!mask) return Promise.resolve(false);
     if (confirmPending) confirmPending(false);
     return new Promise((resolve) => {
+      const returnFocus = document.activeElement;
       mask.innerHTML = `
         <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
           <div class="modal-head">
@@ -1858,6 +1918,9 @@
         mask.removeEventListener("click", onMask);
         mask.classList.remove("open");
         mask.innerHTML = "";
+        if (returnFocus && typeof returnFocus.focus === "function") {
+          try { returnFocus.focus(); } catch (e) { /* 触发节点可能已被重绘 */ }
+        }
         resolve(!!ok);
       }
       function onEsc() { done(false); }

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light" data-palette="sky">
+<html lang="zh-CN" data-lang="a" data-theme="light" data-palette="sky">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>RyuuMD</title>
   <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
@@ -12,11 +12,13 @@
   <link rel="stylesheet" href="css/slash.css" />
   <link rel="stylesheet" href="css/home.css" />
   <link rel="stylesheet" href="css/palette.css" />
+  <link rel="stylesheet" href="css/ryuuji-a.css" />
 </head>
 <body>
+  <a class="skip-link" href="#editor-wrap">跳到编辑区</a>
   <div id="app">
     <!-- 顶部工具条 -->
-    <div id="toolbar">
+    <div id="toolbar" role="toolbar" aria-label="主要操作">
       <div class="tb-title">
         <span class="logo">md</span>
         <span>RyuuMD</span>
@@ -41,41 +43,41 @@
     <!-- 主体 -->
     <div id="body">
       <aside id="sidebar">
-        <div class="side-tabs">
-          <button class="side-tab active" data-panel="files" aria-label="目录">目录</button>
-          <button class="side-tab" data-panel="outline" aria-label="大纲">大纲</button>
-          <button class="side-tab" data-panel="recent" aria-label="最近">最近</button>
-          <button class="side-tab" data-panel="links" aria-label="链接">链接</button>
+        <div class="side-tabs" role="tablist" aria-label="侧栏视图">
+          <button class="side-tab active" data-panel="files" role="tab" aria-selected="true" aria-controls="panel-files" tabindex="0">目录</button>
+          <button class="side-tab" data-panel="outline" role="tab" aria-selected="false" aria-controls="panel-outline" tabindex="-1">大纲</button>
+          <button class="side-tab" data-panel="recent" role="tab" aria-selected="false" aria-controls="panel-recent" tabindex="-1">最近</button>
+          <button class="side-tab" data-panel="links" role="tab" aria-selected="false" aria-controls="panel-links" tabindex="-1">链接</button>
         </div>
-        <div class="side-panel active" id="panel-files">
+        <div class="side-panel active" id="panel-files" role="tabpanel">
           <div class="side-empty" id="files-empty">
             还没有打开文件夹<br />
             <button class="btn" id="empty-open-folder">打开文件夹</button>
           </div>
           <div id="file-tree"></div>
         </div>
-        <div class="side-panel" id="panel-outline">
+        <div class="side-panel" id="panel-outline" role="tabpanel" hidden>
           <div class="side-empty" id="outline-empty">大纲将在这里显示</div>
           <div id="outline-list"></div>
         </div>
-        <div class="side-panel" id="panel-recent">
+        <div class="side-panel" id="panel-recent" role="tabpanel" hidden>
           <div class="side-empty" id="recent-empty">最近打开的文件和文件夹<br />会显示在这里</div>
           <div id="recent-list"></div>
           <div class="recent-foot" id="recent-foot" style="display:none">
             <button class="btn btn-ghost" id="btn-clear-recent">清空列表</button>
           </div>
         </div>
-        <div class="side-panel" id="panel-links">
+        <div class="side-panel" id="panel-links" role="tabpanel" hidden>
           <div class="side-empty" id="links-empty">打开一篇笔记后，这里显示指向它的双向链接</div>
           <div id="links-list"></div>
         </div>
       </aside>
-      <div id="sidebar-resizer" title="拖拽调整侧栏宽度，双击恢复默认" role="separator" aria-orientation="vertical" aria-label="调整侧栏宽度"></div>
+      <div id="sidebar-resizer" title="拖拽调整侧栏宽度，双击恢复默认" role="separator" aria-orientation="vertical" aria-label="调整侧栏宽度" aria-valuemin="180" aria-valuemax="480" aria-valuenow="256" tabindex="0"></div>
 
-      <main id="editor-wrap">
+      <main id="editor-wrap" tabindex="-1" aria-label="Markdown 编辑区">
         <div id="find-bar">
           <div class="find-row">
-            <input id="find-input" placeholder="在本文查找" spellcheck="false" />
+            <input id="find-input" aria-label="在本文查找" placeholder="在本文查找" spellcheck="false" />
             <span id="find-count"></span>
             <button type="button" class="btn" id="find-prev">上一个</button>
             <button type="button" class="btn" id="find-next">下一个</button>
@@ -83,7 +85,7 @@
             <button type="button" class="btn" id="find-close">关闭</button>
           </div>
           <div class="find-row" id="replace-row">
-            <input id="replace-input" placeholder="替换为" spellcheck="false" />
+            <input id="replace-input" aria-label="替换为" placeholder="替换为" spellcheck="false" />
             <button type="button" class="btn" id="replace-one">替换</button>
             <button type="button" class="btn" id="replace-all">全部替换</button>
           </div>
@@ -102,16 +104,16 @@
               <button type="button" class="sb-view" id="sb-focus" data-icon="focus" title="专注模式" aria-label="专注模式" aria-pressed="false"></button>
               <button type="button" class="sb-view" id="sb-typewriter" data-icon="typewriter" title="打字机模式" aria-label="打字机模式" aria-pressed="false"></button>
             </div>
-            <div class="sb-modes" id="sb-modes">
-              <button class="sb-mode active" data-mode="ir">渲染</button>
-              <button class="sb-mode" data-mode="sv">源码</button>
+            <div class="sb-modes" id="sb-modes" role="group" aria-label="编辑模式">
+              <button class="sb-mode active" data-mode="ir" aria-pressed="true">渲染</button>
+              <button class="sb-mode" data-mode="sv" aria-pressed="false">源码</button>
             </div>
           </div>
         </div>
       </main>
 
       <!-- 首页（覆盖在编辑器之上） -->
-      <div id="home">
+      <div id="home" role="region" aria-label="首页工作台">
         <div class="home-inner">
           <header class="home-hero">
             <h1 id="home-greet">你好</h1>
@@ -137,8 +139,8 @@
               <h2><span data-icon="books"></span>我的仓库 <span class="home-sec-count" id="repo-count"></span></h2>
               <div class="home-sec-spacer"></div>
               <div class="view-toggle" id="repo-view-toggle">
-                <button data-view="card" title="卡片视图" data-icon="grid"></button>
-                <button data-view="list" title="列表视图" data-icon="listView"></button>
+                <button data-view="card" title="卡片视图" aria-label="卡片视图" aria-pressed="false" data-icon="grid"></button>
+                <button data-view="list" title="列表视图" aria-label="列表视图" aria-pressed="false" data-icon="listView"></button>
               </div>
             </div>
             <div id="repo-container" class="repo-grid"></div>
@@ -179,7 +181,7 @@
     <div id="palette">
       <div class="pal-head">
         <span id="pal-icon"></span>
-        <input id="pal-input" spellcheck="false" autocomplete="off" />
+        <input id="pal-input" aria-label="命令面板搜索" spellcheck="false" autocomplete="off" />
         <span id="pal-hint"></span>
       </div>
       <div id="pal-list"></div>

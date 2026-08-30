@@ -15,6 +15,7 @@
   let handlers = {};   // { getConfig, applyConfig, openFolderResult, openPath, newDoc, openFileDialog, toast }
   let repoItems = [];  // 最近一次 list_projects 结果
   let view = "card";   // card | list
+  let modalReturnFocus = null;
 
   // ---------------------------------------------------------------
   // 初始化 / 显示控制
@@ -58,12 +59,17 @@
   async function refresh() {
     const a = api();
     if (!a) return;
+    repoWrap.setAttribute("aria-busy", "true");
+    recentWrap.setAttribute("aria-busy", "true");
     try {
       const [repos, recent] = await Promise.all([a.list_projects(), a.get_recent()]);
       if (repos && repos.ok) renderRepos(repos.items);
       if (recent && recent.ok) renderRecent(recent.items);
     } catch (e) {
-      toast("首页数据加载失败", { type: "error" });
+      toast("首页数据加载失败，请稍后重试", { type: "error" });
+    } finally {
+      repoWrap.removeAttribute("aria-busy");
+      recentWrap.removeAttribute("aria-busy");
     }
   }
 
@@ -88,12 +94,12 @@
   function actionsHTML(r) {
     return `
       <div class="repo-actions">
-        <button data-act="pin" class="${r.pinned ? "pinned" : ""}" title="${r.pinned ? "取消置顶" : "置顶"}">${window.ICONS.pin}</button>
-        <button data-act="cloud" class="${cloudOn(r) ? "pinned" : ""}" title="${cloudOn(r) ? "关闭此仓库云同步" : "为此仓库开启云同步"}">${window.ICONS.cloud}</button>
-        <button data-act="new-window" title="新窗口打开">${window.ICONS.newWindow}</button>
-        <button data-act="rename" title="重命名">${window.ICONS.edit}</button>
-        <button data-act="reveal" title="在资源管理器中显示">${window.ICONS.folderOpen}</button>
-        <button data-act="remove" class="danger" title="从列表移除（不删除文件）">${window.ICONS.trash}</button>
+        <button data-act="pin" class="${r.pinned ? "pinned" : ""}" title="${r.pinned ? "取消置顶" : "置顶"}" aria-label="${r.pinned ? "取消置顶" : "置顶"}">${window.ICONS.pin}</button>
+        <button data-act="cloud" class="${cloudOn(r) ? "pinned" : ""}" title="${cloudOn(r) ? "关闭此仓库云同步" : "为此仓库开启云同步"}" aria-label="${cloudOn(r) ? "关闭此仓库云同步" : "为此仓库开启云同步"}">${window.ICONS.cloud}</button>
+        <button data-act="new-window" title="新窗口打开" aria-label="新窗口打开">${window.ICONS.newWindow}</button>
+        <button data-act="rename" title="重命名" aria-label="重命名仓库">${window.ICONS.edit}</button>
+        <button data-act="reveal" title="在资源管理器中显示" aria-label="在资源管理器中显示">${window.ICONS.folderOpen}</button>
+        <button data-act="remove" class="danger" title="从列表移除（不删除文件）" aria-label="从仓库列表移除">${window.ICONS.trash}</button>
       </div>`;
   }
 
@@ -127,12 +133,14 @@
   function cardHTML(r) {
     return `
       <div class="repo-card${r.exists ? "" : " missing"}" data-id="${esc(r.id)}">
-        <div class="repo-card-top">
-          <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
-        </div>
-        <div class="repo-name" title="${esc(r.name)}">${nameHTML(r)}</div>
-        <div class="repo-path" title="${esc(r.path)}">${esc(r.path)}</div>
-        <div class="repo-meta">${metaHTML(r)}</div>
+        <button class="repo-open" type="button" aria-label="打开仓库：${esc(r.name)}">
+          <span class="repo-card-top">
+            <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
+          </span>
+          <span class="repo-name" title="${esc(r.name)}">${nameHTML(r)}</span>
+          <span class="repo-path" title="${esc(r.path)}">${esc(r.path)}</span>
+          <span class="repo-meta">${metaHTML(r)}</span>
+        </button>
         ${actionsHTML(r)}
       </div>`;
   }
@@ -140,10 +148,12 @@
   function rowHTML(r) {
     return `
       <div class="repo-row${r.exists ? "" : " missing"}" data-id="${esc(r.id)}">
-        <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
-        <span class="repo-name" title="${esc(r.name)}">${nameHTML(r)}</span>
-        <span class="repo-path" title="${esc(r.path)}">${esc(r.path)}</span>
-        <span class="repo-meta">${metaHTML(r)}</span>
+        <button class="repo-open repo-open-row" type="button" aria-label="打开仓库：${esc(r.name)}">
+          <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
+          <span class="repo-name" title="${esc(r.name)}">${nameHTML(r)}</span>
+          <span class="repo-path" title="${esc(r.path)}">${esc(r.path)}</span>
+          <span class="repo-meta">${metaHTML(r)}</span>
+        </button>
         ${actionsHTML(r)}
       </div>`;
   }
@@ -178,20 +188,22 @@
 
   function fileCardHTML(it) {
     return `
-      <div class="recent-file-card${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" title="${esc(it.path)}">
+      <button class="recent-file-card${it.exists ? "" : " missing"}" type="button" data-path="${esc(it.path)}" title="${esc(it.path)}" aria-label="打开最近文件：${esc(it.name)}">
         <span class="rf-icon">${window.ICONS.fileText}</span>
         <span class="rf-name">${esc(it.name)}</span>
         <span class="rf-path">${esc(it.path)}</span>
-      </div>`;
+      </button>`;
   }
 
   function recentRowHTML(it) {
     return `
       <div class="recent-row${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" title="${esc(it.path)}">
-        <span class="rr-icon">${it.kind === "folder" ? window.ICONS.folder : window.ICONS.fileText}</span>
-        <span class="rr-name">${esc(it.name)}</span>
-        <span class="rr-path">${esc(it.path)}</span>
-        ${it.kind === "folder" && it.exists ? `<button class="rr-save" title="保存为仓库">${window.ICONS.plus}存为仓库</button>` : ""}
+        <button class="recent-open" type="button" aria-label="打开最近${it.kind === "folder" ? "文件夹" : "文件"}：${esc(it.name)}">
+          <span class="rr-icon">${it.kind === "folder" ? window.ICONS.folder : window.ICONS.fileText}</span>
+          <span class="rr-name">${esc(it.name)}</span>
+          <span class="rr-path">${esc(it.path)}</span>
+        </button>
+        ${it.kind === "folder" && it.exists ? `<button class="rr-save" title="保存为仓库" aria-label="将 ${esc(it.name)} 保存为仓库">${window.ICONS.plus}存为仓库</button>` : ""}
       </div>`;
   }
 
@@ -330,6 +342,7 @@
   // ---------------------------------------------------------------
   function openRenameModal(repo) {
     if (isModalOpen()) closeModal();
+    modalReturnFocus = document.activeElement;
     modalMask.innerHTML = `
       <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="重命名仓库">
         <div class="modal-head">
@@ -337,7 +350,7 @@
           <div><h2>重命名仓库</h2><p>${esc(repo.path)}</p></div>
         </div>
         <div class="modal-body">
-          <input class="mm-input" id="mm-name" value="${esc(repo.name)}" maxlength="60" />
+          <input class="mm-input" id="mm-name" aria-label="仓库名称" value="${esc(repo.name)}" maxlength="60" />
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost" id="mm-cancel">取消</button>
@@ -373,6 +386,10 @@
     if (window.App && window.App.unregisterEscape) window.App.unregisterEscape(closeModal);
     modalMask.classList.remove("open");
     modalMask.innerHTML = "";
+    if (modalReturnFocus && typeof modalReturnFocus.focus === "function") {
+      try { modalReturnFocus.focus(); } catch (e) { /* 触发节点可能已被列表刷新替换 */ }
+    }
+    modalReturnFocus = null;
   }
 
   // ---------------------------------------------------------------
@@ -388,9 +405,11 @@
   }
 
   function syncViewButtons() {
-    document.querySelectorAll("#repo-view-toggle button").forEach((b) =>
-      b.classList.toggle("active", b.dataset.view === view)
-    );
+    document.querySelectorAll("#repo-view-toggle button").forEach((b) => {
+      const active = b.dataset.view === view;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-pressed", active ? "true" : "false");
+    });
   }
 
   function relTime(ts) {
