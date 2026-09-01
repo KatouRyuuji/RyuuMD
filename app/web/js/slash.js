@@ -168,9 +168,12 @@
     position(ctx.rect, true);
   }
 
-  /* 右键模式：鼠标处展示剪贴板组 + 全部命令 */
+  /* 右键模式：鼠标处展示剪贴板组 + 块操作组（表格/代码块/数学块，按光标所在块
+     动态出现）+ 转换为组（框选段落转格式）+ 全部插入命令 */
   function showContext(x, y) {
-    items = clipboardItems().concat(window.filterCommands("", style));
+    const blk = window.Convert ? window.Convert.blockItemsForContext() : [];
+    const conv = window.Convert ? window.Convert.itemsForContext() : [];
+    items = clipboardItems().concat(blk, conv, window.filterCommands("", style));
     activeIdx = 0;
     mode = "context";
     if (items[0] && items[0].disabled) step(1); // 首项禁用则落到首个可用项
@@ -237,6 +240,18 @@
     if (!cmd || cmd.disabled) return; // 禁用项不响应、不关菜单
     close();
     if (cmd.clip) { doClipboard(cmd.clip); return; }
+    if (cmd.blockop) {
+      // 块操作（表格行列/代码块/数学块）；返回 0 表示定位失败
+      const done = window.Convert ? window.Convert.applyBlockOp(cmd.blockop, editor) : 0;
+      if (!done && window.App && window.App.toast) window.App.toast("操作未完成");
+      return;
+    }
+    if (cmd.convert) {
+      // 段落转换：无块被转换（不支持的块类型）时提示
+      const done = window.Convert ? window.Convert.apply(cmd.convert, editor) : 0;
+      if (!done && window.App && window.App.toast) window.App.toast("当前段落不支持转换");
+      return;
+    }
     if (wasSlash && ctx) {
       const sel = window.getSelection();
       if (sel && sel.rangeCount) {

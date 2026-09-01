@@ -907,6 +907,281 @@ CASES = [
          sleep2=1.2,
          js2=("(function(){var v=window.Editor.getValue();"
               "return v.trim()===''?true:'not empty len='+v.length+' head='+JSON.stringify(v.slice(0,20));})()")),
+
+    # ---------------------------------------------------------------
+    # Mermaid / 公式 / 段落转换（对标 Typora）
+    # ---------------------------------------------------------------
+    dict(name="T70 mermaid:流程图代码块渲染为 SVG",
+         setup="window.Editor.setMode('ir');window.Editor.setValue("
+               + JV('# 图表\n\n```mermaid\nflowchart TD\n    A[甲] --> B[乙]\n```\n') + ");",
+         sleep=2.5,
+         js="!!document.querySelector('#editor .vditor-ir__preview .language-mermaid svg')",
+         timeout=15),
+
+    dict(name="T71 mermaid:切换主题后图按新主题重渲染(svg 产物更新)",
+         # 前置:T70 已渲染。记录当前 svg,切暗色,断言 svg 被重新生成
+         setup=("(function(){var s=document.querySelector('#editor .vditor-ir__preview .language-mermaid svg');"
+                "window.__mmdHtml=s?s.outerHTML:'none';window.Editor.setTheme('dark');})()"),
+         sleep=2.0,
+         js=("(function(){var s=document.querySelector('#editor .vditor-ir__preview .language-mermaid svg');"
+             "if(!s)return 'svg missing';"
+             "return s.outerHTML!==window.__mmdHtml?true:'not re-rendered';})()"),
+         timeout=12,
+         # 恢复亮色,避免影响后续用例的阅读体验一致性
+         setup2="window.Editor.setTheme('light');",
+         sleep2=1.5,
+         js2="!!document.querySelector('#editor .vditor-ir__preview .language-mermaid svg')"),
+
+    dict(name="T72 公式:KaTeX 渲染行内与块级公式",
+         setup="window.Editor.setValue("
+               + JV('# 公式\n\n行内 $E=mc^2$ 测试\n\n$$\n\\frac{a}{b} = \\sqrt{x}\n$$\n') + ");",
+         sleep=2.0,
+         js="!!document.querySelector('#editor .katex')",
+         timeout=15),
+
+    dict(name="T73 公式:切换 MathJax 引擎后重建并渲染(mjx-container)",
+         # setMathEngine 走保内容重建(refresh),T72 的公式内容在重建后以 MathJax 重渲染
+         setup="window.Editor.setMathEngine('mathjax');",
+         sleep=3.0,
+         js=("window.Editor.isReady()"
+             "&&!!document.querySelector('#editor mjx-container')"),
+         timeout=25,
+         # 切回 KaTeX 还原默认,断言 katex 节点回归
+         setup2="window.Editor.setMathEngine('katex');",
+         sleep2=3.0,
+         js2=("window.Editor.isReady()"
+              "&&!!document.querySelector('#editor .katex')"),
+         timeout2=25),
+
+    dict(name="T74 段落转换:正文→二级标题(右键菜单全链路)",
+         setup=("window.Editor.setValue(" + JV('转换源\n\n段落文字 DEF\n') + ");"
+                "setTimeout(function(){"
+                "var p=[].slice.call(document.querySelectorAll('#editor .vditor-ir .vditor-reset > p'))"
+                ".find(function(x){return x.textContent.indexOf('DEF')>=0;});"
+                "if(!p)return;"
+                "var r=document.createRange();r.selectNodeContents(p);r.collapse(false);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "p.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='二级标题';});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+                "},300);},400);"),
+         sleep=2.5,
+         js="window.Editor.getValue().indexOf('## 段落文字 DEF')>=0",
+         timeout=12),
+
+    dict(name="T75 段落转换:标题→无序列表",
+         # 前置:T74 已得到 ## 段落文字 DEF
+         setup=("setTimeout(function(){"
+                "var h=[].slice.call(document.querySelectorAll('#editor .vditor-ir .vditor-reset > h2'))"
+                ".find(function(x){return x.textContent.indexOf('DEF')>=0;});"
+                "if(!h)return;"
+                "var r=document.createRange();r.selectNodeContents(h);r.collapse(false);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "h.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='无序列表';});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+                "},300);},300);"),
+         sleep=2.5,
+         js="window.Editor.getValue().indexOf('- 段落文字 DEF')>=0",
+         timeout=12),
+
+    dict(name="T76 段落转换:框选两段→引用(跨块)",
+         setup=("window.Editor.setValue(" + JV('甲 AAA\n\n乙 BBB\n') + ");"
+                "setTimeout(function(){"
+                "var ps=[].slice.call(document.querySelectorAll('#editor .vditor-ir .vditor-reset > p'));"
+                "var p1=ps.find(function(x){return x.textContent.indexOf('AAA')>=0;});"
+                "var p2=ps.find(function(x){return x.textContent.indexOf('BBB')>=0;});"
+                "if(!p1||!p2)return;"
+                "var r=document.createRange();r.selectNodeContents(p1);"
+                "var r2=document.createRange();r2.selectNodeContents(p2);"
+                "r.setEnd(r2.endContainer,r2.endOffset);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "p1.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='引用';});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+                "},300);},400);"),
+         sleep=2.5,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return v.indexOf('> 甲 AAA')>=0&&v.indexOf('> 乙 BBB')>=0?true:'got:'+JSON.stringify(v);})()"),
+         timeout=12),
+
+    dict(name="T77 段落转换:源码模式当前行→待办",
+         # 第一阶段:切 sv 并等重建就绪(setMode 重建实测 ~2s,单阶段 1500ms 临界会败)
+         setup="window.Editor.setMode('sv');",
+         sleep=1.0,
+         js="window.Editor.getMode()==='sv'&&window.Editor.isReady()",
+         timeout=20,
+         # 第二阶段:装载单行,选中行尾,右键→待办列表
+         setup2=("window.Editor.setValue(" + JV('源码行 GHI\n') + ");"
+                 "setTimeout(function(){"
+                 "var el=document.querySelector('#editor .vditor-sv');"
+                 "if(!el)return;"
+                 "var r=document.createRange();"
+                 "var t=el.querySelector('div')||el.firstChild;"
+                 "if(t){r.selectNodeContents(t);r.collapse(false);"
+                 "var s=window.getSelection();s.removeAllRanges();s.addRange(r);}"
+                 "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+                 "setTimeout(function(){"
+                 "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                 ".find(function(e){var x=e.querySelector('.si-title');return x&&x.textContent==='待办列表';});"
+                 "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+                 "},300);},600);"),
+         sleep2=3.0,
+         js2="window.Editor.getValue().indexOf('- [ ] 源码行 GHI')>=0",
+         timeout2=15),
+
+    dict(name="T78 图表命令:/过滤可命中 mermaid 模板(流程图/思维导图)",
+         # 顺手把 T77 的 sv 模式还原为 ir,保持收尾环境一致
+         setup="window.Editor.setMode('ir');",
+         sleep=1.0,
+         js=("(function(){"
+             "var a=window.filterCommands('flowchart','notion');"
+             "var b=window.filterCommands('lct','wolai');"
+             "var c=window.filterCommands('思维导图','notion');"
+             "return (a.length&&a[0].id==='mmd-flow'&&b.length&&b[0].id==='mmd-flow'"
+             "&&c.length&&c[0].id==='mmd-mindmap')?true:'a='+JSON.stringify(a[0]&&a[0].id)"
+             "+' b='+JSON.stringify(b[0]&&b[0].id)+' c='+JSON.stringify(c[0]&&c[0].id);})()"),
+         timeout=8),
+
+    # ---------------------------------------------------------------
+    # 表格 / 代码块 / 数学块 右键块操作
+    # ---------------------------------------------------------------
+    dict(name="T79 表格:向下插入行→删除列(右键全链路)",
+         setup=("window.Editor.setMode('ir');window.Editor.setValue("
+               + JV('| 名称 | 数量 | 备注 |\n| :--- | :---: | ---: |\n| 苹果 | 3 | 新到 |\n| 香蕉 | 5 | 打折 |\n')
+               + ");"
+               "window.__ryuuClickMenu=function(cellText,title){"
+                "var c=[].slice.call(document.querySelectorAll('#editor .vditor-ir table td,#editor .vditor-ir table th'))"
+                ".find(function(x){return x.textContent.indexOf(cellText)>=0;});"
+                "if(!c)return 'no-cell';"
+                "var r=document.createRange();r.selectNodeContents(c);r.collapse(false);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "c.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent===title;});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+                "},300);return 'ok';};"
+               "setTimeout(function(){window.__ryuuClickMenu('3','向下插入行');},600);"),
+         sleep=3.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "var rows=v.split('\\n').filter(function(l){return l.trim().charAt(0)==='|';});"
+             "return rows.length===5?true:'rows='+rows.length+' v='+JSON.stringify(v);})()"),
+         timeout=15,
+         # 第二阶段:光标移到「打折」列并删除该列。
+         # 注意 phase1 的块操作走 setValue 全文重载,getValue 先于 DOM 重渲染完成;
+         # 轮询等单元格真实出现在 DOM 后再点菜单,避免右键时块还未渲染出来
+         setup2=("var __t=0;var __timer=setInterval(function(){"
+                 "var c=[].slice.call(document.querySelectorAll('#editor .vditor-ir table td'))"
+                 ".find(function(x){return x.textContent.indexOf('打折')>=0;});"
+                 "if(c){clearInterval(__timer);window.__ryuuClickMenu('打折','删除列');}"
+                 "else if(++__t>20)clearInterval(__timer);"
+                 "},300);"),
+         sleep2=4.0,
+         js2=("(function(){var v=window.Editor.getValue();"
+              "return (v.indexOf('备注')<0&&v.indexOf('| 名称 | 数量 |')>=0)?true:'v='+JSON.stringify(v);})()"),
+         timeout2=15),
+
+    dict(name="T80 代码块:转换为普通文本",
+         setup=("window.Editor.setValue(" + JV('前置段落\n\n```\nline1\nline2\n```\n') + ");"
+               "setTimeout(function(){"
+               "var pre=document.querySelector('#editor .vditor-ir [data-type=\"code-block\"] pre');"
+               "if(!pre)return;"
+               "var r=document.createRange();r.selectNodeContents(pre);r.collapse(false);"
+               "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+               "pre.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+               "setTimeout(function(){"
+               "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+               ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='转换为普通文本';});"
+               "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+               "},300);},600);"),
+         sleep=3.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return (v.indexOf('```')<0&&v.indexOf('line1')>=0&&v.indexOf('line2')>=0)"
+             "?true:'v='+JSON.stringify(v);})()"),
+         timeout=15),
+
+    dict(name="T81 代码块:删除块",
+         setup=("window.Editor.setValue(" + JV('保留段\n\n```\nlineDel\n```\n') + ");"
+               "setTimeout(function(){"
+               "var pre=document.querySelector('#editor .vditor-ir [data-type=\"code-block\"] pre');"
+               "if(!pre)return;"
+               "var r=document.createRange();r.selectNodeContents(pre);r.collapse(false);"
+               "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+               "pre.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+               "setTimeout(function(){"
+               "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+               ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='删除代码块';});"
+               "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+               "},300);},600);"),
+         sleep=3.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return (v.indexOf('lineDel')<0&&v.indexOf('保留段')>=0)?true:'v='+JSON.stringify(v);})()"),
+         timeout=15),
+
+    dict(name="T82 数学块:转换为普通文本→再删除",
+         setup=("window.Editor.setValue(" + JV('数学前置\n\n$$\nE = mc^2\n$$\n') + ");"
+               "setTimeout(function(){"
+               "var pre=document.querySelector('#editor .vditor-ir [data-type=\"math-block\"] pre');"
+               "if(!pre)return;"
+               "var r=document.createRange();r.selectNodeContents(pre);r.collapse(false);"
+               "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+               "pre.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+               "setTimeout(function(){"
+               "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+               ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='转换为普通文本';});"
+               "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+               "},300);},600);"),
+         sleep=3.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return (v.indexOf('$$')<0&&v.indexOf('E = mc^2')>=0)?true:'v='+JSON.stringify(v);})()"),
+         timeout=15,
+         # 第二阶段:重新装载数学块,点「删除公式块」
+         setup2=("window.Editor.setValue(" + JV('数学前置\n\n$$\nx+y=1\n$$\n') + ");"
+                "setTimeout(function(){"
+                "var pre=document.querySelector('#editor .vditor-ir [data-type=\"math-block\"] pre');"
+                "if(!pre)return;"
+                "var r=document.createRange();r.selectNodeContents(pre);r.collapse(false);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "pre.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='删除公式块';});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+                "},300);},600);"),
+         sleep2=3.0,
+         js2=("(function(){var v=window.Editor.getValue();"
+              "return (v.indexOf('x+y=1')<0&&v.indexOf('数学前置')>=0)?true:'v='+JSON.stringify(v);})()"),
+         timeout2=15),
+
+    dict(name="T83 数学块:复制公式源码(execCommand copy 接线)",
+         setup=("window.Editor.setValue(" + JV('$$\nE = mc^2\n$$\n') + ");"
+               "window.__cpCalls=[];"
+               "window.__origExec=document.execCommand;"
+               "document.execCommand=function(c){window.__cpCalls.push(c);"
+               "return window.__origExec.apply(document,arguments);};"
+               "setTimeout(function(){"
+               "var pre=document.querySelector('#editor .vditor-ir [data-type=\"math-block\"] pre');"
+               "if(!pre)return;"
+               "var r=document.createRange();r.selectNodeContents(pre);r.collapse(false);"
+               "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+               "pre.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:120,clientY:120}));"
+               "setTimeout(function(){"
+               "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+               ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==='复制公式源码';});"
+               "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));"
+               "},300);},600);"),
+         sleep=3.0,
+         js=("(function(){var ok=window.__cpCalls.indexOf('copy')>=0;"
+             "document.execCommand=window.__origExec;"
+             "return ok?true:'no copy call';})()"),
+         timeout=15),
 ]
 
 

@@ -32,6 +32,8 @@ DEFAULTS: dict[str, Any] = {
     "font_mono": "",
     # 显示模式：ir = 渲染模式（Typora 式即时渲染），sv = 源码模式
     "display_mode": "ir",
+    # 公式渲染引擎：katex（默认，快）| mathjax（Typora 同款，兼容更多 LaTeX 宏/语法）
+    "math_engine": "katex",
     # 是否已展示过首次欢迎窗口（含操作风格选择）
     "welcome_shown": False,
     # 上次打开的单文件路径

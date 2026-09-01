@@ -161,6 +161,15 @@
 | G2 | Esc 关闭 | Escape → 菜单关闭 | E2E | ✅ T14 |
 | G3 | "/" 唤起与过滤 | 键入 /h1 边输边过滤；Tab/Enter 插入 | 手动 | ⬜ 需真实 IME 输入路径 |
 | G4 | notion/wolai 关键词 | 两风格触发词均命中 | 手动 | ⬜ 同 G3 |
+| G5 | 段落转换 | 右键「转换为」：正文↔标题↔列表↔引用↔代码块；跨块框选逐段转换；sv 模式按行转换 | E2E | ✅ T74-T77 |
+| G6 | 图表命令过滤 | mermaid 模板（流程图/思维导图等 10 种）按触发词命中 | E2E | ✅ T78 |
+| G7 | 表格行列操作 | 右键：上/下插行、左/右插列、删行/列、删表（全文区间替换路径） | E2E | ✅ T79 |
+| G8 | 代码块操作 | 右键：复制代码、转换为普通文本、删除代码块 | E2E | ✅ T80/T81 |
+| G9 | 数学块操作 | 右键：复制公式源码（execCommand copy）、转换为普通文本、删除公式块 | E2E | ✅ T82/T83 |
+
+> 容器块（表格/代码/数学）为何走全文替换：Vditor 拦截容器块的 execCommand
+> delete/insertText 并重建块壳（残留空块），DOM 手术不可靠；全文区间替换 +
+> setValue 重载 + notifyChange 补脏标记是已验证路径，代价是撤销栈重置。
 
 ## H. 渲染样式（editor-theme)
 
@@ -170,6 +179,10 @@
 | H2 | 代码块横滚 | pre overflow-x:auto | 手动（视觉） | ⬜ |
 | H3 | SV 源码不软换行 | 表格源码行单行完整 | 手动（视觉） | ⬜ |
 | H4 | 公式/图表横滚 | .language-math 等 overflow-x:auto | 手动（视觉） | ⬜ |
+| H8 | mermaid 渲染 | ```mermaid 代码块即时渲染为 SVG | E2E | ✅ T70 |
+| H9 | mermaid 主题跟随 | 明暗切换后图按新主题重渲染（svg 产物更新） | E2E | ✅ T71 |
+| H10 | 公式 KaTeX | 行内/块级公式渲染出 .katex | E2E | ✅ T72 |
+| H11 | 公式 MathJax 引擎 | 设置切换 math_engine → 保内容重建 → mjx-container 渲染 | E2E | ✅ T73 |
 | H5 | 行背景不被 content-theme 覆盖 | tr 背景为 phycat 变量 | 手动（视觉） | ⬜ |
 | H6 | hljs 主题存在 | github/github-dark min.css 文件存在（不 404) | 单测 | ✅ |
 | H7 | 选区配色对比 | 编辑器 ::selection 背景与画布底色拉开对比（亮色 sky 蓝 α0.32 / 暗色 vampire 红 α0.38） | E2E+手动 | ✅ T35（亮色自动） ⬜（暗色视觉复核） |

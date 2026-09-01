@@ -115,6 +115,16 @@
             </div>
             <div class="setting-row">
               <div>
+                <div class="label">公式引擎</div>
+                <div class="desc">KaTeX 渲染更快；MathJax 与 Typora 相同，兼容更多 LaTeX 宏与语法。切换后编辑器自动重建</div>
+              </div>
+              <div class="segmented" id="set-math-engine">
+                <button data-v="katex">KaTeX</button>
+                <button data-v="mathjax">MathJax</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
                 <div class="label">自动保存</div>
                 <div class="desc">已保存的文档在停止输入后自动写盘</div>
               </div>
@@ -214,6 +224,7 @@
     bindSeg("set-theme", "theme");
     bindSeg("set-startup", "startup_page");
     bindSeg("set-second-launch", "second_launch");
+    bindSeg("set-math-engine", "math_engine");
     bindSwatches("swatch-light", "palette_light");
     bindSwatches("swatch-dark", "palette_dark");
     bindFont("set-font-ui", "set-font-ui-custom", "font_ui", FONT_UI_PRESETS);
@@ -469,6 +480,7 @@
     setSeg("set-theme", String(cfg.theme));
     setSeg("set-startup", String(cfg.startup_page || "home"));
     setSeg("set-second-launch", String(cfg.second_launch || "new"));
+    setSeg("set-math-engine", String(cfg.math_engine || "katex"));
     syncSwatches();
   }
 

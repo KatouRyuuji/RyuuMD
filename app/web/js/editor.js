@@ -19,6 +19,7 @@
   let queuedMode = null;     // 重建期间收到的目标模式（快速连切），重建完成后补切
   let curTheme = "light";
   let curMode = "ir";        // ir（渲染/即时渲染，Typora 式）| sv（源码）
+  let curMathEngine = "KaTeX"; // 公式引擎：KaTeX（默认，快）| MathJax（Typora 同款，宏兼容更广）
   let everBuilt = false;     // 是否曾成功初始化（after 触发过）——重建看门狗的前提
   let buildId = 0;           // 构建代数：销毁重建后作废旧实例的 after / 看门狗
   let changeCb = null;
@@ -26,7 +27,7 @@
   let onModeChange = null;
   let getDocDir = null;    // () => 当前文档目录，用于相对图片转 file://
 
-  function init({ theme, change, outline, onReady, mode, modeChange, docDir }) {
+  function init({ theme, change, outline, onReady, mode, modeChange, docDir, mathEngine }) {
     onChange = change;
     onOutline = outline;
     changeCb = change;
@@ -35,6 +36,7 @@
     getDocDir = docDir || null;
     curTheme = theme === "dark" ? "dark" : "light";
     curMode = mode === "sv" ? "sv" : "ir";
+    curMathEngine = mathEngine === "mathjax" ? "MathJax" : "KaTeX";
     if (vditor) {
       rebuild(onReady);
       return;
@@ -91,7 +93,9 @@
         theme: { current: curTheme === "dark" ? "dark" : "light" },
         // vendor 内置 hljs 主题不含 dracula（会 404 导致暗色无高亮），暗色用 github-dark
         hljs: { style: curTheme === "dark" ? "github-dark" : "github" },
-        math: { engine: "KaTeX" },
+        // inlineDigit 对标 Typora：$100$ 这类 $ 后紧跟数字的行内公式也渲染；
+        // macros 预留给用户宏（Typora 无此 UI，暂不暴露设置项）
+        math: { engine: curMathEngine, inlineDigit: true, macros: {} },
         markdown: { toc: true, footnotes: true, autoSpace: true },
       },
       after: () => { notifyReady(); },
@@ -167,6 +171,12 @@
       queuedMode = target;
       return;
     }
+    rebuildTo(target);
+  }
+
+  /* 保内容重建：内容、阅读位置（按滚动比例）都跨重建保留。
+     setMode 与公式引擎切换（refresh）共用。 */
+  function rebuildTo(target) {
     // setValue 刚写入时 Vditor 可能尚未 settle，getValue() 仍是旧全文。
     // 用户未再编辑则以 cachedValue 为准，避免大文档→小文档切模式把旧文带进重建。
     const content = !editedSinceSet ? cachedValue : getValue();
@@ -202,6 +212,20 @@
     });
   }
 
+  /* 同模式强制重建：公式引擎等 preview 类配置只在 build 时生效，切换后需重建。 */
+  function refresh() {
+    if (!vditor || !ready) return; // 未建/重建中：build 已读最新配置，无需动作
+    rebuildTo(curMode);
+  }
+
+  /* 切换公式引擎（KaTeX/MathJax）：只记配置；已就绪实例走保内容重建生效。 */
+  function setMathEngine(engine) {
+    const next = engine === "mathjax" || engine === "MathJax" ? "MathJax" : "KaTeX";
+    if (next === curMathEngine) return;
+    curMathEngine = next;
+    refresh();
+  }
+
   function getMode() { return curMode; }
 
   /* 按内容长度调整防抖间隔：每次回调都要全文序列化+遍历（字数/大纲），
@@ -233,6 +257,36 @@
         dark ? "github-dark" : "github"
       );
     } catch (e) { /* 忽略主题切换异常 */ }
+    rerenderMermaid();
+  }
+
+  /* 主题切换后按新主题重渲染 mermaid 图。
+     渲染产物是 svg；图源码在代码块的 pre 兄弟节点里（```mermaid 围栏行在 pre
+     之外的 marker span，pre.textContent 即纯源码——实测取证）。把源码写回预览
+     节点、清掉已渲染标记，再走 Vditor 自带渲染管线；结构对不上时跳过该图
+     （下次输入会按新主题自然重渲染），不影响编辑。 */
+  function rerenderMermaid() {
+    if (curMode !== "ir" || !window.Vditor || !Vditor.mermaidRender) return;
+    const el = activePanel();
+    if (!el) return;
+    let dirty = false;
+    el.querySelectorAll(".vditor-ir__preview").forEach((pv) => {
+      const inner = pv.querySelector(".language-mermaid");
+      if (!inner || inner.getAttribute("data-processed") !== "true") return;
+      const pre = pv.previousElementSibling;
+      if (!pre) return;
+      let src = (pre.textContent || "").replace(/\u200B/g, "");
+      // 结构变体兜底：若 pre 里仍带 ``` 围栏行则剥掉
+      const fenced = src.match(/^\s*```[^\n]*\n([\s\S]*?)\n?```\s*$/);
+      if (fenced) src = fenced[1];
+      if (!src.trim()) return;
+      inner.textContent = src;
+      inner.removeAttribute("data-processed");
+      dirty = true;
+    });
+    if (dirty) {
+      try { Vditor.mermaidRender(el, "vendor/vditor", curTheme); } catch (e) { /* ignore */ }
+    }
   }
 
   function getValue() {
@@ -435,6 +489,14 @@
     } catch (e) { /* ignore */ }
   }
 
+  /* 程序化全文替换（convert.js 容器块操作）后手动走一遍变化管线：
+     setValue 走 enableInput:false 不触发 input，不调本函数则脏标记缺失、
+     自动保存与关闭保存提示都会漏掉这次修改。 */
+  function notifyChange() {
+    editedSinceSet = true;
+    scheduleChange();
+  }
+
   function getHTML() {
     if (!vditor || !ready) return "";
     try { return vditor.getHTML() || ""; } catch (e) { return ""; }
@@ -572,8 +634,11 @@
     setOpStyle,
     setMode,
     getMode,
+    setMathEngine,
+    refresh,
     getValue,
     setValue,
+    notifyChange,
     insertValue,
     getHTML,
     jumpTo,

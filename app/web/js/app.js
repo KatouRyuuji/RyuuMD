@@ -243,6 +243,7 @@
           onReady: readyCb(gen),
           modeChange: (m) => syncModeButtons(m),
           docDir: () => state.currentPath ? dirname(state.currentPath) : "",
+          mathEngine: state.config && state.config.math_engine,
         };
         // 看门狗重试走 rebuild（销毁后重建）；首次走 init
         if (isRetry && window.Editor.rebuild) window.Editor.rebuild(opts.onReady);
@@ -842,6 +843,9 @@
       window.Editor.setOpStyle(partial.operation_style);
     }
     if ("cloud_sync" in partial) refreshCloudBadge();
+    if ("math_engine" in partial && window.Editor.setMathEngine) {
+      window.Editor.setMathEngine(partial.math_engine);
+    }
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
     if ("focus_mode" in partial) applyFocusVisual(!!partial.focus_mode);
