@@ -1,15 +1,26 @@
 RyuuMD for macOS（Apple Silicon，未公证）
 ========================================
 
-本包未经 Apple 公证，也没有开发者签名。从网上下载后，系统会拦截首次打开。
+必须在 Mac 上解压本包。不要在 Windows 里解压后再拷到 Mac——会弄坏
+.app 内部的符号链接，看起来像「已损坏」或闪退。
+
+推荐：
+  tar -xzf RyuuMD-mac-arm64.tar.gz
+
+本包未经 Apple 公证。从网上下载后，系统常提示「已损坏，无法打开」——
+这不是文件坏了，是隔离属性。按下面做一次即可。
 
 打开方法（任选其一）
 
-1. 右键 RyuuMD.app → 打开 → 在提示框再点「打开」
-2. 双击「打开 RyuuMD.command」（会先清除隔离属性再启动）
-3. 终端：
-   xattr -cr /path/to/RyuuMD.app
-   open /path/to/RyuuMD.app
+1. 终端（最可靠）：
+   xattr -cr RyuuMD.app
+   open RyuuMD.app
+
+2. 双击「打开 RyuuMD.command」（会先清隔离属性再启动）
+   若 .command 也被拦截：右键它 → 打开。
+
+3. 右键 RyuuMD.app → 打开 → 提示里再点「打开」
+   若写「已损坏」：回到方法 1。
 
 说明
 

@@ -1,6 +1,6 @@
 # macOS Apple Silicon 未公证包。
 # 触发：推送 v* tag，或 Actions 里手动 Run workflow。
-# 产物：dist/RyuuMD-mac-arm64.zip（无签名，用户需右键打开）。
+# 产物：dist/RyuuMD-mac-arm64.tar.gz（推荐）与 .zip。未公证，须在 Mac 上解压。
 name: macOS 打包
 
 on:
@@ -25,20 +25,24 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Build .app and zip
+      - name: Build .app and archive
         run: bash build-mac.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: RyuuMD-mac-arm64
-          path: dist/RyuuMD-mac-*.zip
+          path: |
+            dist/RyuuMD-mac-*.tar.gz
+            dist/RyuuMD-mac-*.zip
           if-no-files-found: error
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/RyuuMD-mac-*.zip
+          files: |
+            dist/RyuuMD-mac-*.tar.gz
+            dist/RyuuMD-mac-*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true

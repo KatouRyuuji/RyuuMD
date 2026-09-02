@@ -17,26 +17,28 @@ fi
 
 ARCH="$(uname -m)"
 case "$ARCH" in
-  arm64) ZIP_NAME="RyuuMD-mac-arm64.zip" ;;
-  x86_64) ZIP_NAME="RyuuMD-mac-x86_64.zip" ;;
-  *) ZIP_NAME="RyuuMD-mac-${ARCH}.zip" ;;
+  arm64) STEM="RyuuMD-mac-arm64" ;;
+  x86_64) STEM="RyuuMD-mac-x86_64" ;;
+  *) STEM="RyuuMD-mac-${ARCH}" ;;
 esac
+ZIP_NAME="${STEM}.zip"
+TAR_NAME="${STEM}.tar.gz"
 
 echo "============================================"
-echo "  RyuuMD macOS 打包  [$ARCH → $ZIP_NAME]"
+echo "  RyuuMD macOS 打包  [$ARCH → $TAR_NAME]"
 echo "============================================"
 "$PY" --version
 
 echo
-echo "[1/5] 安装依赖 / PyInstaller ..."
+echo "[1/6] 安装依赖 / PyInstaller ..."
 "$PY" -m pip install -r requirements.txt pyinstaller
 
 echo
-echo "[2/5] 单元测试门禁 ..."
+echo "[2/6] 单元测试门禁 ..."
 "$PY" -m unittest tests.test_api tests.test_cloud tests.test_search -v
 
 echo
-echo "[3/5] 从 icon.png 生成 icon.icns ..."
+echo "[3/6] 从 icon.png 生成 icon.icns ..."
 if [[ ! -f assets/icon.png ]]; then
   echo "[错误] 缺少 assets/icon.png" >&2
   exit 1
@@ -57,7 +59,7 @@ sips -z 1024 1024 assets/icon.png --out "$ICONSET/icon_512x512@2x.png" >/dev/nul
 iconutil -c icns "$ICONSET" -o assets/icon.icns
 
 echo
-echo "[4/5] PyInstaller RyuuMD-mac.spec ..."
+echo "[4/6] PyInstaller RyuuMD-mac.spec ..."
 "$PY" -m PyInstaller --noconfirm --clean RyuuMD-mac.spec
 
 if [[ ! -d dist/RyuuMD.app ]]; then
@@ -66,17 +68,41 @@ if [[ ! -d dist/RyuuMD.app ]]; then
 fi
 
 echo
-echo "[5/5] 打包 zip（含未公证说明）..."
+echo "[5/6] ad-hoc 深签名 + 启动冒烟 ..."
+codesign --force --deep --sign - dist/RyuuMD.app
+APP_BIN="dist/RyuuMD.app/Contents/MacOS/RyuuMD"
+chmod +x "$APP_BIN"
+rm -f /tmp/ryuumd-smoke.out /tmp/ryuumd-smoke.err
+"$APP_BIN" >/tmp/ryuumd-smoke.out 2>/tmp/ryuumd-smoke.err &
+SPID=$!
+sleep 10
+if kill -0 "$SPID" 2>/dev/null; then
+  echo "  smoke: 进程仍在运行"
+  kill "$SPID" 2>/dev/null || true
+  wait "$SPID" 2>/dev/null || true
+else
+  echo "[错误] 冒烟失败：进程 10 秒内退出" >&2
+  echo "----- stdout -----" >&2
+  cat /tmp/ryuumd-smoke.out >&2 || true
+  echo "----- stderr -----" >&2
+  cat /tmp/ryuumd-smoke.err >&2 || true
+  exit 1
+fi
+
+echo
+echo "[6/6] 打包 tar.gz / zip（含未公证说明）..."
 STAGE="dist/RyuuMD-macos"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
-cp -R dist/RyuuMD.app "$STAGE/"
+ditto dist/RyuuMD.app "$STAGE/RyuuMD.app"
 cp packaging/macos-first-run.txt "$STAGE/请先读我.txt"
 cp packaging/macos-open.command "$STAGE/打开 RyuuMD.command"
 chmod +x "$STAGE/打开 RyuuMD.command"
-rm -f "dist/$ZIP_NAME"
+rm -f "dist/$ZIP_NAME" "dist/$TAR_NAME"
+COPYFILE_DISABLE=1 tar -C "$STAGE" -czf "dist/$TAR_NAME" .
 ( cd "$STAGE" && ditto -c -k . "../$ZIP_NAME" )
 
 echo
-echo "完成: dist/$ZIP_NAME"
-echo "未公证：用户需右键打开，或运行「打开 RyuuMD.command」。"
+echo "完成: dist/$TAR_NAME  （推荐，保留符号链接）"
+echo "      dist/$ZIP_NAME"
+echo "未公证：必须在 Mac 上解压；提示「已损坏」时执行 xattr -cr RyuuMD.app"

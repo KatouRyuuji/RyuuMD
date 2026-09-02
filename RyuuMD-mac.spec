@@ -7,10 +7,29 @@
 """
 import sys
 
+from PyInstaller.utils.hooks import collect_submodules
+
 if sys.platform != "darwin":
     raise SystemExit("RyuuMD-mac.spec 只能在 macOS 上构建")
 
 block_cipher = None
+
+hiddenimports = sorted(
+    set(
+        collect_submodules("webview")
+        + collect_submodules("objc")
+        + [
+            "WebKit",
+            "AppKit",
+            "Foundation",
+            "CoreFoundation",
+            "Quartz",
+            "Security",
+            "UniformTypeIdentifiers",
+            "PyObjCTools",
+        ]
+    )
+)
 
 a = Analysis(
     ["main.py"],
@@ -20,7 +39,7 @@ a = Analysis(
         ("app/web", "app/web"),
         ("assets", "assets"),
     ],
-    hiddenimports=["webview.platforms.cocoa"],
+    hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
     excludes=[],
@@ -66,6 +85,7 @@ app = BUNDLE(
         "NSHighResolutionCapable": True,
         "NSRequiresAquaSystemAppearance": False,
         "LSMinimumSystemVersion": "11.0",
+        "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
         "CFBundleDocumentTypes": [
             {
                 "CFBundleTypeName": "Markdown document",
