@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
-build/
-dist/
+/build/
+/dist/
 assets/icon.icns
 .venv/
 venv/

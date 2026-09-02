@@ -230,11 +230,18 @@ class Api:
             if not name.lower().endswith(tuple(MD_EXTS)):
                 name += ".md"
             target = p.with_name(name)
-            if os.path.normcase(str(target)) == os.path.normcase(str(p)):
-                if str(target) == str(p):
+            # Darwin 上 os.path.normcase 不去大小写，不能靠它识别 note.md → NOTE.md
+            if p.name.lower() == target.name.lower():
+                if p.name == target.name:
                     return {"ok": True, "path": str(p), "name": p.name}
                 # 仅大小写变化：大小写不敏感文件系统上 target.exists() 恒真，
                 # 不能被「同名已存在」拦截——直接改名（Windows/macOS 允许）
+                if target.exists():
+                    try:
+                        if not os.path.samefile(p, target):
+                            return {"ok": False, "error": "同名文件已存在"}
+                    except OSError:
+                        return {"ok": False, "error": "同名文件已存在"}
                 os.rename(p, target)
                 self._sync_path_refs(str(p), str(target))
                 return {"ok": True, "path": str(target), "name": target.name}

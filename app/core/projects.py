@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -18,8 +19,19 @@ from .fsutil import count_md_files
 
 
 def _norm(path: str) -> str:
-    """路径规范化（Windows 大小写不敏感），用于同仓库去重判断。"""
-    return os.path.normcase(os.path.normpath(str(path)))
+    """路径规范化，用于同仓库去重。
+
+    Windows：normcase 折叠大小写。macOS：normcase 是空操作，且 /var 与
+    /private/var 是同一目录，需 resolve + casefold。
+    """
+    p = os.path.normpath(str(path))
+    if sys.platform == "darwin":
+        try:
+            p = str(Path(p).resolve())
+        except OSError:
+            pass
+        return p.casefold()
+    return os.path.normcase(p)
 
 
 class ProjectStore:
