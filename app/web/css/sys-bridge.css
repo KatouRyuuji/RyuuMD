@@ -1,0 +1,98 @@
+/* =============================================================================
+   sys-bridge.css — 应用变量到 --sys-* 的桥接
+   -----------------------------------------------------------------------------
+   在 :root 把 --primary/--bg/--el 族、尺寸、z 阶、影映射到 --sys-*。
+   自定义属性用时求值，下游组件 CSS 随色板切换。色板与明暗由 palettes.css、
+   themes/*.css 供给。新代码直接消费 --sys-*。
+   ============================================================================= */
+:root {
+  /* —— 主色 ramp —— */
+  --primary: var(--sys-primary);
+  --primary-deep: var(--sys-primary-deep);
+  --primary-shallow: var(--sys-primary-shallow);
+  --primary-bg: var(--sys-primary-soo-shallow);   /* 主色浅染底（选中/hover 底） */
+  --primary-bg-soft: color-mix(in srgb, var(--sys-primary-soo-shallow), var(--sys-surface) 55%);
+
+  /* —— 表面 / 文字 / 边 —— */
+  --bg: var(--sys-bg);
+  --bg-elevated: var(--sys-surface);
+  --sidebar-bg: var(--sys-surface-2);
+  --sidebar-border: var(--sys-border);
+  --text: var(--sys-text);
+  --text-secondary: var(--sys-text-2);
+  --text-muted: var(--sys-text-3);
+  --border: var(--sys-border);
+  --hover-bg: var(--sys-surface-hover);
+  --active-bg: var(--sys-primary);               /* 实心选中（v5 配方） */
+  --active-fg: var(--sys-on-primary);
+
+  /* —— 效果 —— */
+  --shadow: var(--sys-shadow-lift);
+  --shadow-sm: var(--sys-shadow-sm);
+  --glass-bg: color-mix(in srgb, var(--sys-surface) 82%, transparent);
+  --scrollbar-thumb: var(--sys-scrollbar-thumb);
+  --selection-bg: var(--sys-selection-bg);
+
+  /* —— 语义 —— */
+  --danger: var(--sys-danger);
+  --danger-fg: var(--sys-on-danger);
+  --success: var(--sys-success);
+  --success-fg: var(--sys-text-inverse);
+
+  /* —— 形状 / 尺寸（A 语言令牌由 lang/a.css 供给） —— */
+  --radius-xs: var(--sys-radius-sm);             /* 4 */
+  --radius-sm: var(--sys-radius-sm);             /* 4（旧 7 归一到体系档） */
+  --radius: var(--sys-radius-md);                /* 8 */
+  --radius-lg: var(--sys-radius-lg);             /* 12 */
+  --radius-xl: var(--sys-radius-xl);             /* 14 */
+  --titlebar-h: 48px;
+  --sidebar-width: 264px;
+
+  /* —— 动效 —— */
+  --ease-ui: var(--sys-ease-smooth);
+  --dur-fast: var(--sys-dur-2);                  /* 180ms */
+  --dur-ui: var(--sys-dur-3);                    /* 240ms */
+
+  /* —— z 阶 —— */
+  --z-sticky: var(--sys-z-sticky);
+  --z-menu: var(--sys-z-overlay);
+  --z-modal: var(--sys-z-modal);
+  --z-toast: var(--sys-z-toast);
+
+  /* —— ryuuji-a 皮肤层令牌 —— */
+  --space-1: var(--sys-space-1);
+  --space-2: var(--sys-space-2);
+  --space-3: var(--sys-space-3);
+  --space-4: var(--sys-space-4);
+  --space-5: var(--sys-space-5);
+  --space-6: var(--sys-space-6);
+  --control-h-sm: var(--sys-control-h-sm);
+  --control-h: var(--sys-control-h-md);
+  --control-h-lg: var(--sys-control-h-lg);
+  --shadow-contact: var(--sys-shadow-sm);
+  --shadow-overlay: var(--sys-shadow-lift);
+  --surface-raised: var(--sys-surface);
+  --surface-control: var(--sys-surface-ctl);
+  --surface-hover: var(--sys-surface-hover);
+  --edge-soft: var(--sys-edge-a);
+  --edge-soft-strong: var(--sys-edge-a-strong);  /* hover 浓边（v4.1：只浓边不加深影） */
+  --focus-soft: color-mix(in srgb, var(--sys-primary) 12%, transparent);
+  --interactive-fg: var(--sys-primary-ink);
+
+  /* —— 字体双轨：外壳 --sys-font-ui（css/sys-tokens.css + noto-sans-sc.css）；
+     编辑器正文 var(--font-body, 文楷栈)；font_ui / font_mono 由 app.js 内联覆盖。
+     --font-mono 为应用层默认等宽栈（代码块/丝印），与 --sys-font-mono 不是同一变量。 —— */
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+
+  /* —— 编辑区元素色（editor-theme.css 消费；排版装饰保留，色值随板） —— */
+  --el: var(--sys-primary);
+  --el-deep: var(--sys-primary-deep);
+  --el-shallow: var(--sys-primary-shallow);
+  --el-so-shallow: var(--sys-primary-so-shallow);
+  --el-soo-shallow: var(--sys-primary-soo-shallow);
+  --h2-bg: var(--sys-primary);
+  --h2-fg: var(--sys-on-primary);
+  --code-head-bg: var(--sys-surface-2);
+  --code-body-bg: var(--sys-surface);
+  --code-fg: var(--sys-text-2);
+}

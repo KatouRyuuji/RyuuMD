@@ -160,6 +160,16 @@ def _run(window) -> None:
     # —— 回到亮色，浮层类 ——
     step(window, "07-ctx-editor",
          'document.getElementById("btn-theme").click();', sleep=1.5)
+    # 专注模式镜头：光标放第 8 个顶层块（标题3 附近），验证淡化与光标块高亮
+    step(window, "06c-editor-focus",
+         'window.Editor.toggleFocusMode(true);'
+         '(function(){var bs=document.querySelectorAll(".vditor-ir .vditor-reset > *");'
+         'var t=bs[Math.min(7,bs.length-1)];var r=document.createRange();'
+         'r.selectNodeContents(t);r.collapse(false);'
+         'var s=window.getSelection();s.removeAllRanges();s.addRange(r);'
+         't.scrollIntoView({block:"center"});})()', sleep=1.0)
+    window.evaluate_js('window.Editor.toggleFocusMode(false)')
+    time.sleep(0.3)
     window.evaluate_js(
         "(function(){var el=document.querySelector('.vditor-reset')||document.querySelector('#editor');"
         "var r=el.getBoundingClientRect();"
@@ -235,8 +245,7 @@ def main() -> int:
         "startup_page": "home",
         "last_folder": str(REPO),
         "theme": "light",
-        "palette_light": "sky",
-        "palette_dark": "vampire",
+        "palette": "a1",
         "welcome_shown": True,
     })
     api = Api(config)

@@ -107,12 +107,20 @@ def JV(s: str) -> str:
 #   js: 断言表达式,返回布尔真即通过(在超时窗口内轮询)
 # ----------------------------------------------------------------------------
 CASES = [
-    dict(name="T00 启动页 home:有 last_file 仍显示首页", sleep=0,
+    dict(name="T00 启动页 home:有 last_file 仍显示首页",
          # startup_page=home 且 config 预置了 last_file：不得误走恢复会话。
-         # welcome 关闭后应落到首页;验毕隐藏首页继续后续用例
+         # welcome 关闭后应落到首页;验毕隐藏首页继续后续用例。
+         # 空仓库以卡片数为准；空态节点用 inline style（getComputedStyle 在
+         # 祖先刚从 display:none 切出时，WebView2 可能仍报 none）。
+         setup="window.Home.show()",
+         sleep=0.8,
          js=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
-             "if(document.querySelectorAll('#home .quick-card').length!==3)return 'quick cards';"
-             "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'repo empty hidden';"
+             "if(document.querySelectorAll('#home .quick-card').length!==4)return 'quick cards';"
+             "if(!document.getElementById('hq-tutorial'))return 'no tutorial card';"
+             "var n=document.querySelectorAll('#repo-container .repo-card,#repo-container .repo-row').length;"
+             "if(n)return 'repos='+n;"
+             "var empty=document.getElementById('repo-empty');"
+             "if(!empty||empty.style.display==='none')return 'repo empty hidden';"
              "return true;})()"),
          timeout=12,
          setup2="window.Home.hide()", sleep2=0.3,
@@ -134,7 +142,16 @@ CASES = [
          js="!!(window.App&&window.Editor&&window.Sidebar&&window.Welcome&&window.Settings&&window.SlashMenu&&window.Home&&window.Palette&&window.FindBar&&window.Editor.isReady())"),
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
-         js="(function(){var bs=document.querySelectorAll('#toolbar .icon-btn');return bs.length>=7&&Array.from(bs).every(function(b){var l=b.querySelector('.ib-label');return l&&l.textContent.trim().length>0;});})()"),
+         js=("(function(){var ids=['btn-home','btn-sidebar','btn-open-folder','btn-open-file',"
+             "'btn-new','btn-save','btn-search','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
+             "var bs=document.querySelectorAll('#toolbar .icon-btn');"
+             "if(bs.length!==ids.length)return 'count='+bs.length;"
+             "for(var i=0;i<ids.length;i++){"
+             "var b=document.getElementById(ids[i]);"
+             "if(!b)return 'missing '+ids[i];"
+             "var l=b.querySelector('.ib-label');"
+             "if(!l||!l.textContent.trim())return 'label '+ids[i];}"
+             "return true;})()")),
 
     dict(name="T03 图标注入为 svg 且文字未被覆盖", sleep=0,
          js="Array.from(document.querySelectorAll('#toolbar [data-icon]')).every(function(el){return el.innerHTML.indexOf('<svg')>=0;})"),
@@ -207,14 +224,15 @@ CASES = [
     dict(name="T11 主题切换:dark 生效、图标换 sun、文字保留",
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js=("document.documentElement.getAttribute('data-theme')==='dark'"
-             "&&document.documentElement.getAttribute('data-palette')==='vampire'"
+             # 新色板(a1-a6)每板自带明暗双态,明暗对切不再换 palette id
+             "&&document.documentElement.getAttribute('data-palette')==='a1'"
              "&&document.querySelector('#btn-theme .ib-icon').innerHTML.indexOf('<svg')>=0"
              "&&document.querySelector('#btn-theme .ib-label').textContent.trim().length>0")),
 
     dict(name="T11b 主题切回 light",
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js=("document.documentElement.getAttribute('data-theme')==='light'"
-             "&&document.documentElement.getAttribute('data-palette')==='sky'")),
+             "&&document.documentElement.getAttribute('data-palette')==='a1'")),
 
     dict(name="T12 设置弹窗:三个分组 tab、外观配色与字体、云同步默认收起",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
@@ -222,9 +240,10 @@ CASES = [
              "if(!m.classList.contains('open'))return 'not open';"
              "if(m.querySelectorAll('.settings-tab').length!==3)return 'tabs='+m.querySelectorAll('.settings-tab').length;"
              "if(!document.getElementById('set-autosave')||!document.getElementById('set-daily-folder'))return 'missing general';"
-             "var light=m.querySelectorAll('#swatch-light .palette-swatch').length;"
-             "var dark=m.querySelectorAll('#swatch-dark .palette-swatch').length;"
-             "if(light!==8||dark!==3)return 'swatch '+light+'+'+dark;"
+             "if(!document.getElementById('set-math-engine'))return 'missing math engine';"
+             "if(!document.getElementById('set-tutorial'))return 'missing tutorial';"
+             "var sw=m.querySelectorAll('#swatch-palette .palette-swatch').length;"
+             "if(sw!==6)return 'swatch '+sw;"
              "if(!document.getElementById('set-font-ui')||!document.getElementById('set-font-mono'))return 'missing font';"
              "if(!document.getElementById('cloud-enabled')||document.getElementById('cloud-panel').classList.contains('show'))return 'cloud';"
              "return true;})()"),
@@ -537,13 +556,11 @@ CASES = [
               "return (Math.abs(r-window.__r0)<0.15&&sc.scrollTop>500)?true:'r='+r+' top='+sc.scrollTop;})()")),
 
     dict(name="T35 选区配色:编辑器选区与底色拉开对比(亮色)",
-         # sky #3498db：rgba(52,152,219,x) 或 color-mix 解析后的 color(srgb …)
+         # a1 霜靛 light:选区 = --sys-primary-shallow #888cf0 → rgb(136,140,240)
          js=("(function(){var el=document.querySelector('#editor .vditor-reset')||document.getElementById('editor');"
              "var bg=getComputedStyle(el,'::selection').backgroundColor;"
              "if(!bg||bg==='rgba(0, 0, 0, 0)'||bg==='transparent')return 'no selection style:'+bg;"
-             "if(bg.indexOf('234, 242, 248')>=0)return 'still faint #eaf2f8:'+bg;"
-             "if(bg.indexOf('52, 152, 219')>=0)return true;"
-             "if(/0\\.20\\d+/.test(bg)&&/0\\.59\\d+/.test(bg)&&/0\\.85\\d+/.test(bg))return true;"
+             "if(bg.indexOf('136, 140, 240')>=0)return true;"
              "return 'unexpected:'+bg;})()")),
 
     dict(name="T36 右键菜单剪贴板组:有选区可用、无选区禁用复制/剪切",
@@ -670,7 +687,9 @@ CASES = [
          js=("(function(){var m=document.getElementById('palette-mask');"
              "if(!m.classList.contains('open'))return 'not open';"
              "var t=document.getElementById('pal-list').textContent;"
-             "return t.indexOf(" + JV("保存") + ")>=0?true:'text='+t.slice(0,80);})()"),
+             "if(t.indexOf(" + JV("保存") + ")<0)return 'text='+t.slice(0,80);"
+             "if(t.indexOf(" + JV("打字机") + ")>=0)return 'typewriter still listed';"
+             "return true;})()"),
          setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
@@ -866,7 +885,7 @@ CASES = [
          sleep=0.3,
          js=("document.getElementById('editor-wrap').classList.contains('readable-width')"
              "&&document.getElementById('sb-readable').classList.contains('active')"
-             "&&!!document.getElementById('sb-focus')&&!!document.getElementById('sb-typewriter')"),
+             "&&!!document.getElementById('sb-focus')&&!!!document.getElementById('sb-typewriter')"),
          setup2="document.getElementById('sb-readable').click()",
          sleep2=0.3,
          js2="!document.getElementById('editor-wrap').classList.contains('readable-width')"),
@@ -1045,9 +1064,14 @@ CASES = [
              "var a=window.filterCommands('flowchart','notion');"
              "var b=window.filterCommands('lct','wolai');"
              "var c=window.filterCommands('思维导图','notion');"
+             "var h=window.filterCommands('h1','notion');"
+             "var w=window.filterCommands('bt1','wolai');"
              "return (a.length&&a[0].id==='mmd-flow'&&b.length&&b[0].id==='mmd-flow'"
-             "&&c.length&&c[0].id==='mmd-mindmap')?true:'a='+JSON.stringify(a[0]&&a[0].id)"
-             "+' b='+JSON.stringify(b[0]&&b[0].id)+' c='+JSON.stringify(c[0]&&c[0].id);})()"),
+             "&&c.length&&c[0].id==='mmd-mindmap'"
+             "&&h.length&&h[0].id==='h1'&&w.length&&w[0].id==='h1')"
+             "?true:'a='+JSON.stringify(a[0]&&a[0].id)"
+             "+' b='+JSON.stringify(b[0]&&b[0].id)+' c='+JSON.stringify(c[0]&&c[0].id)"
+             "+' h='+JSON.stringify(h[0]&&h[0].id)+' w='+JSON.stringify(w[0]&&w[0].id);})()"),
          timeout=8),
 
     # ---------------------------------------------------------------
@@ -1183,6 +1207,127 @@ CASES = [
              "document.execCommand=window.__origExec;"
              "return ok?true:'no copy call';})()"),
          timeout=15),
+
+    dict(name="T84 双链装饰:IR 文本 [[]] 渲染为 .wiki-link(守卫曾命中 pre 根致全灭)",
+         setup="window.Editor.setValue(" + JV('前文\n\n双链 [[样式总览]] 与 [[notes/随手记]]\n') + ")",
+         sleep=1.2,
+         js=("(function(){var ws=document.querySelectorAll('.vditor-reset .wiki-link');"
+             "if(ws.length!==2)return 'count='+ws.length;"
+             "if(ws[0].dataset.wiki!=='样式总览')return 'wiki='+ws[0].dataset.wiki;"
+             "if(ws[1].dataset.wiki!=='notes/随手记')return 'wiki1='+ws[1].dataset.wiki;"
+             "return true;})()"),
+         timeout=12),
+
+    # —— 段落转换矩阵（convert.js applyIR）：块提取/变换/替换结果断言 ——
+    dict(name="T85 段落转换:正文→二级标题(单块光标)",
+         setup=("window.Editor.setValue(" + JV('第一段\n\n第二段\n') + ");"
+                "setTimeout(function(){"
+                "var b=[].filter.call(document.querySelector('.vditor-ir .vditor-reset').children,"
+                "function(c){return c.tagName==='P';})[0];"
+                "var r=document.createRange();r.selectNodeContents(b);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.Convert.apply('h2', window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return v.indexOf('## 第一段')>=0&&v.indexOf('第二段')>=0&&v.indexOf('## 第二段')<0"
+             "?true:'val='+v.slice(0,60);})()"),
+         timeout=12),
+
+    dict(name="T86 段落转换:框选两个标题→无序列表",
+         setup=("window.Editor.setValue(" + JV('## 甲\n\n## 乙\n') + ");"
+                "setTimeout(function(){"
+                "var hs=[].filter.call(document.querySelector('.vditor-ir .vditor-reset').children,"
+                "function(c){return c.tagName==='H2';});"
+                "var r=document.createRange();"
+                "r.setStartBefore(hs[0]);r.setEndAfter(hs[hs.length-1]);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.Convert.apply('ul', window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return v.indexOf('- 甲')>=0&&v.indexOf('- 乙')>=0&&v.indexOf('##')<0"
+             "?true:'val='+v.slice(0,80);})()"),
+         timeout=12),
+
+    dict(name="T87 段落转换:嵌套列表→标题(子项平铺为独立行,不并入父项)",
+         setup=("window.Editor.setValue(" + JV('- parentA\n  - childB\n- parentC\n') + ");"
+                "setTimeout(function(){"
+                "var ul=document.querySelector('.vditor-ir .vditor-reset > ul');"
+                "var r=document.createRange();r.selectNodeContents(ul);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.Convert.apply('h2', window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "var ls=v.split('\\n').filter(function(l){return l.trim()!=='';});"
+             "if(ls.length!==3)return 'lines:'+JSON.stringify(v);"
+             "if(ls[0]!=='## parentA'||ls[1]!=='## childB'||ls[2]!=='## parentC')"
+             "return 'bad:'+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T88 段落转换:待办→标题(剥 - [ ] 标记)",
+         setup=("window.Editor.setValue(" + JV('- [ ] 任务甲\n- [x] 任务乙\n') + ");"
+                "setTimeout(function(){"
+                "var ul=document.querySelector('.vditor-ir .vditor-reset > ul');"
+                "var r=document.createRange();r.selectNodeContents(ul);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.Convert.apply('h2', window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "return v.indexOf('## 任务甲')>=0&&v.indexOf('## 任务乙')>=0&&v.indexOf('- [')<0"
+             "?true:'val='+v.slice(0,80);})()"),
+         timeout=12),
+
+    dict(name="T90 右键文件组:无已保存文件时所在目录项禁用",
+         setup=("(function(){window.__hsf=window.App.hasSavedFile;"
+                "window.App.hasSavedFile=function(){return false;};"
+                "var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "if(!el)return;"
+                "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:280,clientY:280}));})()"),
+         sleep=0.5,
+         js=("(function(){try{"
+             "var items=document.querySelectorAll('#slash-menu .slash-item');"
+             "var hit=null;"
+             "for(var i=0;i<items.length;i++){"
+             "if(items[i].textContent.indexOf(" + JV("所在目录") + ")>=0){hit=items[i];break;}}"
+             "if(!hit)return 'no file item';"
+             "return hit.classList.contains('disabled')?true:'not disabled';"
+             "}finally{if(window.__hsf)window.App.hasSavedFile=window.__hsf;}})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('slash-menu').classList.contains('open')"),
+
+    dict(name="T89 学习仓库:open_tutorial 注册并打开导读",
+         setup=("window.__t89=0;window.__t89err='';"
+                "window.App.openTutorial().then(function(){window.__t89=1;})"
+                ".catch(function(e){window.__t89=-1;window.__t89err=String(e);});"),
+         sleep=2.0,
+         timeout=20,
+         js=("(function(){if(window.__t89!==1)return 'pending='+window.__t89+' err='+window.__t89err;"
+             "if(window.Home&&window.Home.isOpen())return 'home still open';"
+             "var v=window.Editor.getValue();"
+             "return v.indexOf(" + JV("学习仓库") + ")>=0?true:'content='+v.slice(0,60);})()")),
+
+    dict(name="T92 移除全部仓库:首页回空态",
+         setup=("window.__t92=0;"
+                "window.pywebview.api.list_projects().then(function(r){"
+                "var items=r.items||[];"
+                "if(!items.length){window.Home.show();window.__t92=1;return;}"
+                "var left=items.length;"
+                "items.forEach(function(p){"
+                "window.pywebview.api.remove_project(p.id).then(function(){"
+                "left--;if(left<=0){window.Home.show();window.__t92=1;}"
+                "});});});"),
+         sleep=1.5,
+         timeout=12,
+         js="window.__t92===1?true:'pending='+window.__t92",
+         setup2="",
+         sleep2=0.4,
+         js2=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
+              "var cards=document.querySelectorAll('#repo-container .repo-card').length;"
+              "var rows=document.querySelectorAll('#repo-container .repo-row').length;"
+              "if(cards||rows)return 'cards='+cards+' rows='+rows;"
+              "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'empty hidden';"
+              "return true;})()")),
 ]
 
 
@@ -1262,13 +1407,14 @@ def main() -> int:
         "startup_page": "home",
         "last_file": str(SMALL_MD),
         "last_folder": str(REPO_DIR),
+        # 跳过首启欢迎流程（其后的学习仓库静默注册会污染 T24 等的仓库计数断言；
+        # 欢迎页本身由 T13 主动重开覆盖）
+        "welcome_shown": True,
     })
     api = Api(config)
     index = str(ROOT / "app" / "web" / "index.html")
-    # 说明:Vditor 渲染依赖窗口 rAF/焦点,E2E 须真实窗口运行;跑前请关闭其他 RyuuMD/
-    # WebView2 实例(残留进程会致首用例即败)。历史待查项已清零:T10(待办勾选)经
-    # 移除自绘守卫改走 Vditor 原生处理修复;T19(字数统计)改走 loadDoc 可达路径,
-    # 合成 InputEvent 无法驱动 Vditor 内部 input 回调属测试方法限制(见 docs/TEST_PLAN.md)。
+    # Vditor 渲染依赖窗口 rAF/焦点，E2E 须真实窗口；跑前关闭其他 RyuuMD / WebView2。
+    # T19 字数统计走 loadDoc 路径（合成 InputEvent 无法驱动 Vditor 内部 input 回调）。
     window = webview.create_window(
         title="RyuuMD E2E", url=index, js_api=api, width=1200, height=800
     )

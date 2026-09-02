@@ -230,12 +230,13 @@ class Api:
             if not name.lower().endswith(tuple(MD_EXTS)):
                 name += ".md"
             target = p.with_name(name)
-            # Darwin 上 os.path.normcase 不去大小写，不能靠它识别 note.md → NOTE.md
+            # 按文件名大小写折叠比较。Darwin 上 os.path.normcase 不去大小写，
+            # 不能靠它识别 note.md → NOTE.md。
             if p.name.lower() == target.name.lower():
                 if p.name == target.name:
                     return {"ok": True, "path": str(p), "name": p.name}
                 # 仅大小写变化：大小写不敏感文件系统上 target.exists() 恒真，
-                # 不能被「同名已存在」拦截——直接改名（Windows/macOS 允许）
+                # 不能被「同名已存在」拦截。Linux 上 NOTE.md 可能是另一文件。
                 if target.exists():
                     try:
                         if not os.path.samefile(p, target):
@@ -528,6 +529,50 @@ class Api:
         if res.get("ok"):
             self.projects.touch(project_id)
         return res
+
+    # ------------------------------------------------------------------
+    # 学习仓库
+    # ------------------------------------------------------------------
+    def open_tutorial(self) -> dict[str, Any]:
+        """内嵌学习仓库：把程序内置的 tutorial 复制到用户数据目录下「学习仓库」，
+        注册（并置顶）为首页仓库，返回入口文档。
+
+        幂等：只补缺失文件，不覆盖用户在学习仓库里的改动；重复调用/首启静默
+        注册都安全。仓库被用户从首页移除后再次调用会重新注册（磁盘目录不动）。
+        """
+        base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+        src = base / "app" / "web" / "tutorial"
+        if not src.is_dir():
+            return {"ok": False, "error": "内置学习仓库资源缺失"}
+        dst = self.config.data_dir / "学习仓库"
+        try:
+            copied = 0
+            for f in src.rglob("*"):
+                if not f.is_file():
+                    continue
+                target = dst / f.relative_to(src)
+                if target.exists():
+                    continue  # 保留用户改动，只补缺失
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(str(f), str(target))
+                copied += 1
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        res = self.projects.add(str(dst), "学习仓库")
+        if not res.get("ok"):
+            return res
+        project = res["project"]
+        if not res.get("existed") and not project.get("pinned"):
+            # 新注册时置顶，保证新用户在首页第一眼看到（对标 Notion 预置教程页）
+            self.projects.set_pinned(project["id"], True)
+            project["pinned"] = True
+        return {
+            "ok": True,
+            "path": str(dst),
+            "entry": str(dst / "欢迎使用 RyuuMD.md"),
+            "copied": copied,
+            "project": project,
+        }
 
     # ------------------------------------------------------------------
     # 多窗口
@@ -982,27 +1027,55 @@ def apply_template_vars(text: str, title: str = "", now: datetime | None = None)
     return out
 
 
-# 导出 HTML 用的最小色表（主色 / 深色 / 背景 / 文字 / 次要文字）。
-# 色值摘自 typora-theme-phycat 各变体 :root，sky/vampire 与应用默认对齐。
-_EXPORT_PALETTES: dict[str, dict[str, str]] = {
-    "cherry": {"primary": "#aa1111", "deep": "#9a0036", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#ffa6a6"},
-    "caramel": {"primary": "#f59e0b", "deep": "#b45309", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#fbbf24"},
-    "forest": {"primary": "#11aa63", "deep": "#009a52", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#80c3a4"},
-    "mint": {"primary": "#3db8bf", "deep": "#089ba3", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#7aeaf0"},
-    "sky": {"primary": "#3498db", "deep": "#2980b9", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#e7eef6"},
-    "prussian": {"primary": "#1D4E89", "deep": "#003153", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#6BA3CC"},
-    "sakura": {"primary": "#ff7096", "deep": "#e91e63", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#ffb7cd"},
-    "mauve": {"primary": "#A06EB4", "deep": "#6A3F7A", "bg": "#ffffff", "text": "#2c3e50", "muted": "#5b7187", "border": "#D4B6E0"},
-    "vampire": {"primary": "#ff5555", "deep": "#ff3b3b", "bg": "#20222a", "text": "#f8f8f2", "muted": "#b7bdca", "border": "#2f313c"},
-    "radiation": {"primary": "#4cd964", "deep": "#3db854", "bg": "#1b1d1b", "text": "#e6e6e6", "muted": "#99a699", "border": "#333933"},
-    "abyss": {"primary": "#00f3ff", "deep": "#00c4d0", "bg": "#0f111a", "text": "#d6deeb", "muted": "#7e8c9f", "border": "#1f2233"},
+# 导出 HTML 用的最小色表（主色 / 深色 / 背景 / 文字 / 次要文字 / 边框）。
+# 色值与 vendor/ryuuji/styles/palettes.css 的 a1-a6 × light/dark 令牌一致（v6.1），
+# 上游色板更新时随 vendor 整目录覆盖后同步本表。
+_EXPORT_PALETTES: dict[str, dict[str, dict[str, str]]] = {
+    "a1": {  # 霜靛
+        "light": {"primary": "#4a51e8", "deep": "#3f45c5", "bg": "#f3f7fc", "text": "#29313d", "muted": "#6b7791", "border": "#dae3ee"},
+        "dark": {"primary": "#5d68e7", "deep": "#4f58c4", "bg": "#0e1118", "text": "#e8ecf4", "muted": "#6e7789", "border": "#272f3e"},
+    },
+    "a2": {  # 和红
+        "light": {"primary": "#e3253f", "deep": "#c11f36", "bg": "#fff6f4", "text": "#3d2b2d", "muted": "#a06a6a", "border": "#f3cecb"},
+        "dark": {"primary": "#e42435", "deep": "#c21f2d", "bg": "#151114", "text": "#efe7e8", "muted": "#7d6a6c", "border": "#33272b"},
+    },
+    "a3": {  # 藤色
+        "light": {"primary": "#9550e0", "deep": "#7f44be", "bg": "#faf6fe", "text": "#332b40", "muted": "#8a7aa0", "border": "#ddd0f0"},
+        "dark": {"primary": "#8d5ad6", "deep": "#784db6", "bg": "#12101a", "text": "#ece7f2", "muted": "#776d8a", "border": "#2d2838"},
+    },
+    "a4": {  # 柳染
+        "light": {"primary": "#568213", "deep": "#496f10", "bg": "#f7fceb", "text": "#2d3523", "muted": "#7a9260", "border": "#d2e3b2"},
+        "dark": {"primary": "#617f26", "deep": "#526c20", "bg": "#11150f", "text": "#e9f0e2", "muted": "#728060", "border": "#2a3324"},
+    },
+    "a5": {  # 水浅葱
+        "light": {"primary": "#108289", "deep": "#0e6f74", "bg": "#f1fcfb", "text": "#253736", "muted": "#6a8b86", "border": "#bfe2e0"},
+        "dark": {"primary": "#21827e", "deep": "#1c6f6b", "bg": "#0f1516", "text": "#e4efee", "muted": "#6f8582", "border": "#273331"},
+    },
+    "a6": {  # 樱花
+        "light": {"primary": "#e7134b", "deep": "#c41040", "bg": "#fef4f8", "text": "#3a2a31", "muted": "#9a6b78", "border": "#f0d4e0"},
+        "dark": {"primary": "#e61d3d", "deep": "#c41934", "bg": "#141017", "text": "#f0e7ec", "muted": "#8a707c", "border": "#322733"},
+    },
 }
-_LIGHT_PALETTE_IDS = frozenset(
-    {"cherry", "caramel", "forest", "mint", "sky", "prussian", "sakura", "mauve"}
-)
-_DARK_PALETTE_IDS = frozenset({"vampire", "radiation", "abyss"})
-_UI_FONT_FALLBACK = "'LXGW WenKai','Segoe UI','Microsoft YaHei',sans-serif"
-_MONO_FONT_FALLBACK = "'Cascadia Code',Consolas,monospace"
+# 旧 phycat 色板 id → 最近似新板（一次性迁移，写入前归一）
+_LEGACY_PALETTE_MAP = {
+    "cherry": "a2", "vampire": "a2", "caramel": "a2", "sakura": "a6", "mauve": "a3",
+    "mint": "a5", "abyss": "a5", "forest": "a4", "radiation": "a4",
+    "sky": "a1", "prussian": "a1",
+}
+
+
+def _export_palette(config: Optional[dict[str, Any]]) -> dict[str, str]:
+    """按当前 palette + theme 取导出配色组；旧 phycat id 经映射表迁移，未知回退 a1。"""
+    cfg = config or {}
+    pal = str(cfg.get("palette") or "")
+    if pal not in _EXPORT_PALETTES:
+        # 兼容旧配置：palette 缺失时看旧 palette_light/dark，再映射
+        legacy = pal or str(
+            cfg.get("palette_dark") if cfg.get("theme") == "dark" else cfg.get("palette_light") or ""
+        )
+        pal = _LEGACY_PALETTE_MAP.get(legacy, "a1")
+    theme = "dark" if cfg.get("theme") == "dark" else "light"
+    return _EXPORT_PALETTES[pal][theme]
 
 
 def _safe_css_font(name: str, fallback: str) -> str:
@@ -1016,23 +1089,18 @@ def _safe_css_font(name: str, fallback: str) -> str:
     return f"'{raw}',{fallback}"
 
 
-def _export_palette_id(config: Optional[dict[str, Any]]) -> str:
-    cfg = config or {}
-    if cfg.get("theme") == "dark":
-        pal = str(cfg.get("palette_dark") or "vampire")
-        return pal if pal in _DARK_PALETTE_IDS else "vampire"
-    pal = str(cfg.get("palette_light") or "sky")
-    return pal if pal in _LIGHT_PALETTE_IDS else "sky"
+_UI_FONT_FALLBACK = "'LXGW WenKai','Segoe UI','Microsoft YaHei',sans-serif"
+_MONO_FONT_FALLBACK = "'Cascadia Code',Consolas,monospace"
 
 
 def wrap_html_export(title: str, body: str, config: Optional[dict[str, Any]] = None) -> str:
     """把 Vditor HTML 片段包成可独立打开的文档（相对图片路径保持原样）。
 
-    配色/字体跟随当前 theme + palette + font_*；未传 config 时回退 sky + 霞鹜文楷。
+    配色/字体跟随当前 palette + theme + font_*；未传 config 时回退 a1 亮色 + 霞鹜文楷。
     """
     safe_title = html_lib.escape(title or "导出")
     cfg = config or {}
-    pal = _EXPORT_PALETTES[_export_palette_id(cfg)]
+    pal = _export_palette(cfg)
     ui = _safe_css_font(str(cfg.get("font_ui") or ""), _UI_FONT_FALLBACK)
     mono = _safe_css_font(str(cfg.get("font_mono") or ""), _MONO_FONT_FALLBACK)
     return (

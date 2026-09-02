@@ -14,7 +14,7 @@
 | 后端 | Python 3.10+，仅 pywebview 一个三方依赖 | JS ↔ Python 经 js_api 桥 |
 | 持久化 | JSON（Win: %APPDATA%/RyuuMD；Mac: ~/Library/Application Support/RyuuMD） | 线程安全，损坏自动回退默认 |
 
-原则：**轻量、本地优先、极速**。不引框架、不加构建步骤；默认同步关闭无需联网。
+原则：**轻量、本地优先、极速**。前端为原生 HTML/CSS/JS，无构建步骤；默认同步关闭、无需联网。
 新功能优先复用现有模式（事件委托、innerHTML 单次赋值、配置即状态）。
 
 ## 2. 目录与模块职责
@@ -24,7 +24,7 @@ main.py                     进程入口：单实例判定、WindowManager、sta
 app/core/
   config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键，tmp+replace 原子写）
   fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS/IMAGE_EXTS + skip_dir_name + count_md_files + recycle_file + atomic_write_*（保存/云同步落盘统一原子写）
-  api.py                    Api：暴露给 JS 的全部方法（每窗口一个实例；含文件管理 rename/move/delete、append_capture）
+  api.py                    Api：暴露给 JS 的全部方法（每窗口一个实例；含文件管理 rename/move/delete、append_capture、open_tutorial）
   search.py                 仓库 md 索引 / 全文搜索 / [[wikilink]] / 待办标签断链 / 未链接提及
   projects.py               ProjectStore：仓库增删改查/置顶/排序/打开计时
   file_assoc.py             Windows 文件关联：注册 + SHOpenWithDialog + 状态查询
@@ -33,24 +33,29 @@ app/core/
   cloud_sync.py             可选云同步引擎：门闩 + 三路比对 + 冲突副本
 app/web/
   index.html                单页外壳：工具栏/侧栏/编辑器/首页/弹窗挂载点
-  css/app.css               主题变量（:root / [data-theme=dark]）+ 外壳样式 + 设置分组
+  css/app.css               外壳布局与结构规则（颜色/形状令牌全部来自 RyuujiDesign，见下）
+  css/sys-bridge.css        令牌桥接层：应用变量（--primary/--bg/--el 族）映射到 --sys-*
+  css/sys-tokens.css        RyuuMD 共享原语（空间/字号/字体/动效/z 阶；本仓库维护）
   css/home.css              首页样式（仓库卡片/列表、快速操作、最近区）
-  css/editor-theme.css      Vditor 渲染区 phycat 化（token；色相由 themes.css 覆盖）
-  css/themes.css            11 个 phycat 变体的 token 覆盖（html[data-palette]）
+  css/editor-theme.css      Vditor 渲染区 phycat 排版身份（装饰保留，色值经桥接随色板）
+  css/ryuuji-a.css          组件皮肤层（A 语言配方：卡影+唇/实心选中行/输入三件套/pill）
   css/slash.css             斜杠菜单
-  css/palette.css           命令面板 + 本文查找条 + 专注/打字机/可读宽度
+  css/palette.css           命令面板 + 本文查找条 + 专注/可读宽度
+  vendor/ryuuji/            配色与皮肤：styles/{palettes,motion,patterns,lang/a,themes/{light,dark}}.css
+  css/noto-sans-sc.css      外壳 Noto Sans SC 可变字重分片 webfont
   js/icons.js               内联 SVG 图标集（feather 风格，currentColor）
   js/commands.js            斜杠命令定义（notion/wolai 两套触发词）
-  js/slash.js               斜杠/右键菜单交互（含剪贴板组：复制/剪切/粘贴）+ `[[` 笔记过滤
+  js/slash.js               斜杠/右键菜单交互（剪贴板组 + 文件「所在目录」+ 段落转换）+ `[[` 笔记过滤
   js/sidebar.js             侧栏：文件树/大纲/最近（容器级事件委托）+ 文件右键管理菜单 + 目录全折叠
   js/home.js                首页：仓库双视图/快速操作/最近/重命名弹窗
   js/welcome.js             首次欢迎窗口
   js/settings.js            设置弹窗（通用 / 外观 / 云同步 分组标签页）
   js/editor.js              Vditor 封装：模式切换（保持阅读位置）/大纲提取/主题/大文档策略/相对图片/wikilink
   js/palette.js             Ctrl+P 快速打开 / Ctrl+Shift+P 命令 / Ctrl+Shift+F 搜索 / 待办·标签·断链·提及索引
-  js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放、贴图、自动保存、可读宽度/专注/打字机、确认框、Toast 队列
+  js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放、贴图、自动保存、可读宽度/专注、确认框、Toast 队列
 tests/
   test_api.py               Python 层单测（unittest，零三方依赖）
+  test_fonts.py             外壳字体门闩（sys-tokens 本仓库维护、Noto webfont 在位）
   test_cloud.py             云同步门闩/双向/冲突
   test_search.py            仓库检索/wikilink/贴图/日记/待办索引/收集箱
   test_e2e.py               真实窗口 E2E（evaluate_js 探针）
@@ -85,13 +90,12 @@ main()                          （进程级，仅一次）
 
 ### 3.3 窗口启动数据流（前端视角）
 
-首页优先、编辑器惰性创建：Vditor 首次构建会动态加载 `lute.min.js`（约 4MB），
-不得挡在首页前面。`boot()` 拿到 config 后立刻决定去向，不再把一切挂在
-Vditor `after` 上。
+首页优先、编辑器惰性创建：Vditor 首次构建会动态加载 `lute.min.js`（约 4MB）。
+`boot()` 拿到 config 后立刻决定去向；首页显示与 Vditor `after` 解耦。
 
 ```
 boot()
- ├─ 绑定按钮/快捷键/拖放（前置，不依赖后端）
+ ├─ 绑定按钮/快捷键/拖放（前置，与后端并行）
  ├─ waitForApi() → get_config()
  │   永久等待桥就绪（2.5s 后显示「正在连接后端…」遮罩，20s 后给出
  │   「重新加载」出口：reload 会重新触发 js_api 注入，可自愈；
@@ -100,7 +104,7 @@ boot()
  ├─ Home.init / Palette.init
  ├─ loadRecent / refreshCloudBadge / maybeStartCloudSync  ← 不等编辑器
  └─ decideStartup()
-     ├─ 首启 → 欢迎窗口（不依赖编辑器）
+     ├─ 首启 → 欢迎窗口（独立于编辑器）
      ├─ await api.get_initial_path()   ← 命令行/转发/新窗口路径（主动拉取，无竞态）
      │   有 → await ensureEditor() → openPath() 进编辑器
      ├─ startup_page == "restore" → await ensureEditor() → restoreSession()
@@ -110,17 +114,14 @@ boot()
 ```
 
 `ensureEditor()`：单例 Promise，并发共享；`after` resolve。首次 7s 未 ready
-则销毁重建一次；二次仍失败 toast，不阻塞首页。所有打开/新建/恢复入口在
+则销毁重建一次；二次仍失败 toast，首页保持可用。所有打开/新建/恢复入口在
 触达 Vditor 前 `await ensureEditor()`。
 
-本地字体（`css/fonts.css`，含 25MB 霞鹜文楷）不进 `index.html` 的 link；
-由 `scheduleFontLoad()` 在「首页显示或编辑器就绪」先到者之后
-`requestAnimationFrame` + `requestIdleCallback` 动态插入，加载前走
-`--font-ui` 系统字体回退。
+霞鹜文楷与 Cascadia（`css/fonts.css`）由 `scheduleFontLoad()` 在首页显示或编辑器就绪
+之后经 `requestAnimationFrame` + `requestIdleCallback` 插入。外壳 Noto Sans SC
+（`css/noto-sans-sc.css`）在 `index.html` 同步加载。
 
-> 历史设计变更：初始路径原经 `evaluate_js` 注入 `window.__INITIAL_PATH__`，
-> 存在「注入晚于 boot 检查」的竞态；现改为前端主动拉取，老通道仅作兼容兜底。
-> 启动页判断已反转：仅 `startup_page === "restore"` 才恢复会话，缺字段不再误进恢复。
+启动路径由前端 `api.get_initial_path()` 主动拉取。仅 `startup_page === "restore"` 时恢复会话。
 
 ### 3.4 首页（home.js）数据流
 
@@ -132,7 +133,7 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 ```
 
 视图偏好 `home_view` 经 `applyConfig` 持久化；仓库排序由后端统一
-（置顶优先 → last_opened_at 倒序），前端不重排。
+（置顶优先 → last_opened_at 倒序）。
 
 ## 4. 关键机制
 
@@ -162,16 +163,16 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 - `status()`：`AssocQueryStringW(ASSOCSTR_PROGID)` 查当前默认是否为我们；
 - 命令行兼容 frozen（exe）与源码运行（pythonw main.py）。
 
-### 4.3 拖放双通道（历史坑，勿动）
+### 4.3 拖放双通道
 
-Vditor 面板 drop 处理器首行 `stopPropagation`，事件冒泡被截断：
+目的：在 Vditor 面板 `stopPropagation` 的情况下仍能打开拖入的文件。
 
 - **主通道**：app.js 在 window **捕获阶段**接管 drop → WebView2
   `postMessageWithAdditionalObjects("FilesDropped", files)` 回传原生 →
   pywebview 暂存路径到 `_dnd_state['paths']` → `api.open_dropped_files`
   按文件名匹配打开；
-- **兜底通道**：main.py 经 pywebview DOM 事件注册 document 级 drop —— 该注册
-  同时是 FilesDropped 原生捕获的开关（`num_listeners>0`），**必须保留**。
+- **document 级 drop**：main.py 经 pywebview DOM 事件注册；该注册同时打开
+  FilesDropped 原生捕获（`num_listeners>0`）。
 
 ### 4.4 大文档策略
 
@@ -193,8 +194,7 @@ Vditor 面板 drop 处理器首行 `stopPropagation`，事件冒泡被截断：
 - 远端布局：`{url}/{remote_root}/{project_id}/相对路径`；
 - 三路比对（本地 / 远端 / `cloud-state.json` 指纹）；冲突时远端另存
   `*.conflict-时间.md`，本地保留并上传；**不同步删除**；
-- `get_config` 脱敏密码；`applyConfig` 禁止把 `cloud_sync` 经 `update_config` 回写
-  （否则会冲掉密码）；
+- `get_config` 脱敏密码；云同步凭据只经 `save_cloud_settings` 写入；
 - 保存后 `push_file` 后台线程，失败不影响本地保存。
 
 ### 4.7 仓库检索与贴图
@@ -205,45 +205,46 @@ Vditor 面板 drop 处理器首行 `stopPropagation`，事件冒泡被截断：
 - 未链接提及：去掉 `[[wikilink]]` 与 md 链接后再匹配当前笔记名；自身文件不计。
 - 快速收集：`append_capture` 只允许仓库根文件名（禁止路径分隔符），追加 `## YYYY-MM-DD HH:MM` 分节。
 - 贴图：已保存文档 → `{stem}.assets/`；否则仓库 `assets/`。前端把相对 `img src` 改写为 `file://` 以便 WebView2 显示。
-- 外链点击走 `open_external`，禁止 WebView2 整页跳转。
+- 外链点击走 `open_external`，在系统浏览器打开。
 
 ### 4.8 主题、配色与设置分组
 
 双维度：`html[data-theme=light|dark]` 决定 Vditor `setTheme` 与基础明暗；
-`html[data-palette=<variant>]` 决定 phycat 色相。工具栏主题按钮只对切亮暗，
-切到亮色时应用 `palette_light`，切到暗色时应用 `palette_dark`。
+`html[data-palette=a1..a6]` 决定色相（RyuujiDesign v6.1 A 语言六板，每板自带明暗双态）。
+工具栏主题按钮只对切亮暗，色板 id 不随明暗变化。
 
-- `app.css` / `editor-theme.css` 只提供 sky（亮）与 vampire（暗）的基础 token；
-- `themes.css`（在 editor-theme.css **之后**加载）用 `:root[data-palette="…"]`
-  覆盖 11 个变体。禁止 `@import` 或复制 `typora-theme-phycat` 的 #write 选择器，
-  只提取变量色值。
-- 新增配置键（`config.py` DEFAULTS）：
-  - `palette_light`（默认 `sky`）、`palette_dark`（默认 `vampire`）
-  - `font_ui` / `font_mono`（空字符串 = 跟随主题默认：霞鹜文楷 / Cascadia Code）
-  - `sidebar_width`（默认 `256`，范围 180–480）
-  - `focus_mode` / `typewriter_mode`（默认 `false`）
-- `theme` 仍为 `light` | `dark`，向后兼容老配置。
-- 字体：`App.applyConfig` 非空时 `setProperty("--font-ui"|"--font-mono", 值 + 回退栈)`，
-  空则 `removeProperty`。
+- 令牌供给链（index.html 加载序）：`css/noto-sans-sc.css`（外壳 Noto Sans SC VF 分片）
+  → `css/sys-tokens.css`（本仓库 --sys-* 原语）→
+  `palettes.css`（六板双侧色值）→ `lang/a.css`（A 语言皮肤
+  令牌：圆角/阴影/唇/边）→ `themes/light.css`+`dark.css`（焦点环/滚动条/选区/disabled）
+  → `css/sys-bridge.css`（应用变量 → --sys-*）
+  → 应用各 CSS。
+- 编辑区语法高亮为固定 Dracula 系；编辑区元素色（--el 族）经桥接随板。
+- 配置键 `palette` 默认 `a1`。`Config._load` 在旧文件缺该键或值为 phycat id 时，按 `palette_light`/`palette_dark` 与 `LEGACY_PALETTE_MAP` 写成 a1–a6。导出 HTML（api.py）与前端 `currentPalette()`（app.js）使用同一映射。
+- `font_ui` / `font_mono` 空字符串表示默认：外壳 `--sys-font-ui` 为 Noto Sans SC
+  （unicode-range 分片、`font-display: block`，末项 `sans-serif`）；正文默认霞鹜文楷，
+  等宽默认 Cascadia Code。`App.applyFonts` 非空时设置 `--font-body` / `--font-mono`。
 - 亮暗快捷键：`Ctrl+Shift+L` 复用工具栏主题按钮（`toggleTheme` → `applyConfig`）。
-- `#body` 必须 `position: relative`，否则 `#home`（`position:absolute; inset:0`）会锚定到视口盖住工具栏。
-- 弹窗 `Esc`：`App.registerEscape` 栈由 `bindShortcuts` 统一弹出（Palette / 查找条优先），设置/欢迎/确认/输入框/首页重命名都入栈，不要各自抢 `window.keydown`。
-- 确认框：`App.confirm({ title, message, okText, cancelText }) -> Promise<boolean>`，Esc=取消、Enter=确认（焦点在确定按钮上）。禁止再用 `window.confirm`。
+- **类名契约**：lang/a.css 组件皮肤带 `html[data-lang="a"]` 门控（优先级 (0,2,1)）。
+  按钮用体系类名 `.btn` / `.btn--primary` / `.btn--text`；徽章用体系 pill。
+  新增组件命名前先查 `vendor/ryuuji/styles/lang/a.css` 选择器，撞名时改用体系类名。
+- `#body` 为 `position: relative`，使 `#home`（`position:absolute; inset:0`）锚定在主区内、工具栏可见。
+- 弹窗 `Esc`：`App.registerEscape` 栈由 `bindShortcuts` 统一弹出（Palette / 查找条优先）；设置/欢迎/确认/输入框/首页重命名都入栈。
+- 确认框：`App.confirm({ title, message, okText, cancelText }) -> Promise<boolean>`，Esc=取消、Enter=确认。
 - Toast：`App.toast(msg, { type, duration })`，最多 3 条堆叠；文案含「失败」时自动 `error`（默认 4s，`--danger`）。
-- 状态栏 `#sb-views`：可读宽度 / 专注 / 打字机，点击等效命令面板对应命令，激活态 `var(--primary)`。
+- 状态栏 `#sb-views`：可读宽度 / 专注，点击等效命令面板对应命令，激活态 `var(--primary)`。
 - 工具栏窄窗：`1080px` / `960px` 两档隐藏 `.ib-label`，只留图标，`title` 补偿。
 
 **T12（设置弹窗）**：三个分组标签页，切换只显隐、不重渲染（避免云同步输入丢失）。
 
 | 分组 | 内容 |
 | --- | --- |
-| 通用 | 操作风格、启动时显示、默认 Markdown 应用、欢迎页、自动保存、日记目录 |
-| 外观 | 主题亮/暗、亮色配色 swatch、暗色配色 swatch、界面字体、等宽字体 |
+| 通用 | 操作风格、启动时显示、再次启动程序、默认 Markdown 应用、欢迎页、学习仓库、公式引擎、自动保存、日记目录 |
+| 外观 | 主题亮/暗、配色方案 6 swatch（写入 `palette`）、正文字体、等宽字体 |
 | 云同步 | 启用开关 + 现有 WebDAV 面板（`save_cloud_settings` 独立通道不动） |
 
-新增设置项应归入对应分组，不要再把所有项平铺成一行列表。
-可读宽度、专注、打字机、编辑区缩放仍走状态栏 / 命令面板，不占设置行。
-点亮色 swatch 只写 `palette_light`、不强制切亮色（点暗色同理）。
+新增设置项归入对应分组。可读宽度、专注模式、编辑区缩放走状态栏 / 命令面板。
+点色板 swatch 只写 `palette`。
 
 ## 5. 开发与调试
 
@@ -270,12 +271,12 @@ python main.py                        # 开发运行
 
 ```bash
 python run_tests.py                   # 单测 + E2E 全量
-python -m unittest tests.test_api tests.test_cloud tests.test_search -v
+python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts -v
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```
 
 - 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API/云同步/检索）；
-- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 67 项）；
+- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 90 项）；
 - 新增功能必须配套用例；中文注入断言一律用 `JV()`（json.dumps）；
 - 详见 `docs/TEST_PLAN.md`（含手动验证清单）。
 
@@ -288,7 +289,7 @@ bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同
 ```
 
 - Windows 脚本会先跑单元测试作门禁（`[2/5]` 步），单测不过则中止构建，E2E 需手动 `python run_tests.py`；
-- Mac 包用独立 `RyuuMD-mac.spec`（`BUNDLE` + `.icns`），**不要**改 Windows spec；
+- Mac 包用独立 `RyuuMD-mac.spec`（`BUNDLE` + `.icns`）；Windows 用对应 spec；
 - `start_webview()`（`main.py`）在 Windows 传 `gui=edgechromium`，其它平台不传 gui；
 - 新增的 `app/web` 静态资源自动随 `('app/web','app/web')` datas 打包；
 - 新增 Python 模块经 import 自动分析，无需改 spec；
@@ -296,11 +297,11 @@ bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同
 - 发布前过一遍 `docs/TEST_PLAN.md` 手动清单（含多窗口/关联/拖放真实操作）。
 - GitHub Actions：`.github/workflows/macos-pack.yml`，`v*` tag 或手动触发；产物未公证。
 
-### 7.1 防杀软误报
+### 7.1 打包指纹
 
-onefile exe 分发时曾被 Microsoft Defender 云端启发式误报。根因不是业务代码，而是官方预编译 PyInstaller bootloader 被恶意软件大量滥用，特征码进了各杀软库，连坐所有 PyInstaller 程序。
+目的：降低 onefile exe 被启发式杀软连坐的概率。官方预编译 PyInstaller bootloader 被滥用较多。
 
-**三层措施**（前两项已在 spec / 版本信息里落地；第三项是核心，必须在本机自编译后再打包）：
+**三层措施**（前两项在 spec / 版本信息里；第三项为本机自编译 bootloader 后再打包）：
 
 1. **关闭 UPX**：`RyuuMD-onefile.spec` / `RyuuMD.spec` 均 `upx=False`（及注释说明）。UPX 压缩是启发式误报的常见触发点。
 2. **写入版本信息资源**：`version_info.txt` 随打包写入 exe，避免「无版本信息的匿名载荷」观感。
@@ -308,7 +309,7 @@ onefile exe 分发时曾被 Microsoft Defender 云端启发式误报。根因不
 
 **自编译 bootloader（复现步骤）**
 
-源码目录约定在**仓库外**：`..\_pyinstaller_build`（不要放进本仓库）。需已安装 VS 2022（提供 MSVC）。
+源码目录约定在仓库外：`..\_pyinstaller_build`。需已安装 VS 2022（提供 MSVC）。
 
 ```powershell
 git clone --depth 1 --branch v6.21.0 https://github.com/pyinstaller/pyinstaller.git ..\_pyinstaller_build

@@ -215,6 +215,7 @@
     on("hq-new", () => { handlers.newDoc && handlers.newDoc(); });
     on("hq-open-file", () => handlers.openFileDialog && handlers.openFileDialog());
     on("hq-add-repo", addRepo);
+    on("hq-tutorial", () => handlers.openTutorial && handlers.openTutorial());
     on("repo-empty-add", addRepo);
 
     // 视图切换
@@ -353,8 +354,8 @@
           <input class="mm-input" id="mm-name" aria-label="仓库名称" value="${esc(repo.name)}" maxlength="60" />
         </div>
         <div class="modal-foot">
-          <button class="btn btn-ghost" id="mm-cancel">取消</button>
-          <button class="btn btn-primary" id="mm-ok">确定</button>
+          <button class="btn btn--text" id="mm-cancel">取消</button>
+          <button class="btn btn--primary" id="mm-ok">确定</button>
         </div>
       </div>`;
     modalMask.classList.add("open");

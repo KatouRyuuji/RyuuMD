@@ -1,18 +1,32 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-lang="a" data-theme="light" data-palette="sky">
+<html lang="zh-CN" data-lang="a" data-theme="light" data-palette="a1">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>RyuuMD</title>
   <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
+  <!-- 外壳 UI：Noto Sans SC 可变字重分片（SIL OFL）；字栈见 css/sys-tokens.css -->
+  <link rel="stylesheet" href="css/noto-sans-sc.css" />
+  <!-- 本仓库令牌原语（空间/字号/字体/动效/z 阶） -->
+  <link rel="stylesheet" href="css/sys-tokens.css" />
+  <!-- RyuujiDesign v6.1 体系层：色板 → 明暗主题件 -->
+  <link rel="stylesheet" href="vendor/ryuuji/styles/palettes.css" />
+  <link rel="stylesheet" href="vendor/ryuuji/styles/lang/a.css" />
+  <link rel="stylesheet" href="vendor/ryuuji/styles/themes/light.css" />
+  <link rel="stylesheet" href="vendor/ryuuji/styles/themes/dark.css" />
+  <!-- 桥接层：旧变量 → --sys-*（下游组件 CSS 零重写换新色板） -->
+  <link rel="stylesheet" href="css/sys-bridge.css" />
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/editor-theme.css" />
-  <link rel="stylesheet" href="css/themes.css" />
   <link rel="stylesheet" href="css/slash.css" />
   <link rel="stylesheet" href="css/home.css" />
   <link rel="stylesheet" href="css/palette.css" />
+  <!-- 组件皮肤层（新 A 配方），最后加载覆盖以上 -->
   <link rel="stylesheet" href="css/ryuuji-a.css" />
+  <!-- 动效工具类（hover-lift/press 等，reduced-motion 自带静态化） -->
+  <link rel="stylesheet" href="vendor/ryuuji/styles/motion.css" />
+  <link rel="stylesheet" href="vendor/ryuuji/styles/patterns.css" />
 </head>
 <body>
   <a class="skip-link" href="#editor-wrap">跳到编辑区</a>
@@ -32,11 +46,12 @@
       <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
       <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
       <button class="icon-btn" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
+      <button class="icon-btn" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
 
       <div class="tb-spacer"></div>
 
       <span class="tb-doc-name" id="doc-name">未打开文件</span>
-      <button class="icon-btn" id="btn-theme" title="切换主题 (Ctrl+Shift+L)" aria-label="切换主题"><span class="ib-icon" data-icon="moon"></span><span class="ib-label">主题</span></button>
+      <button class="icon-btn" id="btn-theme" title="切换主题 (Ctrl+Shift+L)" aria-label="切换主题"><span class="ib-icon" data-icon="moon"></span><span class="ib-label">深色</span></button>
       <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置"><span class="ib-icon" data-icon="gear"></span><span class="ib-label">设置</span></button>
     </div>
 
@@ -64,7 +79,7 @@
           <div class="side-empty" id="recent-empty">最近打开的文件和文件夹<br />会显示在这里</div>
           <div id="recent-list"></div>
           <div class="recent-foot" id="recent-foot" style="display:none">
-            <button class="btn btn-ghost" id="btn-clear-recent">清空列表</button>
+            <button class="btn btn--text" id="btn-clear-recent">清空列表</button>
           </div>
         </div>
         <div class="side-panel" id="panel-links" role="tabpanel" hidden>
@@ -102,7 +117,6 @@
             <div class="sb-views" id="sb-views">
               <button type="button" class="sb-view" id="sb-readable" data-icon="readable" title="可读宽度" aria-label="可读宽度" aria-pressed="false"></button>
               <button type="button" class="sb-view" id="sb-focus" data-icon="focus" title="专注模式" aria-label="专注模式" aria-pressed="false"></button>
-              <button type="button" class="sb-view" id="sb-typewriter" data-icon="typewriter" title="打字机模式" aria-label="打字机模式" aria-pressed="false"></button>
             </div>
             <div class="sb-modes" id="sb-modes" role="group" aria-label="编辑模式">
               <button class="sb-mode active" data-mode="ir" aria-pressed="true">渲染</button>
@@ -131,6 +145,10 @@
                 <span class="qc-icon" data-icon="folder"></span>
                 <span>添加仓库<span class="qc-desc">把目录作为笔记仓库</span></span>
               </button>
+              <button class="quick-card" id="hq-tutorial">
+                <span class="qc-icon" data-icon="books"></span>
+                <span>学习仓库<span class="qc-desc">交互式教程，边玩边学</span></span>
+              </button>
             </div>
           </header>
 
@@ -146,7 +164,7 @@
             <div id="repo-container" class="repo-grid"></div>
             <div class="home-empty" id="repo-empty" style="display:none">
               还没有仓库。仓库是你的笔记目录，添加后可在首页一键切换。<br />
-              <button class="btn btn-primary" id="repo-empty-add">添加第一个仓库</button>
+              <button class="btn btn--primary" id="repo-empty-add">添加第一个仓库</button>
             </div>
           </section>
 
@@ -154,7 +172,7 @@
             <div class="home-sec-head">
               <h2><span data-icon="clock"></span>最近打开</h2>
               <div class="home-sec-spacer"></div>
-              <button class="btn btn-ghost" id="home-clear-recent">清空</button>
+              <button class="btn btn--text" id="home-clear-recent">清空</button>
             </div>
             <div id="home-recent" class="home-recent"></div>
             <div class="home-empty" id="home-recent-empty" style="display:none">最近打开的文件和文件夹会显示在这里</div>

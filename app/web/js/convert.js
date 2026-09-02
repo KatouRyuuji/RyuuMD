@@ -8,16 +8,18 @@
 
    IR 模式：以顶层块为粒度。IR 的标记符是 width:0 的真实文本节点，
    故 textContent 即含 ** 等行内标记的完整 md 源码，逐块提取→变换→整段替换。
-   替换路径 = 选中块内容 → execCommand("delete") → insertValue：
-   与用户键入/斜杠插入同一条 Vditor 同步管线（input 回调、脏标记、撤销栈都正常），
-   避免只改 DOM 不改内部 model 导致被重渲染刷回（历史 checkbox 教训）。
-   表格/代码/数学等容器块：Vditor 会拦截 delete/insertText 并重建块壳（实测取证），
-   DOM 手术不可靠，统一走全文文本区间替换 + setValue 重载（见下文块操作区注释）。
+   替换路径分流：
+     - 纯段落/标题块：选中块内容 → execCommand("delete") → insertValue，
+       与用户键入同一条 Vditor 同步管线（input 回调、脏标记、撤销栈正常）；
+     - 含容器块（UL/OL/BLOCKQUOTE）：Vditor 会拦截 delete 并重建块壳
+       （插入内容落进壳里 →「- ## 甲」错位），统一走一次全文区间替换
+       （空行分段 ↔ 顶层块序对齐 + 首行校验 + setValue，代价是撤销栈重置）。
+   嵌套列表：每个 LI（任意深度）平铺为独立行——不保留缩进，但文本不丢不并。
 
    sv 模式：段落转换按选区整行做同一套文本变换；块操作不开放（纯文本场景意义不大）。
 
    粒度说明（KISS）：选区跨块时逐块独立转换；光标落在列表/引用内时转换整个
-   顶层列表/引用块（Typora 只转当前项，此处刻意简化，嵌套列表只剥一层标记）。
+   顶层列表/引用块（Typora 只转当前项，此处刻意简化，嵌套列表平铺为独立行）。
    不支持段落转换的块（表格/代码/数学块/分割线等）有各自的上下文操作组。 */
 (function () {
   /* 转换目标定义：id 即内部标识；h1~h6 动态生成 */
@@ -128,13 +130,16 @@
     return out;
   }
 
-  /* 元素文本还原为 md 行：<br> 还原换行，剔除零宽字符 */
+  /* 元素文本还原为 md 行：<br> 还原换行，剔除零宽字符；
+     嵌套容器（内层 UL/OL/BLOCKQUOTE）整棵子树跳过——其文本属于嵌套行，
+     各嵌套行单独成行。 */
   function textWithBreaks(el) {
     let out = "";
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode(n) {
         if (n.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
         if (n.tagName === "BR") return NodeFilter.FILTER_ACCEPT;
+        if (n !== el && /^(UL|OL|BLOCKQUOTE)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_SKIP;
       },
     });
@@ -145,10 +150,20 @@
     return out.replace(/\u200B/g, "");
   }
 
-  /* 块 → md 行数组。容器块（引用/列表）按直接子块逐行；其余按 <br> 拆行 */
+  /* 块 → md 行数组。列表：任意深度的每个 LI 贡献一行（直接文本；loose 项取首段 p），
+     嵌套结构平铺为独立行——粒度说明的「只剥一层」指不保留缩进，但文本不丢不并。
+     引用：直接子块逐行；其余块按 <br> 拆行 */
   function blockLines(el) {
     const tag = el.tagName;
-    if (tag === "BLOCKQUOTE" || tag === "UL" || tag === "OL") {
+    if (tag === "UL" || tag === "OL") {
+      return [...el.querySelectorAll("li")].map((li) => {
+        const own = textWithBreaks(li).trim();
+        if (own) return own;
+        const p = li.querySelector(":scope > p");
+        return p ? textWithBreaks(p) : "";
+      }).filter((s) => s !== "");
+    }
+    if (tag === "BLOCKQUOTE") {
       const kids = [...el.children].filter((c) => /^(P|LI|H[1-6])$/.test(c.tagName));
       if (kids.length) return kids.map((k) => textWithBreaks(k));
     }
@@ -170,10 +185,71 @@
   // 应用转换
   // ---------------------------------------------------------------
 
+  /* md 全文按空行分段（跳 ``` 围栏内部），段序与 IR 顶层块序一一对应。
+     loose list（项间空行）/ [toc] 等会破坏对齐——调用方须校验段数与块数。 */
+  function mdBlockRanges(lines) {
+    const ranges = [];
+    let start = -1;
+    let inFence = false;
+    lines.forEach((l, i) => {
+      if (/^\s*(```|~~~)/.test(l)) {
+        inFence = !inFence;
+        if (start < 0) start = i;
+        return;
+      }
+      if (inFence) return;
+      if (/^\s*$/.test(l)) {
+        if (start >= 0) { ranges.push([start, i]); start = -1; }
+      } else if (start < 0) start = i;
+    });
+    if (start >= 0) ranges.push([start, lines.length]);
+    return ranges;
+  }
+
+  /* 含容器块（UL/OL/BLOCKQUOTE）的转换：DOM 手术对容器不可靠（Vditor 拦截
+     delete 并重建块壳，插入内容落进壳里 →「- ## 甲」错位），统一走一次
+     全文区间替换（与表格/代码块操作同一路径，代价是撤销栈重置）。
+     对齐校验：段数 == 顶层块数，且每段首行与对应块首行一致（stripLine 后），
+     任一不符放弃（loose list 等场景宁可不转，也不能误改其它内容）。 */
+  function applyViaFullText(blocks, target, editor) {
+    const panel = irPanel();
+    const topBlocks = [...panel.children].filter(isTopBlock);
+    const lines = window.Editor.getValue().split("\n");
+    const ranges = mdBlockRanges(lines);
+    if (ranges.length !== topBlocks.length) return 0;
+    // 逐块预计算新区间文本（倒序 splice 用）
+    const jobs = [];
+    for (const b of blocks) {
+      const idx = topBlocks.indexOf(b);
+      if (idx < 0) return 0;
+      if (!kindOf(b)) return 0;
+      const segFirst = stripLine((lines.slice(ranges[idx][0], ranges[idx][1]).find((l) => l.trim() !== "")) || "").trim();
+      const blkFirst = stripLine(blockLines(b)[0] || "").trim();
+      if (segFirst !== blkFirst) return 0;
+      const text = transform(blockLines(b), target);
+      if (!text) return 0;
+      jobs.push({ idx, text });
+    }
+    const ratio = window.Editor.getScrollRatio();
+    jobs.sort((a, b) => b.idx - a.idx); // 倒序 splice：区间互不干扰
+    for (const j of jobs) {
+      const [s, e] = ranges[j.idx];
+      lines.splice(s, e - s, ...j.text.replace(/\n+$/, "").split("\n"));
+    }
+    editor.setValue(lines.join("\n"));
+    window.Editor.notifyChange();
+    setTimeout(() => window.Editor.setScrollRatio(ratio), 120);
+    return jobs.length;
+  }
+
   function applyIR(target, editor) {
     const panel = irPanel();
     const sel = window.getSelection();
     const blocks = collectBlocks(panel, sel);
+    // 含容器块 → 一次全文替换；纯段落/标题 → DOM 手术（局部刷新、保撤销栈）
+    if (blocks.some((b) => /^(UL|OL|BLOCKQUOTE)$/.test(b.tagName))) {
+      return applyViaFullText(blocks, target, editor);
+    }
     let done = 0;
     // 倒序处理：每次替换只重渲染当前块，倒序保证其余块的元素引用不被波及
     for (let i = blocks.length - 1; i >= 0; i--) {

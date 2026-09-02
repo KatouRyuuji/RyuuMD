@@ -5,6 +5,9 @@
 
 ## 特性
 
+- **内置学习仓库**：首次启动自动注册「学习仓库」到首页 —— 交互式教程（6 章边玩边学）+
+  `example.md` 全功能渲染大观园；副本位于用户数据目录，随意涂改不影响内置原件，
+  随时可从首页快速卡或设置 → 通用重新打开。
 - **即时渲染**：基于 Vditor IR 模式，所见即所得，接近 Typora 体验；渲染/源码切换保持阅读位置不跳。
 - **软件首页**：启动即见的工作台 —— 问候语、快速操作、仓库列表（**卡片 / 列表双视图**）、
   最近打开（**最近 3 个文件单独成卡**，文件夹等归入「其他」分组）；在各笔记目录间一键切换。
@@ -21,7 +24,7 @@
   `Ctrl+Shift+F` 搜索文件名与正文（对标 Obsidian / VS Code）。
 - **粘贴即图**：粘贴或拖入图片落到 `{文件名}.assets/`（Typora 同款），正文插入相对路径并正确显示。
 - **双向链接**：`[[笔记名]]`，Ctrl+单击或点击已高亮链接即可跳转；键入 `[[` 可过滤仓库笔记；侧栏「链接」页显示反向链接与链出。
-- **每日笔记 / 自动保存 / 专注模式 / 导出 HTML**：`Ctrl+Shift+D` 打开今日日记；已保存文档停止输入后自动写盘；命令面板可开关专注模式、打字机模式、导出独立 HTML。
+- **每日笔记 / 自动保存 / 专注模式 / 导出 HTML**：`Ctrl+Shift+D` 打开今日日记；已保存文档停止输入后自动写盘；命令面板可开关专注模式、导出独立 HTML。
 - **斜杠命令菜单**：按 `/` 唤起，上下箭头选择，`Tab`/`Enter` 插入（Notion 风格）；
   编辑区右键唤起同一面板，顶部带**剪贴板组**（复制/剪切/粘贴，无选区时前两项置灰）。
   支持 1~6 级标题、图片、脚注、链接、分割线、表格、代码块、公式块、行内公式、内容目录、引用、加粗、斜体、有序/无序/待办列表。
@@ -37,7 +40,7 @@
 - **双操作风格**，设置中随时切换，首次启动弹窗选择：
   - **Typora + Notion**（默认）：英文 / 符号触发，如 `/h1`、`#`、`/table`。
   - **Typora + Wolai**：拼音缩写触发，如 `/bt1`、`/dmk`、`/lb`、`/wxlb`。
-- **phycat 配色**：亮色 sky（核心蓝）、暗色 vampire（吸血鬼红），现代扁平。
+- **RyuujiDesign 配色**：A 语言六板（霜纸靛蓝 / 和红 / 藤色 / 柳染 / 水浅葱 / 樱花），每板自带明暗双态，明暗对切自动换面。
 - **目录 / 大纲 / 最近 / 链接侧栏**：浏览文件夹中的 md，文档大纲实时生成、点击跳转；最近打开列表快速回访；链接页展示反向链接。
 - **文件树管理**：右键文件可重命名、移动、在资源管理器中显示、删除（回收站）；
   右键文件夹可新建笔记 / 文件夹。`Ctrl+P` 输入新名也可直接新建。
@@ -64,11 +67,12 @@ python main.py
 
 ## 打包
 
-一键打包（自动装依赖 + 单测门禁 + 清理 + 构建；单测不过会中止），两种模式：
+一键打包（自动结束运行中的 RyuuMD + 装依赖 + 单测门禁 + 清理 + 构建；单测不过会中止），两种模式：
 
 ```bash
-build.bat            REM 单文件 onefile（默认）
-build.bat onedir     REM 单文件夹 onedir
+build.bat                    REM 单文件 onefile（默认）
+build.bat onedir             REM 单文件夹 onedir
+build.bat onefile nopause    REM 脚本/CI 调用：结尾不等按键（或设 RYUUMD_NOPAUSE=1）
 ```
 
 或手动：
@@ -81,8 +85,8 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 
 | 模式 | 产物 | 体积 | 启动 | 适用 |
 | --- | --- | --- | --- | --- |
-| onedir（默认） | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 75 MB | 快 | 整目录拷贝分发 |
-| onefile | `dist/RyuuMD.exe`（单个文件） | 约 33 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
+| onedir（默认） | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 85 MB | 快 | 整目录拷贝分发 |
+| onefile | `dist/RyuuMD.exe`（单个文件） | 约 42 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
 
 两种产物互不覆盖，可同时存在于 `dist/`。
 
@@ -135,7 +139,7 @@ Mac 上修饰键为 `⌘`（与下表 `Ctrl` 对应）。
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（108 项），再跑真实窗口端到端测试（63 项）。
+先跑 Python API 单元测试（126 项），再跑真实窗口端到端测试（90 项）。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
 测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
 
@@ -170,10 +174,10 @@ app/web/vendor/vditor/  内置 Vditor 全量资源
 配置写入 `%APPDATA%/RyuuMD/config.json`：
 
 - `operation_style`：`notion` | `wolai`
-- `theme`：`light` | `dark`（基础明暗；配色见 palette_*）
-- `palette_light`：亮色配色，默认 `sky`（cherry/caramel/forest/mint/sky/prussian/sakura/mauve）
-- `palette_dark`：暗色配色，默认 `vampire`（vampire/radiation/abyss）
-- `font_ui` / `font_mono`：界面/等宽字体，空 = 主题默认（霞鹜文楷 / Cascadia Code）
+- `theme`：`light` | `dark`（基础明暗）
+- `palette`：配色方案，默认 `a1`（a1 霜靛 / a2 和红 / a3 藤色 / a4 柳染 / a5 水浅葱 / a6 樱花；每板自带明暗双态。旧 `palette_light`/`palette_dark` 的 phycat id 读取时自动映射迁移）
+- `font_ui` / `font_mono`：正文字体/等宽字体，空 = 默认（外壳固定 Noto Sans SC，正文霞鹜文楷 / Cascadia Code）
+- `math_engine`：`katex`（默认，快）| `mathjax`（Typora 同款，兼容更多宏）
 - `display_mode`：`ir`（渲染）| `sv`（源码）
 - `startup_page`：`home`（始终首页，默认）| `restore`（恢复上次会话）
 - `home_view`：`card`（卡片）| `list`（列表），首页仓库视图偏好

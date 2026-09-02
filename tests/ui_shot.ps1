@@ -22,6 +22,9 @@ public class WinCap {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr w, IntPtr l);
+  /* 进程默认 DPI-unaware 时 GetWindowRect 返回虚拟化（缩小）坐标，而 PrintWindow
+     按物理像素渲染 WebView2 —— 位图只有逻辑宽，右/下被裁。须先声明 DPI aware。 */
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
   public const uint WM_CLOSE = 0x0010;
   public static List<IntPtr> Find(string needle, uint pid) {
@@ -40,6 +43,8 @@ public class WinCap {
   }
 }
 "@
+
+[void][WinCap]::SetProcessDPIAware()
 
 if ($Close) {
   $wins = [WinCap]::Find($Title, 0)

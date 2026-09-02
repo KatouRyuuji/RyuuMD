@@ -106,7 +106,7 @@ class TestWikilink(unittest.TestCase):
         cur = str(self.root / "sub" / "详情.md")
         same = self.api.resolve_wikilink(str(self.root), "首页", cur)
         self.assertTrue(same["ok"] and same["exists"])
-        self.assertEqual(Path(same["path"]).resolve().parent, (self.root / "sub").resolve())
+        self.assertEqual(Path(same["path"]).parent, self.root / "sub")
 
         rel = self.api.resolve_wikilink(str(self.root), "详情", str(self.root / "首页.md"))
         self.assertTrue(rel["exists"])
@@ -180,9 +180,9 @@ class TestSaveImageAndDaily(unittest.TestCase):
         self.assertIn("&lt;脚本&gt;", doc)
         self.assertIn("<p>正文</p>", doc)
         self.assertTrue(doc.startswith("<!DOCTYPE html>"))
-        # 未传 config 时回退 sky，避免老调用方丢默认配色
-        self.assertIn("#3498db", doc)
-        self.assertIn("#2c3e50", doc)
+        # 未传 config 时回退 a1 亮色（v6.1 霜靛），避免老调用方丢默认配色
+        self.assertIn("#4a51e8", doc)
+        self.assertIn("#29313d", doc)
 
     def test_wrap_html_export_follows_palette_and_font(self):
         doc = wrap_html_export(
@@ -195,11 +195,12 @@ class TestSaveImageAndDaily(unittest.TestCase):
                 "font_mono": "Consolas",
             },
         )
-        self.assertIn("#00f3ff", doc)
-        self.assertIn("#0f111a", doc)
+        # 旧 phycat id abyss 经映射表迁到 a5（水浅葱）暗色
+        self.assertIn("#21827e", doc)
+        self.assertIn("#0f1516", doc)
         self.assertIn("KaiTi", doc)
         self.assertIn("Consolas", doc)
-        self.assertNotIn("#3498db", doc)
+        self.assertNotIn("#4a51e8", doc)
 
 
 class TestTemplates(unittest.TestCase):

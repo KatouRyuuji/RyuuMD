@@ -27,9 +27,7 @@
   async function boot() {
     window.renderIconButtons();
 
-    // 按钮/快捷键/拖放绑定「前置」：不依赖后端通道。
-    // 历史 bug：绑定排在 await 链之后，js_api 注入超时/异常时任一前置步骤失败，
-    // 后续绑定永远不执行 → 启动后所有按钮无响应（间歇性，重启碰运气）。
+    // 按钮/快捷键/拖放在等待后端之前绑定，保证桥迟到时 UI 仍可点。
     bindToolbar();
     bindModeBar();
     bindViewToggles();
@@ -38,9 +36,7 @@
     bindDragDrop();
     bindPasteImages();
 
-    // 后端通道兜底：js_api 注入偶发迟到（慢盘/杀软扫描时子窗口注入可达数秒级）。
-    // 历史 bug：8s 超时放弃 → 桥随后才到 → 窗口沦为僵尸（toast「后端连接异常」
-    // + 首页无数据）。改为永久等待 + 「正在连接后端」可视反馈 + 手动重载出口。
+    // js_api 注入可能迟到。永久等待桥就绪；2.5s 后显示「正在连接后端」，并提供重新加载。
     const pendingTimer = setTimeout(showBackendPending, 2500);
     try {
       await waitForApi();
@@ -59,7 +55,6 @@
     applyReadable(!!state.config.readable_width, true);
     applySidebarWidth(state.config.sidebar_width || 256);
     if (state.config.focus_mode) applyFocusVisual(true);
-    if (state.config.typewriter_mode) window.Editor.toggleTypewriter(true);
     syncViewToggles();
     window.SlashMenu.setStyle(state.config.operation_style);
     window.Editor.setOpStyle(state.config.operation_style);
@@ -83,6 +78,7 @@
       openPath: openRecentItem,
       newDoc,
       openFileDialog: openFile,
+      openTutorial,
       toast,
     });
 
@@ -125,14 +121,14 @@
     decideStartup();
   }
 
-  // 后端不可用时的最小配置（welcome_shown=true：异常时不再弹欢迎窗添乱）
+  // 后端不可用时的最小配置（welcome_shown=true：跳过欢迎窗）
   function defaultConfig() {
     return {
-      theme: "light", palette_light: "sky", palette_dark: "vampire",
+      theme: "light", palette: "a1",
       font_ui: "", font_mono: "",
       operation_style: "notion", display_mode: "ir",
       welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
-      readable_width: false, sidebar_width: 256, focus_mode: false, typewriter_mode: false,
+      readable_width: false, sidebar_width: 256, focus_mode: false,
       startup_page: "home",
     };
   }
@@ -271,7 +267,7 @@
 
   function scheduleFontLoad() {
     // 首屏已出（首页显示或编辑器就绪，取先到者）后再挂 25MB 字体，
-    // 加载前走 --font-ui 系统字体回退，swap 后自动换。
+    // 加载前走 --font-body/--font-mono 里的系统字体回退，swap 后自动换。
     if (scheduleFontLoad._done) return;
     scheduleFontLoad._done = true;
     const inject = function () {
@@ -290,7 +286,15 @@
 
   async function decideStartup() {
     try {
-      if (!state.config.welcome_shown) await runWelcome();
+      if (!state.config.welcome_shown) {
+        await runWelcome();
+        // 首启把内嵌学习仓库注册进首页（静默、幂等；须在 Home.show() 前完成，
+        // 首页列表在 show 时拉取）
+        try {
+          const a = api();
+          if (a && a.open_tutorial) await a.open_tutorial();
+        } catch (e) { /* 注册失败不影响启动 */ }
+      }
 
       // 命令行/拖到图标/单实例转发/新窗口传入的初始路径优先。
       // 向后端主动拉取（每窗口独立），消除 evaluate_js 注入的时序竞态。
@@ -329,7 +333,7 @@
     }
   }
 
-  // 欢迎窗口完整流程：展示 → 持久化所选操作风格与「不再显示」。
+  // 欢迎窗口：展示 → 持久化所选操作风格与 welcome_shown。
   // 首次启动（decideStartup）与「设置 → 欢迎页」共用同一入口。
   async function runWelcome() {
     const res = await window.Welcome.show(state.config.operation_style);
@@ -606,7 +610,6 @@
   function bindViewToggles() {
     on("sb-readable", () => toggleReadable());
     on("sb-focus", () => toggleFocus());
-    on("sb-typewriter", () => toggleTypewriter());
   }
 
   function syncViewToggles() {
@@ -614,7 +617,6 @@
     const map = {
       "sb-readable": wrap && wrap.classList.contains("readable-width"),
       "sb-focus": wrap && wrap.classList.contains("focus-mode"),
-      "sb-typewriter": wrap && wrap.classList.contains("typewriter-mode"),
     };
     Object.keys(map).forEach((id) => {
       const el = document.getElementById(id);
@@ -726,6 +728,7 @@
     on("btn-save", save);
     on("btn-search", () => window.Palette.openSearch());
     on("btn-new-window", openNewWindow);
+    on("btn-reveal", revealCurrentDir);
     on("btn-theme", toggleTheme);
     on("btn-settings", openSettings);
     on("btn-clear-recent", clearRecent);
@@ -811,6 +814,19 @@
     }
   }
 
+  /* 打开内嵌学习仓库：后端幂等复制到用户数据目录并注册为仓库，
+     前端打开该工作区并加载导读文档。 */
+  async function openTutorial() {
+    const a = apiOrToast();
+    if (!a || !a.open_tutorial) return;
+    if (!(await maybeConfirmDiscard())) return;
+    const res = await a.open_tutorial();
+    if (!res.ok) { toast(res.error || "无法打开学习仓库"); return; }
+    await openPath(res.path);
+    const f = await a.read_file(res.entry);
+    if (f.ok) await loadDoc(f);
+  }
+
   async function setEditorMode(m) {
     if (!(await ensureEditor())) return;
     window.Editor.setMode(m);
@@ -834,7 +850,7 @@
     const persist = Object.assign({}, partial);
     delete persist.cloud_sync;
     if (a && Object.keys(persist).length) await a.update_config(persist);
-    if ("theme" in partial || "palette_light" in partial || "palette_dark" in partial) {
+    if ("theme" in partial || "palette" in partial) {
       applyTheme(state.config.theme);
     }
     if ("font_ui" in partial || "font_mono" in partial) applyFonts();
@@ -849,10 +865,6 @@
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
     if ("focus_mode" in partial) applyFocusVisual(!!partial.focus_mode);
-    if ("typewriter_mode" in partial) {
-      window.Editor.toggleTypewriter(!!partial.typewriter_mode);
-      syncViewToggles();
-    }
     if ("sidebar_width" in partial) applySidebarWidth(partial.sidebar_width);
   }
 
@@ -973,22 +985,30 @@
   // ---------------------------------------------------------------
   // 主题
   // ---------------------------------------------------------------
-  const LIGHT_PALETTES = ["cherry", "caramel", "forest", "mint", "sky", "prussian", "sakura", "mauve"];
-  const DARK_PALETTES = ["vampire", "radiation", "abyss"];
-  const FONT_UI_FALLBACK = '-apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif';
+  // RyuujiDesign v6.1 A 语言色板（每板自带明暗双态，见 vendor/ryuuji/styles/palettes.css）
+  const PALETTES = ["a1", "a2", "a3", "a4", "a5", "a6"];
+  // 旧 phycat id → 最近似新板（一次性迁移；与 api.py _LEGACY_PALETTE_MAP 保持一致）
+  const LEGACY_PALETTE_MAP = {
+    cherry: "a2", vampire: "a2", caramel: "a2", sakura: "a6", mauve: "a3",
+    mint: "a5", abyss: "a5", forest: "a4", radiation: "a4",
+    sky: "a1", prussian: "a1",
+  };
+  /* 外壳字体为 --sys-font-ui（Noto Sans SC）。
+     font_ui 配置写入 --font-body，只影响编辑器正文。 */
+  const FONT_BODY_FALLBACK = '"LXGW WenKai", "Noto Sans SC", sans-serif';
   const FONT_MONO_FALLBACK = '"JetBrains Mono", Consolas, monospace';
 
   function themeMode() {
     return state.config.theme === "dark" ? "dark" : "light";
   }
 
-  function currentPalette(mode) {
-    if (mode === "dark") {
-      const p = state.config.palette_dark || "vampire";
-      return DARK_PALETTES.indexOf(p) >= 0 ? p : "vampire";
-    }
-    const p = state.config.palette_light || "sky";
-    return LIGHT_PALETTES.indexOf(p) >= 0 ? p : "sky";
+  /* 当前色板 id：读 config.palette；旧配置（phycat palette_light/dark）经映射迁移 */
+  function currentPalette() {
+    let p = state.config.palette;
+    if (PALETTES.indexOf(p) >= 0) return p;
+    const legacy = p || (themeMode() === "dark" ? state.config.palette_dark : state.config.palette_light);
+    p = LEGACY_PALETTE_MAP[legacy] || "a1";
+    return p;
   }
 
   function quoteFontFamily(name) {
@@ -1002,10 +1022,10 @@
 
   function applyFonts() {
     const style = document.documentElement.style;
-    const ui = ((state.config && state.config.font_ui) || "").trim();
+    const body = ((state.config && state.config.font_ui) || "").trim();
     const mono = ((state.config && state.config.font_mono) || "").trim();
-    if (ui) style.setProperty("--font-ui", quoteFontFamily(ui) + ", " + FONT_UI_FALLBACK);
-    else style.removeProperty("--font-ui");
+    if (body) style.setProperty("--font-body", quoteFontFamily(body) + ", " + FONT_BODY_FALLBACK);
+    else style.removeProperty("--font-body");
     if (mono) style.setProperty("--font-mono", quoteFontFamily(mono) + ", " + FONT_MONO_FALLBACK);
     else style.removeProperty("--font-mono");
   }
@@ -1014,10 +1034,12 @@
     const mode = theme === "dark" ? "dark" : "light";
     const root = document.documentElement;
     root.setAttribute("data-theme", mode);
-    root.setAttribute("data-palette", currentPalette(mode));
-    // 只替换按钮内的图标容器，保留旁边的「主题」文字
+    root.setAttribute("data-palette", currentPalette());
+    // 按钮展示「点击后切到」的目标态：亮色下显示 月亮+深色，暗色下显示 太阳+亮色
     const themeIcon = document.querySelector("#btn-theme .ib-icon");
     if (themeIcon) themeIcon.innerHTML = window.ICONS[mode === "dark" ? "sun" : "moon"];
+    const themeLabel = document.querySelector("#btn-theme .ib-label");
+    if (themeLabel) themeLabel.textContent = mode === "dark" ? "亮色" : "深色";
     window.Editor.setTheme(mode);
   }
 
@@ -1282,7 +1304,6 @@
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
       { id: "theme", title: "切换主题", keys: "Ctrl+Shift+L", group: "视图", run: toggleTheme },
       { id: "focus", title: "专注模式", keys: "", group: "视图", run: toggleFocus },
-      { id: "typewriter", title: "打字机模式", keys: "", group: "视图", run: toggleTypewriter },
       { id: "readable", title: "切换可读宽度", keys: "", group: "视图", run: toggleReadable },
       { id: "fold-all", title: "折叠全部目录", keys: "", group: "视图", run: () => foldTree(true) },
       { id: "unfold-all", title: "展开全部目录", keys: "", group: "视图", run: () => foldTree(false) },
@@ -1322,13 +1343,6 @@
 
   function adjustZoom(delta) {
     applyZoom(((state.config && state.config.editor_zoom) || 100) + delta);
-  }
-
-  function toggleTypewriter() {
-    const on = window.Editor.toggleTypewriter();
-    applyConfig({ typewriter_mode: on });
-    syncViewToggles();
-    toast(on ? "已进入打字机模式" : "已退出打字机模式");
   }
 
   function applyReadable(on, silent) {
@@ -1570,6 +1584,15 @@
     if (!ok) toast("当前文件不在目录树中");
   }
 
+  /* 在资源管理器中打开当前文件所在目录（reveal_in_explorer 对文件走 /select 选中） */
+  async function revealCurrentDir() {
+    if (!state.currentPath) { toast("未打开已保存的文件"); return; }
+    const a = apiOrToast();
+    if (!a || !a.reveal_in_explorer) return;
+    const res = await a.reveal_in_explorer(state.currentPath);
+    if (res && !res.ok) toast(res.error || "无法打开资源管理器");
+  }
+
   function newNoteBeside() {
     const dir = state.currentPath ? dirname(state.currentPath) : state.currentFolder;
     newNoteInFolder(dir);
@@ -1724,8 +1747,8 @@
             <input class="mm-input" id="pm-input" aria-label="${esc(title)}" maxlength="${maxLen || 120}" />
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" id="pm-cancel">取消</button>
-            <button class="btn btn-primary" id="pm-ok">确定</button>
+            <button class="btn btn--text" id="pm-cancel">取消</button>
+            <button class="btn btn--primary" id="pm-ok">确定</button>
           </div>
         </div>`;
       mask.classList.add("open");
@@ -1908,8 +1931,8 @@
             <p class="confirm-msg">${esc(message)}</p>
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" id="cf-cancel">${esc(cancelText)}</button>
-            <button class="btn btn-primary" id="cf-ok">${esc(okText)}</button>
+            <button class="btn btn--text" id="cf-cancel">${esc(cancelText)}</button>
+            <button class="btn btn--primary" id="cf-ok">${esc(okText)}</button>
           </div>
         </div>`;
       mask.classList.add("open");
@@ -1992,6 +2015,9 @@
     exportHtml,
     toggleFocus,
     newNoteInFolder,
+    openTutorial,
+    revealCurrentDir,
+    hasSavedFile: () => !!state.currentPath,
     adjustZoom,
     applyZoom,
     applyReadable,

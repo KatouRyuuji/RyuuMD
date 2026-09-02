@@ -1,0 +1,1060 @@
+/* =============================================================================
+   lang/a.css — 语言 A 造型层(柔纹和风 · 纸)
+   -----------------------------------------------------------------------------
+   颜色见 styles/palettes.css(已锁定)。本文件只写纸感完成度。
+   方向已批准:圆角纸面、接触影、纹样作腰封。这里补的是局部细节,不是改方向。
+   v3.4: A 层高还原 Linea Prompt(DESIGN-v3.4 §2 全 11 条)——形全拿,色与字体走令牌。
+   v3.5: 组件级高还原(DESIGN-v3.5 §1.0–§1.10)——发丝边/签名浮层影/实色近似表面/
+        新缓动,逐件翻译 Linea 实测配方;全部 color-mix 取令牌透明度,零新 hex。
+   v5: 全面对标 Linea Prompt 重做(DESIGN-v4「v5 全面重做」)——字体粗细回摆
+       (按钮/标题 700→600,仅大数字留 700)、圆角对档(lg=8/2xl=14)、
+       选中行实心化(primary 底 + on-primary 字,Linea .summon-row-active/
+       .manager-rows div.active 实测)、chip/pill 全件 Linea 配方(9% 底 +
+       primary-ink 字 + 22% 边 + 999)、display 字距 0(.display-type 实测)。
+   红线: 零 backdrop-filter、零辉光、零吉祥物、不改色值 hex、不伤 B。
+   ========================================================================== */
+
+html[data-lang="a"] {
+  --sys-radius-sm: 4px;
+  --sys-radius-md: 8px;
+  /* v5 圆角对 Linea 档(:root 令牌块实测): lg = --radius-lg .5rem = 8
+     (同 --radius-control 8);2xl = --radius-panel 14(浮层面板最大档) */
+  --sys-radius-lg: 8px;
+  --sys-radius-xl: 12px;
+  --sys-radius-2xl: 14px;
+  --sys-radius-3xl: 14px;
+  --sys-radius-pill: 999px;
+  --sys-cut: 0;
+  --sys-measure: 68ch;
+  --sys-eyebrow-track: 0.14em;
+  /* 纸槽(§3.1): 名称门控(§2.7)要求非零 blur 只能住 --sys-shadow-* 命名内,
+     故本体落 --sys-shadow-paper-well,--sys-paper-well 作契约名引用(值同源) */
+  --sys-shadow-paper-well: inset 0 1px 1px rgb(26 31 36 / 0.04);
+  --sys-paper-well: var(--sys-shadow-paper-well);
+  --sys-paper-lip: inset 0 1px 0 var(--sys-surface);
+  /* v3.5 §1.0: Linea 实测缓动 cubic-bezier(0.2,0.72,0.2,1) 全线替换
+     (语言层覆盖,不动 tokens.css 令牌库;B 侧不受波及) */
+  --sys-ease-smooth: cubic-bezier(0.2, 0.72, 0.2, 1);
+  /* v3.5 §1.0 发丝边(Linea rgba(61,77,99,.13)): text 令牌随主题翻转,亮暗自适应;
+     13% 常规 / 24% hover 浓边(卡 hover 不加深影,只浓边) */
+  --sys-edge-a: color-mix(in srgb, var(--sys-text) 13%, transparent);
+  --sys-edge-a-strong: color-mix(in srgb, var(--sys-text) 24%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   v3.5 §1.0 皮肤令牌(亮暗双块,A ← Linea 实测翻译;全部 color-mix,零 hex)
+   --sys-shadow-lift  签名浮层影 0 26px 70px -46px(名称门控合规:
+                      非零 blur 只住 --sys-shadow-* 命名内,组件层一律 var() 引用)
+   --sys-paper-lip    顶唇并入既有契约名: 亮提 86%(Linea inset white .86)/ 暗 8%
+   --sys-surface-*    表面实色近似(Linea 用 backdrop-blur,我们禁,实色翻译):
+                      pill 82% 浮动导航 / ctl 62% 次钮·输入;
+                      ctl-hover = 底浓 +10pp(hover 不换色,只浓底);
+                      hover = 行 hover 档(v5,Linea --surface-hover 实色近似)
+   (v5: chip 52% 档随 chip/pill 全件改 Linea primary 9% 配方而退役)
+   --------------------------------------------------------------------------- */
+html[data-lang="a"][data-theme="light"] {
+  --sys-shadow-lift: 0 26px 70px -46px color-mix(in srgb, var(--sys-text) 46%, transparent);
+  --sys-paper-lip: inset 0 1px 0 color-mix(in srgb, #fff 86%, transparent);
+  --sys-surface-pill: color-mix(in srgb, #fff 82%, var(--sys-bg));
+  --sys-surface-ctl: color-mix(in srgb, #fff 62%, var(--sys-bg));
+  --sys-surface-ctl-hover: color-mix(in srgb, #fff 72%, var(--sys-bg));
+  /* v5 行 hover 档(Linea --surface-hover #ffffffe6 实测): 未选中行 hover
+     = 近白实色近似,与选中行实心靛蓝拉开层级 */
+  --sys-surface-hover: color-mix(in srgb, #fff 72%, var(--sys-bg));
+}
+html[data-lang="a"][data-theme="dark"] {
+  /* 暗场影靠黑不靠色相(同 §2-3 暗色同构原则);实色近似收敛 surface 92% 叠底单式 */
+  --sys-shadow-lift: 0 26px 70px -46px rgb(0 0 0 / 0.55);
+  --sys-paper-lip: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent);
+  --sys-surface-pill: color-mix(in srgb, var(--sys-surface) 92%, var(--sys-bg));
+  --sys-surface-ctl: color-mix(in srgb, var(--sys-surface) 92%, var(--sys-bg));
+  --sys-surface-ctl-hover: var(--sys-surface);
+  /* 暗场行 hover(Linea 暗侧栏 rgba(255,255,255,.1) 实测降档): 白 8% 叠 surface,
+     深底上可见而不抢实心选中行 */
+  --sys-surface-hover: color-mix(in srgb, #fff 8%, var(--sys-surface));
+}
+/* regular / 默认对齐 0.075;whisper/strong 仍走 patterns.css 档
+   (:not 守卫与 b.css 同型——缺它时未分层默认值恒压 @layer 档位,§1.6 三档失效) */
+html[data-lang="a"]:not([data-pattern-opacity]),
+html[data-lang="a"][data-pattern-opacity="regular"] {
+  --sys-pattern-opacity: 0.075;
+}
+
+/* ---------------------------------------------------------------------------
+   §2-1 结构纸感底纹(v3.4,对 Linea 的 80px 方格): A 全页背景 = 纸底 + 1px 方格
+   双线性渐变织格,挂 body,随内容滚动(local)。
+   ⚠ 这是结构纸感底纹,不是纹样槽: 不消费 --sys-pattern-fg/--sys-pattern-opacity、
+   不占 §1.4 纹样槽位、不计纹样面积配额;纹样槽纪律(patterns.css 槽白名单)不变。
+   格色只引 --sys-border(锁板令牌,不改 hex):
+   亮 = border 55% 透明度,隐约可见;暗 = 同构降明度(40%),深底上不抢白卡浮层感。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"][data-theme="light"] {
+  --sys-grid-line: color-mix(in srgb, var(--sys-border) 55%, transparent);
+}
+html[data-lang="a"][data-theme="dark"] {
+  --sys-grid-line: color-mix(in srgb, var(--sys-border) 40%, transparent);
+}
+html[data-lang="a"] body {
+  background-image: linear-gradient(to right, var(--sys-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--sys-grid-line) 1px, transparent 1px);
+  background-size: 80px 80px;
+  background-attachment: local;
+}
+
+html[data-lang="a"][data-theme="light"] {
+  /* v3.4 §2-3 Linea 双层软影配方(同色 6%): 近景接触层 0 1px 2px + 远景浮层 0 8px 24px;
+     名称门控(§2.7)合规——非零 blur 只住 --sys-shadow-* 命名内,组件层一律 var() 引用。
+     档差: sm 静息 / md hover +1 档 / lg 浮层(模态/cmdk) */
+  --sys-shadow-sm: 0 1px 2px rgb(26 31 36 / 0.06),
+    0 8px 24px rgb(26 31 36 / 0.06);
+  --sys-shadow-md: 0 2px 4px rgb(26 31 36 / 0.07),
+    0 12px 32px rgb(26 31 36 / 0.08);
+  --sys-shadow-lg: 0 2px 6px rgb(26 31 36 / 0.08),
+    0 16px 40px rgb(26 31 36 / 0.1);
+}
+/* A 亮纹样功能性(W5 复审回流): fg 由 primary 改指 primary-ink(同为锁文件 hex,
+   不改色值只改令牌指向)——亮底上 0.075 钳内有效对比约翻倍,
+   达成 §9「三秒后察觉纹」;暗档 fg 本已高亮,不动。
+   双选择器对齐 palettes.css 0-3-1 特定度(本文件后载,平级后赢) */
+html[data-lang="a"][data-theme="light"][data-palette],
+html[data-lang="a"][data-theme="light"]:not([data-palette]) {
+  --sys-pattern-fg: var(--sys-primary-ink);
+}
+
+html[data-lang="a"][data-theme="dark"]:not([data-pattern-opacity]),
+html[data-lang="a"][data-theme="dark"][data-pattern-opacity="regular"] {
+  --sys-pattern-opacity: 0.06;
+}
+
+html[data-lang="a"][data-theme="dark"] {
+  /* v3.4 §2-3 暗色同构: 同款双层结构,黑影降明度(暗底影靠透明度读,不靠色相) */
+  --sys-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3),
+    0 8px 24px rgb(0 0 0 / 0.24);
+  --sys-shadow-md: 0 2px 4px rgb(0 0 0 / 0.34),
+    0 12px 32px rgb(0 0 0 / 0.28);
+  --sys-shadow-lg: 0 2px 6px rgb(0 0 0 / 0.38),
+    0 16px 40px rgb(0 0 0 / 0.32);
+}
+
+/* ---------------------------------------------------------------------------
+   腰封: 高度唯一来源 --sys-band-h(§1.4-① ≤20px;基座 .deco-band 在 patterns.css)
+   四个历史带类在页面/组件层仍有残留高度声明(index.html:37 / layouts.css:41 /
+   forms.css:542 / components.css:2309),此处收编到令牌作安全网,残留清除后可撤
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .hero-band,
+html[data-lang="a"] .deco-hero > .deco-hero__pattern,
+html[data-lang="a"] .page-head > .page-head__ptn,
+html[data-lang="a"] .demo-head__ptn {
+  height: var(--sys-band-h);
+}
+
+/* ---------------------------------------------------------------------------
+   B-only 丝印编号清零(§3.1 选择器形态写死:属性选择器抬优先级,与加载顺序无关)
+   A 侧禁一切丝印编号(§1.11)。不在隐藏清单(B 丝印保留): .eyebrow/.stat__no/
+   .badge-plate__no/.stat__label/.kpi__label/.nameplate__id/.kbd/.live-dot
+   --------------------------------------------------------------------------- */
+html:not([data-lang="b"]) :is(
+  .sec-tag, .sec__no, .note__no, .f-plate__no,
+  .nav-section, .spec-card__no, .ic-sec, .silk, .sx-eyebrow, .g-lv-tag
+) { display: none; }
+
+/* W5 复审回流增补: f3 侧栏分组头(NAVIGATION/FAVORITES)与 LIVE 徽标同为
+   mono 大写丝印,A 隐藏(§1.11);门面画廊编号(L1/F1)保留导航语义但去 mono 仪器感 */
+html:not([data-lang="b"]) :is(.wb-side__sec, .wb-nav__badge) { display: none; }
+html[data-lang="a"] .gal-card__no { font-family: var(--sys-font-ui); letter-spacing: 0; }
+
+/* v3.3 §2.2 A 灭活增补(复审 P1-3): B-only 结构件(导轨索引/机身框/底栏分区条/
+   等轴线框块)A 下整件不渲染——.rail-index 是有内容的 button 列表,
+   「无规则」≠「无渲染」,故与上方丝印清零同一机制(html:not 抬优先级)显式灭活;
+   运行时断言增补归 verify-redlines(v3.3 §3 工具链同步,非本文件) */
+html:not([data-lang="b"]) :is(.rail-index, .hull-frame, .hull-bar, .iso-block) { display: none; }
+
+/* ---------------------------------------------------------------------------
+   纸面:顶沿高光 + 签名浮层影。交互卡只抬 1px
+   卡面圆角 v3.4 §2-3 升 radius-xl 12px(对 Linea 白卡;卡/读数/对话框/命令面板统一)
+   v3.5 §1.2: 影升 --sys-shadow-lift(Linea 签名影)+ 顶唇;边换 13% 发丝 --sys-edge-a
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .card,
+html[data-lang="a"] .kpi,
+html[data-lang="a"] .notice,
+html[data-lang="a"] .toast,
+html[data-lang="a"] .modal__box,
+html[data-lang="a"] .f-modal__box,
+html[data-lang="a"] .page-head,
+html[data-lang="a"] .deco-hero,
+html[data-lang="a"] .check-card {
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+}
+
+html[data-lang="a"] .card,
+html[data-lang="a"] .kpi,
+html[data-lang="a"] .modal__box,
+html[data-lang="a"] .cmdk,
+html[data-lang="a"] .panel {
+  border-radius: var(--sys-radius-xl);
+}
+
+/* v4.1 补全(Linea --shadow-card 顶唇纪律,L671 令牌块): 监控面板与平铺瓦片
+   rest 态原无影无唇,补 sm 接触影 + paper-lip + 13% 发丝边;暗主题 lip 8%
+   由 a.css dark 令牌块(本文件 L58)自动换档 */
+html[data-lang="a"] .panel,
+html[data-lang="a"] .tile {
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
+}
+/* tile hover 升档保留唇(基座 hover 只给 shadow-md,会丢顶沿高光);
+   边色 primary 沿用基座 hover 语义(rest 发丝边 (0,3,1) 会压住基座 hover
+   (0,2,0),此处同档后位回补) */
+html[data-lang="a"] .tile:hover,
+html[data-lang="a"] .tile.is-hover {
+  border-color: var(--sys-primary);
+  box-shadow: var(--sys-shadow-md), var(--sys-paper-lip);
+}
+
+html[data-lang="a"] .card__body {
+  padding: var(--sys-space-5) var(--sys-space-4);
+}
+
+/* hover(v3.5 §1.2,对 Linea packet-card): 影不变深(显式 lift 压住基座 hover 的
+   shadow-md),只浓边 13%→24% + 位移仍 −1px */
+html[data-lang="a"] .card--interactive:hover,
+html[data-lang="a"] .card--interactive.is-hover {
+  transform: translateY(-1px);
+  border-color: var(--sys-edge-a-strong);
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+}
+
+/* hover 位移一律 -1px(§1.9);基座 .tile:hover 的 -2px 在此收口 */
+html[data-lang="a"] .tile:hover,
+html[data-lang="a"] .tile.is-hover {
+  transform: translateY(-1px);
+}
+
+html[data-lang="a"] .card__head {
+  background: color-mix(in srgb, var(--sys-bg-tint) 55%, var(--sys-surface));
+}
+
+html[data-lang="a"] .kpi {
+  background-image: linear-gradient(
+    var(--sys-primary-soo-shallow),
+    var(--sys-primary-soo-shallow)
+  );
+  background-size: 100% 3px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+}
+
+/* 铭牌统计三方分工(§4.2): 基座无刻度带(W2-c)、A 浅染顶条(此处,同 .kpi 写法)、
+   B 铭牌双线框(b.css) */
+html[data-lang="a"] .stat--plate {
+  background-image: linear-gradient(
+    var(--sys-primary-soo-shallow),
+    var(--sys-primary-soo-shallow)
+  );
+  background-size: 100% 3px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+}
+
+/* ---------------------------------------------------------------------------
+   按钮:印泥,不是塑料。按下是落纸,不是缩小
+   v3.5 §1.1(对 Linea md 钮实测): 高 36px(= --sys-control-h-md 既有)、
+   radius 8px(= --sys-radius-md 既有)、padding-inline 20px、font 16px/400、
+   过渡 180ms 新缓动五属性(background/border-color/color/box-shadow/transform);
+   次/描边 = 白 62% 实色近似 + 13% 发丝边,hover 底浓 10pp + 边浓;
+   主钮 hover = 明度 −4% + lift 签名影(保留顶唇);active 落纸 +1px(保留)。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .btn {
+  font-size: var(--sys-text-lg);
+  font-weight: 400;
+  transition: background-color var(--sys-dur-2) var(--sys-ease-smooth),
+    border-color var(--sys-dur-2) var(--sys-ease-smooth),
+    color var(--sys-dur-2) var(--sys-ease-smooth),
+    box-shadow var(--sys-dur-2) var(--sys-ease-smooth),
+    transform var(--sys-dur-2) var(--sys-ease-smooth);
+}
+/* 次/描边钮(排除主/危险/文字,语义填充档不受表面配方波及);
+   v4.1 补 rest 顶唇(Linea 控件顶唇纪律,L671 --shadow-card 令牌块) */
+html[data-lang="a"] .btn:not(.btn--primary, .btn--danger, .btn--text) {
+  background: var(--sys-surface-ctl);
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-paper-lip);
+}
+html[data-lang="a"] .btn:not(.btn--primary, .btn--danger, .btn--text):hover,
+html[data-lang="a"] .btn:not(.btn--primary, .btn--danger, .btn--text).is-hover {
+  color: var(--sys-text);
+  background: var(--sys-surface-ctl-hover);
+  border-color: var(--sys-edge-a-strong);
+}
+/* 主钮 hover: 明度 −4%(混黑 4%,零新 hex)+ lift 影,顶唇保留 */
+html[data-lang="a"] .btn--primary:hover,
+html[data-lang="a"] .btn--primary.is-hover,
+html[data-lang="a"] .f-btn--primary:hover {
+  background: color-mix(in srgb, var(--sys-primary) 96%, rgb(0 0 0));
+  box-shadow: var(--sys-shadow-lift),
+    inset 0 1px 0 color-mix(in srgb, #fff 36%, var(--sys-primary));
+}
+html[data-lang="a"] .btn:hover,
+html[data-lang="a"] .btn.is-hover,
+html[data-lang="a"] .f-btn:hover {
+  transform: translateY(-1px);
+}
+html[data-lang="a"] .btn:active,
+html[data-lang="a"] .btn.is-active,
+html[data-lang="a"] .f-btn:active {
+  transform: translateY(1px);
+}
+/* 基座不写 scale(§1.9 A 禁 scale<1,按下位移归语言层): A 落纸 +1px */
+html[data-lang="a"] .icon-btn:active,
+html[data-lang="a"] .icon-btn.is-active,
+html[data-lang="a"] .f-icon-btn:active,
+html[data-lang="a"] .hud-skill:active {
+  transform: translateY(1px);
+}
+/* v5 主钮字重回摆(v4.1 曾按 Linea .rendered-prompt button L912 fw750 升 700;
+   用户点名「太多粗体」,全线 700→600,仅大数字留 700);墨底不动,顶唇 36% 白保留 */
+html[data-lang="a"] .btn--primary,
+html[data-lang="a"] .f-btn--primary {
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 36%, var(--sys-primary));
+}
+/* 危险钮(v5.3 浅染范式): 常态顶唇同 A 控件族(纸面浅染件);
+   hover 实心反白 + lift 影 + 36% 白顶唇(对齐上方主钮 hover 配方) */
+html[data-lang="a"] .btn--danger,
+html[data-lang="a"] .f-btn--danger {
+  box-shadow: var(--sys-paper-lip);
+}
+html[data-lang="a"] .btn--danger:hover,
+html[data-lang="a"] .btn--danger.is-hover,
+html[data-lang="a"] .f-btn--danger:hover {
+  box-shadow: var(--sys-shadow-lift),
+    inset 0 1px 0 color-mix(in srgb, #fff 36%, var(--sys-danger));
+}
+
+/* 水平 padding(v3.5 §1.1): md/lg 对 Linea 实测 20px 直写;
+   sm 28px 保留三档表公式(§3.1: 合计 = 控件高 × 0.75,左右各半,与 0.75em 取大) */
+html[data-lang="a"] .btn {
+  padding-inline: 20px;
+}
+html[data-lang="a"] .btn--sm {
+  padding-inline: max(0.75em, calc(var(--sys-control-h-sm) * 0.75 / 2));
+}
+html[data-lang="a"] .btn--lg {
+  padding-inline: 20px;
+}
+
+/* ---------------------------------------------------------------------------
+   输入:纸槽。v4.1 focus 升级三件套(Linea .field-input L804-806 实测:
+   边色 + 底换档 + 4px 12% 软环同时变)
+   rest(v3.5 §1.7 定档保持): 底 = 白 62% 实色近似、边 = 13% 发丝、
+   radius 8px(= --sys-radius-md 既有)、h 36px(= --sys-control-h-md 既有;
+   Linea min-height 44px 对应 --sys-control-h-lg 档,md 全档抬 44 会撞
+   sm/md/lg 三档体系与紧凑档契约,高度维持 md 档;padding
+   var(--sys-space-3)=12px ≈ Linea .72/.8rem,确认不动);
+   focus: 边 = primary、底微提亮(ctl→ctl-hover,亮 62%→72% / 暗 92%→
+   surface 实色)、4px 12% primary 软环(零 blur 平铺环,非发光),
+   纸槽内凹保留;error 态 = 危险边 + 危险 12% 软环。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .input,
+html[data-lang="a"] .textarea,
+html[data-lang="a"] .select {
+  background: var(--sys-surface-ctl);
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-paper-well);
+}
+html[data-lang="a"] .input:focus,
+html[data-lang="a"] .textarea:focus,
+html[data-lang="a"] .select:focus,
+html[data-lang="a"] .input.is-focus,
+html[data-lang="a"] .textarea.is-focus,
+html[data-lang="a"] .select.is-focus {
+  border-color: var(--sys-primary);
+  background: var(--sys-surface-ctl-hover);
+  box-shadow: var(--sys-paper-well),
+    0 0 0 4px color-mix(in srgb, var(--sys-primary) 12%, transparent);
+}
+/* error 护栏(v4.1): rest 即危险边(基座 (0,3-0)/(0-2-0) 旧规则被上方 rest
+   (0-3-1) 压掉,此处回补),focus 危险 12% 软环;过渡三属性同变走基座 */
+html[data-lang="a"] .field.is-error .input,
+html[data-lang="a"] .field.is-error .textarea,
+html[data-lang="a"] .field.is-error .select,
+html[data-lang="a"] .input.is-error,
+html[data-lang="a"] .textarea.is-error,
+html[data-lang="a"] .select.is-error {
+  border-color: var(--sys-danger);
+}
+html[data-lang="a"] .field.is-error .input:focus,
+html[data-lang="a"] .field.is-error .textarea:focus,
+html[data-lang="a"] .field.is-error .select:focus,
+html[data-lang="a"] .input.is-error:focus,
+html[data-lang="a"] .textarea.is-error:focus,
+html[data-lang="a"] .select.is-error:focus,
+html[data-lang="a"] .field.is-error .input.is-focus,
+html[data-lang="a"] .field.is-error .textarea.is-focus,
+html[data-lang="a"] .field.is-error .select.is-focus {
+  border-color: var(--sys-danger);
+  box-shadow: var(--sys-paper-well),
+    0 0 0 4px color-mix(in srgb, var(--sys-danger) 12%, transparent);
+}
+/* placeholder = fg-tertiary 档(Linea .field-input::placeholder L806) */
+html[data-lang="a"] ::placeholder {
+  color: var(--sys-text-3);
+}
+/* textarea 垂直 padding 8→12px(≈ Linea .72rem 手感,取 --sys-space-3 档) */
+html[data-lang="a"] .textarea {
+  padding: var(--sys-space-3);
+}
+
+html[data-lang="a"] .field__label {
+  letter-spacing: 0.02em;
+}
+
+/* ---------------------------------------------------------------------------
+   印章/标签(v5 对齐 Linea pill 配方,:root 令牌块实测 --pill-bg #5157d817 9% /
+   --pill-border #5157d838 22% / --pill-fg #30368f ≈ --sys-primary-ink):
+   徽章与标签同方——primary 9% 底 + primary-ink 字 + 22% 边 + 999 圆角;
+   语义档保留语义浅染底 + 正文色字(对比度纪律,琥珀/红字浅底对比不足),
+   仅描边换语义 22%、圆角收 999
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .badge {
+  border: var(--sys-border-w-1) solid color-mix(in srgb, var(--sys-primary) 22%, transparent);
+  border-radius: var(--sys-radius-pill);
+}
+/* 默认/primary 徽标 = Linea pill 原方;语义/实色档排除(同 .btn :not 惯例),
+   语义档底/字留基座浅染配方,只换语义 28% 描边(Linea --border-success 28% 档) */
+html[data-lang="a"] .badge:not(.badge--success, .badge--warning, .badge--danger, .badge--info, .badge--solid),
+html[data-lang="a"] .badge--primary {
+  color: var(--sys-primary-ink);
+  background: color-mix(in srgb, var(--sys-primary) 9%, transparent);
+}
+html[data-lang="a"] .badge--success {
+  border-color: color-mix(in srgb, var(--sys-success) 28%, transparent);
+}
+html[data-lang="a"] .badge--warning {
+  border-color: color-mix(in srgb, var(--sys-warning) 28%, transparent);
+}
+html[data-lang="a"] .badge--danger {
+  border-color: color-mix(in srgb, var(--sys-danger) 28%, transparent);
+}
+html[data-lang="a"] .badge--info {
+  border-color: color-mix(in srgb, var(--sys-info) 28%, transparent);
+}
+/* 实色计数徽标: 基座 primary/on-primary 复原(上方描边防压),圆角收 pill */
+html[data-lang="a"] .badge--solid {
+  border-color: transparent;
+}
+/* v5 tag 并入同一 pill 配方(v3.5 的 chip 52% 中性底退役);is-selected =
+   底浓 16% + 实色 primary 描边(按 pill 同族加深,不走菜单式实心) */
+html[data-lang="a"] .tag {
+  height: 26px;
+  padding-inline: var(--sys-space-2);
+  font-size: var(--sys-text-xs);
+  color: var(--sys-primary-ink);
+  background: color-mix(in srgb, var(--sys-primary) 9%, transparent);
+  border-color: color-mix(in srgb, var(--sys-primary) 22%, transparent);
+  border-radius: var(--sys-radius-pill);
+}
+html[data-lang="a"] .tag:hover,
+html[data-lang="a"] .tag.is-hover {
+  color: var(--sys-primary-ink);
+  border-color: color-mix(in srgb, var(--sys-primary) 45%, transparent);
+}
+html[data-lang="a"] .tag.is-selected {
+  color: var(--sys-primary-ink);
+  background: color-mix(in srgb, var(--sys-primary) 16%, transparent);
+  border-color: var(--sys-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   表/列表(v3.5 §1.8,对 Linea compare-table): 行分隔 = 13% 发丝边,
+   行 hover = --sys-surface-hover 近白罩(v5: 原 text 4% 浅罩换 surface-hover 档,
+   与实心选中行拉开层级),th = 11px/600/ls 0.08em/text-3(v5 字重回摆 700→600)
+   (表头一层薄纸底保留);数字列已经走 mono
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .table th {
+  background: color-mix(in srgb, var(--sys-bg-tint) 70%, var(--sys-surface));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--sys-text-3);
+}
+html[data-lang="a"] .table th,
+html[data-lang="a"] .table td {
+  border-bottom-color: var(--sys-edge-a);
+}
+html[data-lang="a"] .table tbody tr:hover,
+html[data-lang="a"] .table tbody tr.is-hover {
+  background: var(--sys-surface-hover);
+}
+html[data-lang="a"] .list__item {
+  border-bottom-color: var(--sys-edge-a);
+}
+html[data-lang="a"] .list__item:hover,
+html[data-lang="a"] .list__item.is-hover {
+  background: var(--sys-surface-hover);
+}
+
+/* =============================================================================
+   v4.1 组件美学深化增补(DESIGN-v4 §v4.1,A ← Linea Prompt 证据配方)
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   focus-within 容器环(Linea .faq-item L795-796 实测: 4px 12% 软环落在容器
+   而非子件,键盘焦点容器级可见): 表单 .field / 菜单 .menu 用外环;
+   手风琴项在 .accordion overflow:hidden 内,外环必被裁剪,改 inset 内环。
+   环过渡 0.18s = --sys-dur-2(Linea dur-fast .18s,边+影+底同变纪律 L77 表)
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .field,
+html[data-lang="a"] .accordion__item,
+html[data-lang="a"] .menu {
+  transition: box-shadow var(--sys-dur-2) var(--sys-ease-smooth);
+}
+html[data-lang="a"] .field {
+  border-radius: var(--sys-radius-md);
+}
+html[data-lang="a"] .field:focus-within {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sys-primary) 12%, transparent);
+}
+/* v5 浮层收口: 下拉菜单/命令面板 = shadow-lg + 顶唇 + 13% 发丝边
+   (Linea .glass-panel 浮层纪律;玻璃模糊禁,实色近似+影已经供应);
+   menu focus-within 环叠在同档影上 */
+html[data-lang="a"] .menu {
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-shadow-lg), var(--sys-paper-lip);
+}
+html[data-lang="a"] .menu:focus-within {
+  box-shadow: var(--sys-shadow-lg), var(--sys-paper-lip),
+    0 0 0 4px color-mix(in srgb, var(--sys-primary) 12%, transparent);
+}
+html[data-lang="a"] .cmdk {
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-shadow-lg), var(--sys-paper-lip);
+}
+html[data-lang="a"] .accordion__item:focus-within {
+  box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--sys-primary) 12%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   选中行实心化(v5,Linea hero HUD 实测: .summon-row-active / .manager-rows
+   div.active / .history-track span.active = 实心 indigo 底 + 白字 + 顶唇
+   inset 白 22%,行内次级字白 72%): 菜单/命令面板/列表/级联(cascader 复用
+   .menu__item,自动同方)选中 = 实心 primary 底 + on-primary 字 + 顶唇;
+   表格数据行维持浅染(数据可读性);选中瓦片维持浅染 + primary 描边。
+   hover 未选中行 = --sys-surface-hover 档(见上方表/列表区与本区菜单/cmdk)。
+   暗主题自动正确: --sys-primary 暗 = 浅靛 #9aa3f5,--sys-on-primary 暗 = 深字。
+   排序纪律: 本块须晚于 hover 规则(同 (0,3,1) 特定度,后位者赢,
+   保证 is-active:hover 仍读实心)。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .menu__item:hover,
+html[data-lang="a"] .menu__item.is-hover,
+html[data-lang="a"] .cmdk__item:hover {
+  background: var(--sys-surface-hover);
+}
+/* 危险项 hover 保危险浅染(基座 (0,3,0) 被上方 A hover (0,3,1) 压住,同态回补) */
+html[data-lang="a"] .menu__item.is-danger:hover,
+html[data-lang="a"] .menu__item.is-danger.is-hover {
+  background: var(--sys-danger-so-shallow);
+}
+html[data-lang="a"] .menu__item:hover .ico,
+html[data-lang="a"] .menu__item.is-hover .ico,
+html[data-lang="a"] .cmdk__item:hover .ico {
+  color: var(--sys-text);
+}
+html[data-lang="a"] .menu__item.is-active,
+html[data-lang="a"] .cmdk__item.is-active,
+html[data-lang="a"] .list__item.is-selected {
+  background: var(--sys-primary);
+  color: var(--sys-on-primary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
+}
+/* 实心行内自设色子件翻 on-primary(.list__title 基座自带 text 色,
+   继承不到行色,显式翻转);次级位(图标/描述/序号)降 72% on-primary
+   (Linea active 行 em rgba(255,255,255,.72) 实测) */
+html[data-lang="a"] .list__item.is-selected .list__title {
+  color: var(--sys-on-primary);
+}
+html[data-lang="a"] .menu__item.is-active .ico,
+html[data-lang="a"] .menu__item.is-active:hover .ico,
+html[data-lang="a"] .cmdk__item.is-active .ico,
+html[data-lang="a"] .list__item.is-selected .list__desc,
+html[data-lang="a"] .list__item.is-selected .list__meta {
+  color: color-mix(in srgb, var(--sys-on-primary) 72%, transparent);
+}
+/* 表格/瓦片选中维持浅染(v4.1 档): primary 12% 底;瓦片补 primary 描边
+   (rest 发丝边 (0,3,1) 压基座 .tile.is-selected (0,2,0),同档回补) */
+html[data-lang="a"] .table tbody tr.is-selected,
+html[data-lang="a"] .tile.is-selected {
+  background: color-mix(in srgb, var(--sys-primary) 12%, transparent);
+}
+html[data-lang="a"] .tile.is-selected {
+  border-color: var(--sys-primary);
+  color: var(--sys-primary-ink);
+}
+
+/* ---------------------------------------------------------------------------
+   手风琴/折叠时长统一(Linea accordion-down 0.22s ease-out L817-818 实测,
+   就近取 --sys-dur-3 240ms 档): 头 hover 底色由基座 dur-1 升 dur-3,
+   图标旋转基座已是 dur-3
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .accordion__head {
+  transition: background-color var(--sys-dur-3) var(--sys-ease-smooth);
+}
+
+/* ---------------------------------------------------------------------------
+   浮动导航 pill(v3.5 §1.6,对 Linea site-nav 实测):
+   白 82% 实色近似 + pill 999(.door-nav 页内既有)+ 13% 发丝边 +
+   lift 签名影 + 顶唇;链接 15px/500,hover = 色浓不位移(基座/页内已是色浓)。
+   .door-nav 页内样式在 index.html <style>(后载,0-2-1),此处 body.door
+   抬优先级(0-3-2)收口;.topbar 全宽 sticky,同方供给。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] body.door .door-nav {
+  background: var(--sys-surface-pill);
+  border-color: var(--sys-edge-a);
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+}
+html[data-lang="a"] body.door .door-nav__links a {
+  font-size: 15px;
+  font-weight: 500;
+}
+html[data-lang="a"] .topbar {
+  background: var(--sys-surface-pill);
+  border: var(--sys-border-w-1) solid var(--sys-edge-a);
+  border-radius: var(--sys-radius-pill);
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+}
+html[data-lang="a"] .topbar__link {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   行内码(v3.5 §1.10,对 Linea mono 12px): text 4% 底 + 11% 边 + radius 6;
+   pre 内 code 不重复描边(基座已去底,此处去边)
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] code {
+  font-size: var(--sys-text-xs);
+  background: color-mix(in srgb, var(--sys-text) 4%, transparent);
+  border: var(--sys-border-w-1) solid color-mix(in srgb, var(--sys-text) 11%, transparent);
+  border-radius: 6px;
+}
+html[data-lang="a"] pre code {
+  border: none;
+}
+
+/* ---------------------------------------------------------------------------
+   页头 / 空态 / 通知:纸笺
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .page-head::after {
+  height: 2px;
+  opacity: 0.55;
+  background: var(--sys-primary);
+}
+
+html[data-lang="a"] .empty__art {
+  background: var(--sys-surface);
+  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
+}
+
+html[data-lang="a"] .notice {
+  border-left: 3px solid var(--sys-primary-shallow);
+}
+
+html[data-lang="a"] .tabs__ink {
+  border-radius: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   display 楷:页头/hero 标题走品牌楷体(§3.1)
+   v3.4 §2-2 排印尺度学 Linea(更大、更紧): hero/页头 h1 放开上限
+   clamp(40px, 5.6vw, 64px);分区标题(h2 级)升 32–40px 档——只圈分区标题类
+   (.sec__title/.door-sec__title/.demo-section>h2/.pg-section__head h2),
+   弹窗标题/侧栏小头等 h2 不波及。
+   v5 字距/字重回摆: display 字距覆写为 0(Linea .display-type 实测
+   letter-spacing: 0;--sys-tracking-display -0.02em 在 A 下不再下发),
+   hero 行高 1.0;h 系标题凡 700 一律 600(用户点名「太多粗体」,
+   基座 h1-h3 700 由下方 A 门控统一压 600),仅 .stat/.kpi 大数字留 700。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .deco-hero__title,
+html[data-lang="a"] .demo-head__title,
+html[data-lang="a"] .page-head h1,
+html[data-lang="a"] .hero-title {
+  font-family: var(--sys-font-display);
+}
+
+html[data-lang="a"] h1,
+html[data-lang="a"] h2,
+html[data-lang="a"] h3 {
+  font-weight: 600;
+}
+/* brand 舞台大题(display 族 5xl 级)同属标题纪律 */
+html[data-lang="a"] .stage__title {
+  font-weight: 600;
+}
+
+html[data-lang="a"] h1 {
+  font-size: clamp(40px, 5.6vw, 64px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+html[data-lang="a"] :is(.sec__title, .door-sec__title, .demo-section > h2, .pg-section__head h2) {
+  font-size: clamp(32px, 3.4vw, 40px);
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+/* v3.4 §2-6: 虚线 pill 升级为 A 全站分区 eyebrow 默认形态,字距规则并入
+   文末签名构件区 .eyebrow--pill 条款(单一条款全量供给,此处不再重复下发) */
+
+html[data-lang="a"] .deco-corner {
+  display: none;
+}
+
+/* =============================================================================
+   v3.3 签名构件(DESIGN-v3.3 §1.2,A ← Linea Prompt;全部 A-only,B 下不渲染)
+   签名置换记账(§1.2 P0-1): 门面 hero 顶边 .deco-band.ptn-a-only 撤除(DOM 归 C 代理),
+   置换为「贯穿水引线 + 朱笔下划线」线签名;置换后 A hero 签名 = {贯穿线,签名装置} = 2,合规。
+   动效预算(§1.10): 门面 hero 入场 = 标题 + 签名装置 + 朱笔 = 3,同屏并发已达上限,
+   故水引线静态直出、本区不再新增任何入场/循环动效。
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1) 朱笔下划线 .u-brush(§1.2-1;签名,一页 ≤1)
+   DOM 契约(写死): <em class="u-brush">两种语言<svg class="u-brush__arc"
+     viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true"><path
+     d="M2 8 Q 30 2, 50 7 T 98 5" fill="none" vector-effect="non-scaling-stroke"/></svg></em>
+   落词写死 = 门面 hero 标题既有 <em>;选择器限定门面 hero h1 级(.hero-title)
+   + 演练场演示钩(.demo-sign__title,仅 components.html v3.3 演示段使用),
+   不挂 .deco-hero__title 通配(components.html 有两枚该类演示块,防误伤)。
+   em 相对定位;svg 绝对定位贴下缘、宽 100%,preserveAspectRatio="none" 非均匀
+   拉伸下 vector-effect 保 2px 描线不拉成椭圆管(DOM 属性 + 此处 CSS 双保险)。
+   入场: stroke-dashoffset 100→0 绘出 400ms = --sys-dur-5(v3.3 原文「400ms
+   (--sys-dur-4)」令牌名与数值不符,令牌表 dur-4=320/dur-5=400,按数值意图取 dur-5);
+   复用 motion.css ryu-draw-line;reduced-motion 直出(动画只挂 no-preference 分支)。
+   --------------------------------------------------------------------------- */
+/* em 默认斜体中和(语言中立的构件契约: .u-brush 是朱笔记号不是强调;
+   不加本条时 B 下弧线灭活、em 回落斜体,演示/挂载页出现斜体副作用);
+   nowrap(v4 复核): 高亮短语不在窄屏被劈行(B 375px「两/种语言」劈开问题),
+   display 字阶下短语 4-5 字恒窄于窄屏版心,无溢出风险 */
+.u-brush {
+  font-style: normal;
+  white-space: nowrap;
+}
+html[data-lang="a"] :is(.hero-title, .demo-sign__title) .u-brush {
+  position: relative;
+}
+html[data-lang="a"] :is(.hero-title, .demo-sign__title) .u-brush__arc {
+  position: absolute;
+  left: 0;
+  bottom: -0.14em;
+  width: 100%;
+  height: 0.22em;
+  overflow: visible;
+}
+html[data-lang="a"] :is(.hero-title, .demo-sign__title) .u-brush__arc path {
+  fill: none;
+  stroke: var(--sys-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-lang="a"] :is(.hero-title, .demo-sign__title) .u-brush__arc path {
+    /* dasharray 取 viewBox 全宽 100 单位 ≥ path 净长(x 2→98 + 波形余量) */
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: ryu-draw-line var(--sys-dur-5) var(--sys-ease-smooth) both;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   2) 贯穿水引线 .mizuhiki(§1.2-2;签名线条,非纹样——opacity 0.35 直写,
+   不引 --sys-pattern-fg / 纹样档,不占 §1.7 纹样面积配额)
+   1 条 path、1 处签名: 自门面 hero 左缘垂落,沿页面左缘穿行,在 duel/色板墙/画廊
+   三分区 eyebrow 高度各落一个 12px 折角 tick(折角在 path 几何内,由 C 代理按
+   1280px 视口实测标定 y 坐标)。
+   DOM 契约(C 代理落 index.html,body.door 末尾):
+     <div class="mizuhiki" aria-hidden="true" style="--mizuhiki-hero-h: {窄带 hero 实测高}px">
+       <svg viewBox="0 0 24 {H}" width="24" height="{H}" focusable="false" aria-hidden="true">
+         <path d="M12 0 V …(三分区 12px 折角 tick)…"/></svg></div>
+   几何: 外层 div = 裁剪窗(overflow hidden),svg 以 height 属性锁自然像素高
+   (不随窗拉伸,tick 位不失真);宽屏窗高 = 整页(top/bottom 0;body.door 转定位含块,
+   否则 absolute bottom 相对视口);B1–B3 窄带(定档宽 ≤440px,门面 band:false 比例带
+   不落 DOM,以视口 ≤480px 媒体查询近似)窗高降为 hero 段(--mizuhiki-hero-h),其余段裁掉。
+   纪律: B 下 display:none(见本节末灭活规则);pointer-events:none;
+   reduced-motion 无动画(本就静态——hero 入场并发已满 3,见本节头注)。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] body.door {
+  /* 贯穿线定位含块: body 转相对定位后 top:0/bottom:0 才指整页高而非视口 */
+  position: relative;
+}
+html[data-lang="a"] .mizuhiki {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 贴版心左缘: 版心 1200px 居中(index.html .hero-inner/.door-main 同值),
+     线落居中留白内 8px;窄屏留白消失退至视口边 4px(tick 右折 12px 恰触文字缘) */
+  left: max(var(--sys-space-1), calc((100vw - 1200px) / 2 + var(--sys-space-2)));
+  width: 24px;
+  overflow: hidden;
+  opacity: 0.35;
+  pointer-events: none;
+}
+html[data-lang="a"] .mizuhiki svg {
+  display: block;
+  width: 24px;
+}
+html[data-lang="a"] .mizuhiki path {
+  fill: none;
+  stroke: var(--sys-primary);
+  /* v3.4 §2-9: 描线 1.5→2px,贴近 Linea 贯穿线径 */
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+/* B1–B3 窄带(≤480px): 降为仅 hero 段可见,其余段裁掉 */
+@media (max-width: 480px) {
+  html[data-lang="a"] .mizuhiki {
+    bottom: auto;
+    height: var(--mizuhiki-hero-h, 100%);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   3) 虚线眉标 pill .eyebrow--pill(§1.2-3)→ v3.4 §2-6 升级:
+   虚线 pill 升为 A 全站分区 eyebrow 默认形态(.eyebrow/.hero-eyebrow/
+   .deco-hero__eyebrow/.demo-head__eyebrow 一并纳入,layouts/forms/门面页通用;
+   --pill 类保留为显式契约别名,重复挂不叠加)。
+   对 Linea: 1px dashed 描边 + pill 圆角 + mono 大写 + 0.14em 宽字距 + 600 +
+   primary-ink 字 + 62% 底(v3.5 §1.5 核对 alpha: 半透叠底改 §1.0 实色近似
+   --sys-surface-ctl,亮 62% 白 / 暗 surface 92%,零 backdrop-filter;v5 字重
+   700→600 回摆);排字自足
+   (不依赖 layouts.css 的 .eyebrow 基座,演练场/门面均直出)。
+   B 下无规则、回落各页基座素排,不违和免门控。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] :is(.eyebrow, .hero-eyebrow, .deco-hero__eyebrow, .demo-head__eyebrow, .eyebrow--pill) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sys-space-2);
+  padding: var(--sys-space-1) var(--sys-space-3);
+  font-family: var(--sys-font-mono);
+  font-size: var(--sys-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--sys-eyebrow-track);
+  color: var(--sys-primary-ink);
+  background: var(--sys-surface-ctl);
+  border: var(--sys-border-w-1) dashed var(--sys-primary);
+  border-radius: var(--sys-radius-pill);
+}
+
+/* ---------------------------------------------------------------------------
+   4) 软键帽(§1.2-4 → v3.4 §2-5 → v3.5 §1.3 → v4.1 对 Linea .command-keycap
+   L1252 实测): mono 12px(= xs,我们下限,既有)、边 = currentColor 20%、
+   底 = currentColor 8%、radius 6px、padding 2px 6px;补顶唇 inset 0 1px 0
+   (并入 --sys-paper-lip 契约名)+ --sys-shadow-sm 接触影;底边 2px 浅台阶
+   (v3.3 软键帽保留,与边框同色以厚度差读台阶,比 B 的 border-strong 硬挤出
+   柔和);几何与基座同格,无位移。
+   触控目标豁免:  Linea keycap min 44×44 是浮动命令钮;此处 .kbd 是展示用
+   行内快捷键提示(菜单/正文内嵌),豁免 44px 档,高度由行内上下文决定。
+   B 下维持基座挤出。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .kbd {
+  padding: 2px 6px;
+  color: var(--sys-text);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border: var(--sys-border-w-1) solid color-mix(in srgb, currentColor 20%, transparent);
+  border-bottom: var(--sys-border-w-3) solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 6px;
+  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
+}
+
+/* ---------------------------------------------------------------------------
+   5) 选中卡 .card--selected(§1.2-5 → v3.4 §2-11): 亮主题保持浅染版
+   (primary-so-shallow 底 + 1.5px primary 描边;描边 1→1.5px 内吸,卡盒尺寸不变);
+   A 暗色转译 Linea 深填充版 = primary 深填 + on-primary 字
+   (--sys-on-primary × --sys-primary ≥4.5 由 gen-palettes/verify-contrast 契约保证)。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .card--selected {
+  background: var(--sys-primary-so-shallow);
+  border-color: var(--sys-primary);
+  border-width: var(--sys-border-w-2);
+}
+html[data-lang="a"][data-theme="dark"] .card--selected {
+  background: var(--sys-primary);
+  border-color: var(--sys-primary);
+  color: var(--sys-on-primary);
+}
+/* 深填卡内弱化位(.card__meta 自带 text-2 弱色)同步翻成 on-primary */
+html[data-lang="a"][data-theme="dark"] .card--selected .card__meta {
+  color: var(--sys-on-primary);
+}
+
+/* =============================================================================
+   v3.4 高还原构件(DESIGN-v3.4 §2-7/2-8/2-10,A ← Linea Prompt)
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   7) checklist 卡 .check-card(§2-7,A 品牌件,对 Linea checklist 发卡):
+   白卡 + 发丝行分隔 + success 色勾(图标 stroke 继承 currentColor)。
+   DOM 契约: <div class="check-card"><div class="check-card__row">
+     <svg class="ico check-card__check" aria-hidden="true"><use href="#i-check"/></svg>
+     <span>条目</span></div>…</div>
+   结构语言中立、只消费令牌(A=白卡软影 / B 经令牌自动回落硬边仪器卡),语言差由令牌解析。
+   --------------------------------------------------------------------------- */
+.check-card {
+  background: var(--sys-surface);
+  border: var(--sys-border-w-1) solid var(--sys-border);
+  border-radius: var(--sys-radius-xl);
+  box-shadow: var(--sys-shadow-sm);
+  padding: var(--sys-space-2) var(--sys-space-4);
+}
+.check-card__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sys-space-3);
+  padding: var(--sys-space-3) 0;
+  font-size: var(--sys-text-md);
+}
+.check-card__row + .check-card__row {
+  border-top: var(--sys-border-w-1) solid var(--sys-border);
+}
+/* v3.5 §1.9: A 侧行分隔换 13% 发丝边(勾图标 stroke 2px success 已交付,不动) */
+html[data-lang="a"] .check-card__row + .check-card__row {
+  border-top-color: var(--sys-edge-a);
+}
+.check-card__check {
+  color: var(--sys-success);
+}
+
+/* ---------------------------------------------------------------------------
+   8) pastel 内容标签 .chip-soft(§2-8,对 Linea 标签 chip;内容标签非丝印):
+   语义浅染底 + 深字、mono xs 大写。默认档 = primary-soo-shallow + primary-ink
+   (对比 ≥4.5 由 verify-contrast 令牌对保证);语义档 = *-so-shallow 底 +
+   40% 语义色混入 --sys-text 的深字(亮暗双主题保对比,无新增色值)。
+   --------------------------------------------------------------------------- */
+.chip-soft {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sys-space-1);
+  padding: 2px var(--sys-space-2);
+  font-family: var(--sys-font-mono);
+  font-size: var(--sys-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sys-primary-ink);
+  background: var(--sys-primary-soo-shallow);
+  border-radius: var(--sys-radius-md);
+}
+/* A 侧(v5)对 Linea pill 全量翻译(:root 令牌块 --pill-bg 9% / --pill-border
+   22% / --pill-fg ≈ primary-ink;v3.5 的白 52% 中性底退役):
+   pill 999、高 26px、padding 4px 8px、12px/400 正文族、primary-ink 字、
+   primary 9% 底 + 22% 边;语义 pastel 档保留浅染底,描边换语义 22% 同族
+   (下方 A 档重声明,防被本基样优先级压掉);B 侧仍消费上方全局 pastel 基样 */
+html[data-lang="a"] .chip-soft {
+  height: 26px;
+  padding: 4px var(--sys-space-2);
+  font-family: var(--sys-font-ui);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--sys-primary-ink);
+  background: color-mix(in srgb, var(--sys-primary) 9%, transparent);
+  border: var(--sys-border-w-1) solid color-mix(in srgb, var(--sys-primary) 22%, transparent);
+  border-radius: var(--sys-radius-pill);
+}
+html[data-lang="a"] .chip-soft--success {
+  color: color-mix(in srgb, var(--sys-success) 40%, var(--sys-text));
+  background: var(--sys-success-so-shallow);
+  border-color: color-mix(in srgb, var(--sys-success) 22%, transparent);
+}
+html[data-lang="a"] .chip-soft--warning {
+  color: color-mix(in srgb, var(--sys-warning) 40%, var(--sys-text));
+  background: var(--sys-warning-so-shallow);
+  border-color: color-mix(in srgb, var(--sys-warning) 22%, transparent);
+}
+html[data-lang="a"] .chip-soft--danger {
+  color: color-mix(in srgb, var(--sys-danger) 40%, var(--sys-text));
+  background: var(--sys-danger-so-shallow);
+  border-color: color-mix(in srgb, var(--sys-danger) 22%, transparent);
+}
+html[data-lang="a"] .chip-soft--info {
+  color: color-mix(in srgb, var(--sys-info) 40%, var(--sys-text));
+  background: var(--sys-info-so-shallow);
+  border-color: color-mix(in srgb, var(--sys-info) 22%, transparent);
+}
+/* 内容标签陈列档(v3.5 §1.4,对 Linea summon-row-tag: mono 10px/700/ls 0.12em/
+   uppercase——内容标签豁免丝印档,仅陈列);纯排字档全局供给,颜色继承基样 */
+.chip-soft--mono {
+  font-family: var(--sys-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* v5 复核回补: A 档 .chip-soft(0,2,1) 把字族/字重冲成正文档,
+   陈列档提级复权(排字标本语义,不受 A 去粗体纪律约束) */
+html[data-lang="a"] .chip-soft--mono {
+  font-family: var(--sys-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.chip-soft--success {
+  background: var(--sys-success-so-shallow);
+  color: color-mix(in srgb, var(--sys-success) 40%, var(--sys-text));
+}
+.chip-soft--warning {
+  background: var(--sys-warning-so-shallow);
+  color: color-mix(in srgb, var(--sys-warning) 40%, var(--sys-text));
+}
+.chip-soft--danger {
+  background: var(--sys-danger-so-shallow);
+  color: color-mix(in srgb, var(--sys-danger) 40%, var(--sys-text));
+}
+.chip-soft--info {
+  background: var(--sys-info-so-shallow);
+  color: color-mix(in srgb, var(--sys-info) 40%, var(--sys-text));
+}
+
+/* ---------------------------------------------------------------------------
+   10) 页脚链接组(§2-10,对 Linea 3–4 列页脚): 列组 + 大写 12px 弱色 label + 14px 链接。
+   DOM 契约(门面页脚归 C 代理挂载): .door-foot__inner 内 .door-foot__cols >
+   若干 .door-foot__col(首列品牌/简介,其余链接列);链接列首枚 .door-foot__label。
+   --------------------------------------------------------------------------- */
+html[data-lang="a"] .door-foot__cols {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  gap: var(--sys-space-6);
+  align-items: start;
+}
+@media (max-width: 720px) {
+  html[data-lang="a"] .door-foot__cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+html[data-lang="a"] .door-foot__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sys-space-2);
+}
+html[data-lang="a"] .door-foot__label {
+  font-size: var(--sys-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--sys-text-3);
+}
+html[data-lang="a"] .door-foot__col a {
+  font-size: var(--sys-text-md);
+  color: var(--sys-text-2);
+}
+
+/* A-only 签名构件在 B 下不渲染(§1.2 头「全部 A-only,B 下不渲染」):
+   .u-brush__arc 无样式 svg 默认 300×150 会撑破标题,必须显式灭活 */
+html[data-lang="b"] :is(.mizuhiki, .u-brush__arc) {
+  display: none;
+}

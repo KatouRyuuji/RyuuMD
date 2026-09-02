@@ -30,10 +30,9 @@ def resource_path(*parts: str) -> str:
 
 
 def webview_gui() -> str | None:
-    """Windows 固定 Edge WebView2；其它平台不传 gui，由 pywebview 选 Cocoa/GTK。
+    """Windows 使用 Edge WebView2；其它平台由 pywebview 选默认后端（macOS 为 Cocoa）。
 
-    不要传 gui='cocoa'：start() 的合法值只有 cef/qt/gtk/mshtml/edgechromium，
-    macOS 默认后端就是 Cocoa。
+    start() 的 gui 合法值为 cef/qt/gtk/mshtml/edgechromium。
     """
     if sys.platform == "win32":
         return "edgechromium"
@@ -179,8 +178,7 @@ def main() -> None:
     initial = _initial_path_from_argv()
     config = Config()
 
-    # 单实例：已有实例在运行时，把路径转发给它（在新窗口打开），本进程直接退出。
-    # 双击 md 文件不再冷启动整套 WebView2，秒开。
+    # 单实例：已有实例在运行时，把路径转发给它开新窗口，本进程退出。
     if try_forward(config, initial):
         return
 

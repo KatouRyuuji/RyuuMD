@@ -1,0 +1,318 @@
+/* =============================================================================
+   motion.css — Ryuuji UI v2 动效库(需求矩阵 §2.5 / §6.9,设计方案-v2 §4)
+   -----------------------------------------------------------------------------
+   职责: 全部可复用动效类与 @keyframes;组件自身的状态过渡内嵌于 components.css,
+        本文件提供"编排级"动效(入场/滚显/循环反馈)与共享关键帧。
+   令牌: 时长 --sys-dur-1..5(100/180/240/320/400ms),
+        曲线 --sys-ease-smooth/bounce/exit(语言 B 的 bounce 在 lang/b.css
+        覆盖为急停曲线,引用 var 即自动获得机械式卡位感)。
+   红线: 禁辉光/禁模糊;循环动效幅度小、频率低;同屏并发 ≤ 3;
+        prefers-reduced-motion 下全部静止(base.css 有全局 0.01ms 兜底,
+        本文件另对"以动画承载可见性"的类做显式静态化,双保险)。
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------------
+   文件私域时基(DESIGN-v3 §2.4: 全文件禁字面 ms/s)
+   --sys-dur-* 五档约束交互过渡/入场时长;stagger 交错间隔与无限循环周期
+   属编排节奏,不属五档语义,集中定义于此统一收编,禁散落字面量。
+   ----------------------------------------------------------------------------- */
+:root {
+  --ryu-stagger: 70ms;        /* reveal 阶梯交错间隔基准 */
+  --ryu-cycle-spin: 0.9s;     /* spinner 平滑旋转周期(A 外半环) */
+  --ryu-cycle-spin-steps: 1s; /* 步进旋转周期(B 整体 90° 卡位) */
+  --ryu-cycle-split: 1.1s;    /* B 双三角分合周期(steps(2) 机械跳档) */
+  --ryu-cycle-pulse: 1.6s;    /* 状态灯脉冲周期(与 ryu-shimmer 同节奏) */
+  --ryu-cycle-float: 3.6s;    /* 空态呼吸浮动周期(低频) */
+  --ryu-cycle-blink: 1.05s;   /* caret 步进闪标周期 */
+  --ryu-settle-scale: 0.985;  /* settle 入场起始缩放(scale 无单位,可字面) */
+}
+
+/* =============================================================================
+   1. 入场编排: .reveal(渐显上浮)+ .reveal-delay-1..4(stagger 阶梯)
+   用法: 分组容器内子项依次挂 reveal + 递增 delay,交错节奏 70ms
+   ============================================================================= */
+.reveal {
+  animation: ryu-reveal-up var(--sys-dur-4) var(--sys-ease-smooth) both;
+}
+.reveal-delay-1 { animation-delay: calc(var(--ryu-stagger) * 1); }
+.reveal-delay-2 { animation-delay: calc(var(--ryu-stagger) * 2); }
+.reveal-delay-3 { animation-delay: calc(var(--ryu-stagger) * 3); }
+.reveal-delay-4 { animation-delay: calc(var(--ryu-stagger) * 4); }
+
+@keyframes ryu-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 淡入(无位移,叠层遮罩等场景) */
+.fade-in {
+  animation: ryu-fade-in var(--sys-dur-3) var(--sys-ease-smooth) both;
+}
+@keyframes ryu-fade-in {
+  from { opacity: 0; }
+}
+
+/* =============================================================================
+   1.5 settle 编排入场(DESIGN-v4 §D2,hero/面板落位仪式)
+   .settle-up 上移落位 / .settle-down 落下落位,均一次性(both),配合
+   .settle-delay-1..3 做 stagger 交错;幅度大于 reveal,供门面主视觉使用
+   ============================================================================= */
+.settle-up {
+  animation: ryu-settle-up var(--sys-dur-4) var(--sys-ease-smooth) both;
+}
+@keyframes ryu-settle-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(var(--ryu-settle-scale));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.settle-down {
+  animation: ryu-settle-down var(--sys-dur-4) var(--sys-ease-smooth) both;
+}
+@keyframes ryu-settle-down {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.settle-delay-1 { animation-delay: calc(var(--ryu-stagger) * 1); }
+.settle-delay-2 { animation-delay: calc(var(--ryu-stagger) * 2); }
+.settle-delay-3 { animation-delay: calc(var(--ryu-stagger) * 3); }
+.settle-delay-4 { animation-delay: calc(var(--ryu-stagger) * 4); }
+
+/* =============================================================================
+   2. 滚动驱动渐显(渐进增强): .reveal-scroll
+   支持 animation-timeline: view() 的浏览器随滚动入场;不支持则退化为静态可见
+   (不挂基础动画,元素天然可见 —— 增强而非门槛)
+   ============================================================================= */
+@supports (animation-timeline: view()) {
+  .reveal-scroll {
+    animation: ryu-reveal-up var(--sys-dur-4) var(--sys-ease-smooth) both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 40%;
+  }
+}
+
+/* =============================================================================
+   3. 循环反馈关键帧(组件共享;均色块/描线/位移表达,零发光)
+   ============================================================================= */
+
+/* 旋转(spinner 用;A 双半环互抱平滑反向,B 整体 steps 卡位 90°) */
+@keyframes ryu-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* B 加载(v5.3): 双三角沿对角线分开→复合,steps(2) 跳档持留呈机械卡位感;
+   配合容器 ryu-spin steps(4) 慢速转位,表达"加载中 + 科技感" */
+@keyframes ryu-tri-split-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-22%, -22%); }
+}
+@keyframes ryu-tri-split-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(22%, 22%); }
+}
+
+/* 骨架屏 shimmer: 浅染色块横向平移 1.6s(单色两档,非彩色渐变) */
+@keyframes ryu-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* 进度条纹流动: 背景位平移一个条纹周期(24px);
+   语言 B 以 steps(6) 步进播放,呈机械跳格感(§6.5 步进/卡位倾向) */
+@keyframes ryu-stripes {
+  to { background-position: 24px 0; }
+}
+
+/* 迷你图描线入场: stroke-dashoffset 1→0(配合 pathLength="1") */
+@keyframes ryu-draw-line {
+  to { stroke-dashoffset: 0; }
+}
+
+/* 复选打勾路径绘制(描线短路径,240ms) */
+@keyframes ryu-draw-check {
+  to { stroke-dashoffset: 0; }
+}
+
+/* 状态灯脉冲(仅 LIVE 等"实时"语义: 色块透明度呼吸,非发光) */
+@keyframes ryu-pulse-block {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* 数字滚动(count-up)钩子: 数值由 JS 驱动时挂 .countup 仅作语义标记;
+   无 JS 时本类提供一个一次性的"落位"微动(上移+渐显),避免数字生硬出现 */
+.countup {
+  animation: ryu-count-settle var(--sys-dur-3) var(--sys-ease-smooth) both;
+}
+@keyframes ryu-count-settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 评分星弹跳填充(点亮瞬间 scale 1→1.25→1) */
+@keyframes ryu-star-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* 呼吸脉冲(透明度微幅,§1.10 允许的微幅无限循环;空态插画/对话续行提示用,
+   禁位移/缩放/旋转类无限循环) */
+@keyframes ryu-pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* =============================================================================
+   4. 可复用动效工具类
+   ============================================================================= */
+
+/* 循环旋转工具(平滑档;loading 图标等) */
+.spin {
+  animation: ryu-spin var(--ryu-cycle-spin) linear infinite;
+}
+/* 步进旋转工具(语言 B 机械感;语言 A 亦可显式使用) */
+.spin-steps {
+  animation: ryu-spin var(--ryu-cycle-spin-steps) steps(8) infinite;
+}
+
+/* 实时状态脉冲工具(色块透明度,禁发光场景的安全替代) */
+.pulse-block {
+  animation: ryu-pulse-block var(--ryu-cycle-pulse) var(--sys-ease-smooth) infinite;
+}
+
+/* 呼吸脉冲工具(空态插画/装饰件,低频透明度微幅;类名保留,位移循环已按 §1.10 改透明度) */
+.float-soft {
+  animation: ryu-pulse-soft var(--ryu-cycle-float) ease-in-out infinite;
+}
+
+/* 急停位移工具(语言 B 专用,DESIGN-v3 §2.4): steps(4) 机械跳格入场,
+   一次性动画(非无限循环),供监控/HUD 选用;A 侧勿用 */
+.motion-step {
+  animation: ryu-step-in var(--sys-dur-3) steps(4) both;
+}
+@keyframes ryu-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* hover 抬升工具(DESIGN-v4 §D2,A 语言卡片用;B 不上浮,由语言层纪律覆盖)。
+   此处只声明 transition 属性,不写 box-shadow 颜色/取值——影由宿主既有类提供,
+   避免组件间互相覆盖 */
+.hover-lift {
+  transition: transform var(--sys-dur-2) var(--sys-ease-smooth),
+    box-shadow var(--sys-dur-2) var(--sys-ease-smooth);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* 按压反馈工具(active 下沉 1px)。规则置于 .hover-lift 之后:
+   两类同用时 .press:active 与 .hover-lift:hover 同特异性,后写者胜,active 优先 */
+.press {
+  transition: transform var(--sys-dur-1) var(--sys-ease-smooth);
+}
+.press:active {
+  transform: translateY(1px);
+}
+
+/* 步进闪标(caret,动画名含 blink 在白名单): steps(2) 透明度跳变,
+   供输入光标/终端提示符;元素自身提供 1px 宽色块或边框 */
+.caret {
+  animation: ryu-caret-blink var(--ryu-cycle-blink) steps(2) infinite;
+}
+@keyframes ryu-caret-blink {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* =============================================================================
+   5. scroll-driven 视差(DESIGN-v4 §D2): .scroll-drift / .scroll-drift-mask
+   纹样窄带随页滚横向缓移 240px;非 infinite,合规。@supports 门控,
+   不支持 scroll() 时间轴的浏览器不挂动画,元素天然静态可见(增强而非门槛)。
+   keyframes 定义于 @supports 外(无害引用),类生效仅在支持时。
+   选用纪律: 仅 background 渲染的对象可挂 .scroll-drift;mask 渲染纹样
+   (patterns.css 全系)必须挂 .scroll-drift-mask,误挂本体动画无效。
+   ============================================================================= */
+@keyframes ryu-scroll-drift {
+  from { background-position-x: 0; }
+  to { background-position-x: 240px; }
+}
+/* mask 变体: 本项目纹样类为 mask-image 渲染(patterns.css 基座),
+   background-position-x 对其无效;.scroll-drift-mask 改驱 mask-position-x,
+   只换 keyframes,时间轴/填充/非 infinite 纪律与本体一致 */
+@keyframes ryu-scroll-drift-mask {
+  from { -webkit-mask-position-x: 0; mask-position-x: 0; }
+  to { -webkit-mask-position-x: 240px; mask-position-x: 240px; }
+}
+@supports (animation-timeline: scroll()) {
+  .scroll-drift {
+    animation: ryu-scroll-drift linear both;
+    animation-timeline: scroll(root);
+  }
+  .scroll-drift-mask {
+    animation: ryu-scroll-drift-mask linear both;
+    animation-timeline: scroll(root);
+  }
+}
+
+/* =============================================================================
+   6. 动效降级: prefers-reduced-motion
+   base.css 已将全部 animation/transition 压至 0.01ms;此处对
+   "动画承载可见性/语义"的类显式静态化,保证任何实现路径下内容立即可见。
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-scroll,
+  .fade-in,
+  .countup,
+  .motion-step,
+  .settle-up,
+  .settle-down,
+  .scroll-drift,
+  .scroll-drift-mask {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .caret {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .spin,
+  .spin-steps,
+  .pulse-block,
+  .float-soft {
+    animation: none !important;
+  }
+}

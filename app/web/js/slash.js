@@ -1,7 +1,7 @@
 /* 命令菜单控制器（统一面板）。
    触发方式：
      1. 在编辑区键入 "/"（行首或空白后）——边输入边过滤（纯插入命令）
-     2. 在编辑区右键——顶部剪贴板组（复制/剪切/粘贴）+ 全部插入命令
+     2. 在编辑区右键——顶部剪贴板组（复制/剪切/粘贴）+ 文件组（打开所在目录）+ 全部插入命令
    两种方式使用同一个 #slash-menu 面板，外观与行为完全一致。
    操作：上下箭头选择（跳过禁用项），Tab / Enter 插入，Esc 关闭。
    触发词与展示词随操作风格（notion=英文 / wolai=拼音）切换。 */
@@ -173,7 +173,7 @@
   function showContext(x, y) {
     const blk = window.Convert ? window.Convert.blockItemsForContext() : [];
     const conv = window.Convert ? window.Convert.itemsForContext() : [];
-    items = clipboardItems().concat(blk, conv, window.filterCommands("", style));
+    items = clipboardItems().concat(fileItems(), blk, conv, window.filterCommands("", style));
     activeIdx = 0;
     mode = "context";
     if (items[0] && items[0].disabled) step(1); // 首项禁用则落到首个可用项
@@ -195,6 +195,16 @@
         icon: "cut", keys: "Ctrl+X", disabled: !hasSel },
       { id: "clip-paste", clip: "paste", title: "粘贴", desc: "", group: "剪贴板",
         icon: "clipboard", keys: "Ctrl+V", disabled: false },
+    ];
+  }
+
+  /* 右键菜单的文件伪命令（仅 context 模式）：对当前已保存文档的磁盘操作 */
+  function fileItems() {
+    const has = !!(window.App && window.App.hasSavedFile && window.App.hasSavedFile());
+    return [
+      { id: "file-reveal-dir", appAction: "revealCurrentDir",
+        title: "在资源管理器中打开所在目录", desc: "", group: "文件",
+        icon: "folderOpen", keys: "", disabled: !has },
     ];
   }
 
@@ -240,6 +250,11 @@
     if (!cmd || cmd.disabled) return; // 禁用项不响应、不关菜单
     close();
     if (cmd.clip) { doClipboard(cmd.clip); return; }
+    if (cmd.appAction) {
+      // 转发给 App 层动作（如「在资源管理器中打开所在目录」）
+      if (window.App && window.App[cmd.appAction]) window.App[cmd.appAction]();
+      return;
+    }
     if (cmd.blockop) {
       // 块操作（表格行列/代码块/数学块）；返回 0 表示定位失败
       const done = window.Convert ? window.Convert.applyBlockOp(cmd.blockop, editor) : 0;

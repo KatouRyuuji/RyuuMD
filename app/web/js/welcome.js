@@ -13,7 +13,7 @@
     { icon: "slash", title: "斜杠命令", desc: "输入 / 呼出菜单，标题、表格、公式一键插入" },
     { icon: "lock", title: "全本地 · 隐私安全", desc: "无需联网与账号，文件始终留在你的电脑里" },
     { icon: "toc", title: "文件树与大纲", desc: "侧栏浏览文件夹，大纲一点即达，长文不迷路" },
-    { icon: "palette", title: "phycat 全系列主题", desc: "8 套亮色 + 3 套暗色配色，还可自选界面与等宽字体" },
+    { icon: "palette", title: "RyuujiDesign 配色", desc: "A 语言六套色板（明暗双态自适应），还可自选界面与等宽字体" },
     { icon: "drag", title: "拖拽即开", desc: "拖入 .md 或文件夹直接打开，记忆上次会话" },
   ];
 
@@ -82,7 +82,7 @@
         </div>
         <div class="modal-foot">
           <label class="checkbox"><input type="checkbox" id="welcome-dontshow" checked /> 不再显示</label>
-          <button class="btn btn-primary" id="welcome-start">${window.ICONS.sparkles}<span>开始使用</span></button>
+          <button class="btn btn--primary" id="welcome-start">${window.ICONS.sparkles}<span>开始使用</span></button>
         </div>
       </div>`;
 

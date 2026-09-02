@@ -387,7 +387,7 @@ class TestFileOps(unittest.TestCase):
 
     def test_rename_case_only(self):
         # 仅大小写变化也是有效改名：大小写不敏感文件系统上 target.exists() 恒真，
-        # 不得被「同名已存在」拦截、也不能静默不变（曾直接返回 ok 但未改名）
+        # 仅大小写变化的重命名应真正改名并返回 ok
         p = touch(self.root / "note.md", "# 内容")
         res = self.api.rename_file(str(p), "NOTE.md")
         self.assertTrue(res["ok"], res)
@@ -795,48 +795,73 @@ class TestConfig(unittest.TestCase):
         self.assertFalse((cfg.data_dir / "config.json.tmp").exists())
         self.assertEqual(Config().get("theme"), "dark")
 
+    def test_legacy_palette_migrates_when_key_missing(self):
+        import json
+
+        cfg = Config()
+        path = cfg.data_dir / "config.json"
+        path.write_text(
+            json.dumps({"theme": "light", "palette_light": "sakura"}),
+            encoding="utf-8",
+        )
+        self.assertEqual(Config().get("palette"), "a6")
+        self.assertIn('"palette": "a6"', path.read_text(encoding="utf-8"))
+        path.write_text(
+            json.dumps({"theme": "dark", "palette_dark": "vampire"}),
+            encoding="utf-8",
+        )
+        self.assertEqual(Config().get("palette"), "a2")
+        path.write_text(json.dumps({"palette": "cherry"}), encoding="utf-8")
+        self.assertEqual(Config().get("palette"), "a2")
+        Config().update({"palette": "a1", "theme": "light"})
+
     def test_palette_and_font_defaults(self):
         from app.core.config import DEFAULTS
-        self.assertEqual(DEFAULTS["palette_light"], "sky")
-        self.assertEqual(DEFAULTS["palette_dark"], "vampire")
+        self.assertEqual(DEFAULTS["palette"], "a1")
         self.assertEqual(DEFAULTS["font_ui"], "")
         self.assertEqual(DEFAULTS["font_mono"], "")
         self.assertEqual(DEFAULTS["sidebar_width"], 256)
         self.assertEqual(DEFAULTS["focus_mode"], False)
-        self.assertEqual(DEFAULTS["typewriter_mode"], False)
+        self.assertNotIn("typewriter_mode", DEFAULTS)  # 打字机模式已移除
         cfg = Config()
-        self.assertEqual(cfg.get("palette_light"), "sky")
-        self.assertEqual(cfg.get("palette_dark"), "vampire")
+        self.assertEqual(cfg.get("palette"), "a1")
         self.assertEqual(cfg.get("font_ui"), "")
         self.assertEqual(cfg.get("font_mono"), "")
         self.assertEqual(cfg.get("sidebar_width"), 256)
         self.assertEqual(cfg.get("focus_mode"), False)
-        self.assertEqual(cfg.get("typewriter_mode"), False)
 
     def test_update_config_writes_palette_and_font(self):
         api = make_api()
         res = api.update_config({
-            "palette_light": "sakura",
-            "palette_dark": "abyss",
+            "palette": "a3",
             "font_ui": "KaiTi",
             "font_mono": "Consolas",
             "sidebar_width": 320,
             "focus_mode": True,
-            "typewriter_mode": True,
         })
         self.assertTrue(res["ok"])
         data = api.get_config()
-        self.assertEqual(data["palette_light"], "sakura")
-        self.assertEqual(data["palette_dark"], "abyss")
+        self.assertEqual(data["palette"], "a3")
         self.assertEqual(data["font_ui"], "KaiTi")
         self.assertEqual(data["font_mono"], "Consolas")
         self.assertEqual(data["sidebar_width"], 320)
         self.assertTrue(data["focus_mode"])
-        self.assertTrue(data["typewriter_mode"])
+        self.assertNotIn("typewriter_mode", data)
         data2 = make_api().get_config()
-        self.assertEqual(data2["palette_light"], "sakura")
+        self.assertEqual(data2["palette"], "a3")
         self.assertEqual(data2["font_mono"], "Consolas")
         self.assertEqual(data2["sidebar_width"], 320)
+
+    def test_export_palette_follows_palette_and_theme(self):
+        # 导出配色跟随新色板：a2 暗色命中 a2 dark 组；旧 phycat id 映射迁移；缺省回退 a1
+        from app.core.api import wrap_html_export
+        h = wrap_html_export("t", "<p>x</p>", {"palette": "a2", "theme": "dark"})
+        self.assertIn("#e42435", h)  # a2 dark --sys-primary
+        self.assertIn("#151114", h)  # a2 dark --sys-bg
+        h = wrap_html_export("t", "<p>x</p>", {"palette_light": "sakura", "theme": "light"})
+        self.assertIn("#e7134b", h)  # sakura → a6 light --sys-primary
+        h = wrap_html_export("t", "<p>x</p>", None)
+        self.assertIn("#4a51e8", h)  # 默认 a1 light
 
     def test_webview_gui_windows_is_edgechromium(self):
         from main import webview_gui
@@ -879,6 +904,58 @@ class TestAssets(unittest.TestCase):
         qr = ROOT / "app" / "web" / "assets" / "QRCode.png"
         self.assertTrue(qr.is_file(), "欢迎页二维码缺失: app/web/assets/QRCode.png")
         self.assertGreater(qr.stat().st_size, 10 * 1024)
+
+    def test_tutorial_vault_complete(self):
+        """内置学习仓库资源完整：导读 + 6 章 + example + 模板。"""
+        t = ROOT / "app" / "web" / "tutorial"
+        self.assertTrue(t.is_dir(), "tutorial 目录缺失")
+        expected = [
+            "欢迎使用 RyuuMD.md", "01 快速上手.md", "02 排版与斜杠命令.md",
+            "03 图表与公式.md", "04 双链与知识管理.md", "05 效率工具.md",
+            "06 个性化与同步.md", "example.md", "模板/日记.md",
+        ]
+        for rel in expected:
+            p = t / rel
+            self.assertTrue(p.is_file(), f"学习仓库文件缺失: {rel}")
+            self.assertGreater(p.stat().st_size, 200, f"学习仓库文件内容过少: {rel}")
+
+
+class TestTutorial(unittest.TestCase):
+    """open_tutorial：幂等复制（不覆盖用户改动、补回缺失）+ 注册置顶仓库。"""
+
+    def setUp(self) -> None:
+        self.api = make_api()
+        res = self.api.open_tutorial()
+        self.assertTrue(res["ok"], res.get("error"))
+        self.dst = Path(res["path"])
+        self.entry = Path(res["entry"])
+        self.addCleanup(lambda: None)  # 目录留在共享临时 APPDATA，勿删（其它用例共享）
+
+    def test_files_copied_and_entry_exists(self):
+        self.assertTrue(self.dst.is_dir())
+        self.assertTrue(self.entry.is_file())
+        self.assertTrue((self.dst / "example.md").is_file())
+        self.assertTrue((self.dst / "模板" / "日记.md").is_file())
+
+    def test_project_registered_and_pinned(self):
+        projs = self.api.projects.list(with_stats=False)
+        hit = [p for p in projs if Path(p["path"]) == self.dst]
+        self.assertEqual(len(hit), 1, "学习仓库应只注册一次")
+        self.assertTrue(hit[0]["pinned"], "学习仓库应置顶")
+        self.assertEqual(hit[0]["name"], "学习仓库")
+
+    def test_idempotent_preserves_user_edits(self):
+        target = self.dst / "01 快速上手.md"
+        target.write_text("用户的涂鸦", encoding="utf-8")
+        example = self.dst / "example.md"
+        example.unlink()  # 删掉一个文件，验证补回
+        res = self.api.open_tutorial()
+        self.assertTrue(res["ok"])
+        self.assertEqual(target.read_text(encoding="utf-8"), "用户的涂鸦", "已有文件不应被覆盖")
+        self.assertTrue(example.is_file(), "缺失文件应被补回")
+        # 重复调用不重复注册
+        projs = self.api.projects.list(with_stats=False)
+        self.assertEqual(len([p for p in projs if Path(p["path"]) == self.dst]), 1)
 
 
 if __name__ == "__main__":

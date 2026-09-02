@@ -5,8 +5,9 @@
 + **目录新建 / 反向链接 / 标题跳转 / 编辑区缩放**
 + **查找替换 / 笔记模板 / 复制路径与双链**
 + **仓库待办 / 标签 / 断链 / 孤立笔记 / 磁盘重载**
-+ **可读宽度 / 转到行 / 快速收集 / 目录全折叠 / 未链接提及**。
-自动化分层：**Python API 层单元测试**(`tests/test_api.py` + `tests/test_cloud.py` + `tests/test_search.py`,unittest,零依赖）与
++ **可读宽度 / 转到行 / 快速收集 / 目录全折叠 / 未链接提及**
++ **内置学习仓库 / 外壳 Noto Sans SC / mermaid 与公式 / 段落转换与块操作**。
+自动化分层：**Python API 层单元测试**(`tests/test_api.py` + `tests/test_cloud.py` + `tests/test_search.py` + `tests/test_fonts.py`,unittest,零依赖）与
 **真实窗口端到端测试**(`tests/test_e2e.py`,pywebview + evaluate_js 探针断言）。
 统一入口：根目录 `run_tests.py`（先单测后 E2E，任一失败退出码非零）。
 
@@ -15,49 +16,12 @@
 
 ## 当前实测结果
 
-- **单元测试：113/113 通过**。
-- **E2E:68/68 通过**。
+- **单元测试：126/126 通过**。
+- **E2E:90/90 通过**。
 - 多窗口/单实例已做真实进程冒烟：主实例启动写锁 → 第二进程 254ms 秒退
   （转发成功）→ 主实例新窗口打开目标文档（last_file 证实）。
 - 多窗口链路回归脚本：`python tests/smoke_multiwindow.py` —— 真实双进程验证
   转发开新窗（桥可用）、`second_launch=focus` 只激活不开窗、带文件路径始终开新窗。
-
-### 本轮修复记录（2026-08-21 新窗口断链）
-
-- **新窗口后端断链**：新窗口 `waitForApi` 8s 超时放弃后桥才注入完成（慢盘/杀软
-  扫描时子窗口注入可达数秒级）→ 僵尸窗口（toast「后端连接异常」+ 首页无数据）。
-  修复：前端永久等待 + 2.5s「正在连接后端」遮罩 + 20s「重新加载」自愈出口；
-  后端转发收到请求先应答 `ok` 再异步建窗（建窗 Invoke 耗时不再拖爆转发方
-  recv 超时 → 第二进程不会误删活锁退化为完整实例）。
-- **新增**：`second_launch` 设置项（再次启动程序：新开窗口 / 激活当前窗口）；
-  工具栏「新窗口」按钮。
-
-### 本轮修复记录（2026-08-14 全面审阅）
-
-- **保存原子化**:`save_file` / 快速收集 / 云同步下载与冲突落盘统一走
-  `fsutil.atomic_write_*`（同目录临时文件 + os.replace)，崩溃/断电不留半截笔记。
-- **保存竞态**：保存往返期间继续输入会被 `markSaved` 误清脏标记（新输入可能丢失）;
-  现以 `latestContent` 快照重算脏标记，并加 `_saving` 门闩防止磁盘守望在自家写盘
-  窗口内误重载（阅读位置被刷回顶部）。
-- **getValue 三态收敛**:`cachedValue` 回退原为「Vditor 返回空即回退」，过宽；
-  现仅未就绪（重建中，回退携带内容）或「setValue 后尚无真实编辑」时回退，
-  用户编辑以 Vditor 为准（Vditor setValue 走 enableInput:false，不触发 input 回调）。
-- **重建看门狗不再直接应用 pendingValue**：原来先 setValue(pending) 又被 onReady
-  回调用切换前旧内容覆盖，新提交内容反丢；统一由回调装回，与正常 after 路径同入口。
-- **仅大小写重命名生效**:`note.md`→`NOTE.md` 曾被 normcase 判定同名直接返回，
-  实际未改名；现识别「normcase 同、字符串异」直接 os.rename。
-- **云同步首次同尺寸 skip 补记本地指纹**：否则本地后续同尺寸改动永远按「首次」
-  分支跳过，改动静默丢失（引擎静态分析发现，联网特性未实测，由内存/回环 DAV 单测覆盖）。
-- **检索有界读取**:search.py 各扫描点由「整文 read_text 再切片」改为按字节
-  有界读取 `_read_head`，巨型 md 不再全量入内存。
-- 杂项：projects.add 空白名回落目录名；updateDocName/侧栏空态/斜杠菜单渲染
-  统一 esc 转义；settings.js 死分支清理；app.css 修复 `#sb-zoom` 规则丢失选择器
-  （0dd8bbf 引入、7e0698f 插入 #sb-path 规则时覆盖，状态栏缩放按钮回退为默认按钮样式）。
-
-### 早前修复记录（待查项已清零）
-
-- **T10 待办勾选失效（真实产品 bug)**:`editor.js` 的 checkbox 守卫（捕获阶段 stopPropagation + 手动翻转 DOM checked）只改了 DOM、没更新 Vditor 内部 model，下一帧 Vditor 从 model 重渲染把勾选刷回——**勾选完全失效**。**已移除该守卫**，改由 Vditor 原生处理（正确同步源码 `[ ]`↔`[x]`)。
-- **T19 字数/脏标记**:updateCount 依赖 Vditor 内部 input 回调，**合成 InputEvent 无法驱动**（真实键入才可），属测试方法限制而非产品 bug;updateCount 本身经 loadDoc 路径验证正确（去空白计数，`#`/句号等非空白字符计入）。测试改走 loadDoc 可达路径。
 
 ### E2E 运行须知
 
@@ -99,7 +63,7 @@
 | B7 | 符号链接 | 不跟随（防目录环）,follow_symlinks=False | 单测 | ⚠️ Windows 需权限，代码审查保证 |
 | B8 | open_path | 目录→树；.md→文件；其他类型 → 拒绝 | 单测 | ✅ |
 | B9 | 原生对话框 | 打开/保存/文件夹选择；取消分支 cancelled | 手动 | ⬜ 对话框不可自动 |
-| B10 | 文件管理 | rename（补扩展/重名拒绝/路径同步）、move（重名/同目录拒绝）、delete（回收站、recent/last_file 清理）、非 md 拒绝 | 单测 | ✅ TestFileOps（9 项）；E2E T30-T32 覆盖右键菜单/重命名弹窗/删除草稿态 |
+| B10 | 文件管理 | rename（补扩展/重名拒绝/仅大小写/路径同步）、move（重名/同目录拒绝）、delete（回收站、recent/last_file 清理）、复制、非 md 拒绝 | 单测 | ✅ TestFileOps（11 项）；E2E T30-T32 覆盖右键菜单/重命名弹窗/删除草稿态 |
 
 ## C. 编辑器（Vditor 封装）
 
@@ -116,6 +80,8 @@
 | C8 | 防抖限流 | >30 万字符防抖 250→1200ms | 代码审查 | ⚠️ 常量 noteSize |
 | C9 | 可见面板定位 | activePanel/editorEl 命中可见面板（三面板陷阱回归） | E2E | ✅ 隐含于 T05/T06 |
 | C10 | 字数统计 | 去空白字符计数（input 事件驱动） | E2E | ✅ T19 |
+| C11 | 清空文档 | 真实编辑清空后 getValue 为空白（不回退旧内容） | E2E | ✅ T61 |
+| C12 | 双链装饰 | IR 文本 `[[ ]]` 渲染为 `.wiki-link` | E2E | ✅ T84 |
 
 ## D. 侧栏
 
@@ -133,10 +99,14 @@
 
 | 编号 | 特性 | 测试点 | 方式 | 自动化 |
 | --- | --- | --- | --- | --- |
-| E1 | 按钮文字 | 7 个 .icon-btn 均有非空 .ib-label | E2E | ✅ T02 |
+| E1 | 按钮文字 | 11 个 .icon-btn（含新窗口、所在目录）均有非空 .ib-label | E2E | ✅ T02 |
 | E2 | 图标注入 | [data-icon] 均注入 <svg>；文字未被覆盖 | E2E | ✅ T03 |
 | E3 | 主题切换 | data-theme 切换；按钮图标 sun/moon 换且文字保留；持久化 | E2E | ✅ T11 |
-| E4 | 设置弹窗 | 打开/3 个分组 tab/外观 8+3 swatch 与字体下拉/云同步面板默认隐藏/关闭 | E2E | ✅ T12 / T42 / T47 |
+| E4 | 设置弹窗 | 打开/3 个分组 tab/外观 6 swatch 与字体下拉/学习仓库按钮/云同步面板默认隐藏/关闭 | E2E | ✅ T12 / T42 / T47 |
+| E8 | 设置 Esc | Esc 关闭且 dialog 无障碍 | E2E | ✅ T62 |
+| E9 | 状态栏视图 | 可读宽度按钮可切换；专注按钮存在 | E2E | ✅ T63 |
+| E10 | 侧栏宽度 | 拖拽手柄 role=separator；默认 --sidebar-width 256px | E2E | ✅ T64 |
+| E11 | 确认框 | Esc 取消 | E2E | ✅ T65 |
 | E5 | 保存 | Ctrl+S 写盘并清除脏标记 ●（合成快捷键真实写盘回读验证） | E2E | ✅ T40 |
 | E6 | 快捷键 | Ctrl+O/N、Ctrl+Shift+B | 手动 | ⬜ 合成事件与真实键位一致性有限 |
 | E7 | 未保存确认 | dirty 时切文件弹确认 | 手动 | ⬜ confirm 已被 E2E hook，需人工 |
@@ -158,9 +128,10 @@
 | G1 | 右键唤起 | 编辑区 contextmenu → 菜单展示全部命令 | E2E | ✅ T14 |
 | G1b | 右键剪贴板组 | 顶部「剪贴板」组：有选区复制/剪切可用，无选区置灰；粘贴始终可用；禁用项不响应不关菜单 | E2E | ✅ T36 |
 | G1c | 剪贴板接线 | 复制/剪切→execCommand，粘贴→readText+insertValue（合成事件无手势，spy/stub 验证接线；真实手势效果见手动清单） | E2E | ✅ T37 |
+| G1d | 右键文件组 | 无已保存文件时「所在目录」禁用 | E2E | ✅ T90 |
 | G2 | Esc 关闭 | Escape → 菜单关闭 | E2E | ✅ T14 |
-| G3 | "/" 唤起与过滤 | 键入 /h1 边输边过滤；Tab/Enter 插入 | 手动 | ⬜ 需真实 IME 输入路径 |
-| G4 | notion/wolai 关键词 | 两风格触发词均命中 | 手动 | ⬜ 同 G3 |
+| G3 | "/" 过滤触发词 | filterCommands('h1','notion') / ('bt1','wolai') 命中一级标题；mermaid 同路径 | E2E | ✅ T78 |
+| G4 | 真实 IME 键入 | 键入 /h1、/bt1 边输边过滤并插入 | 手动 | ⬜ 需真实 IME 输入路径 |
 | G5 | 段落转换 | 右键「转换为」：正文↔标题↔列表↔引用↔代码块；跨块框选逐段转换；sv 模式按行转换 | E2E | ✅ T74-T77 |
 | G6 | 图表命令过滤 | mermaid 模板（流程图/思维导图等 10 种）按触发词命中 | E2E | ✅ T78 |
 | G7 | 表格行列操作 | 右键：上/下插行、左/右插列、删行/列、删表（全文区间替换路径） | E2E | ✅ T79 |
@@ -185,7 +156,8 @@
 | H11 | 公式 MathJax 引擎 | 设置切换 math_engine → 保内容重建 → mjx-container 渲染 | E2E | ✅ T73 |
 | H5 | 行背景不被 content-theme 覆盖 | tr 背景为 phycat 变量 | 手动（视觉） | ⬜ |
 | H6 | hljs 主题存在 | github/github-dark min.css 文件存在（不 404) | 单测 | ✅ |
-| H7 | 选区配色对比 | 编辑器 ::selection 背景与画布底色拉开对比（亮色 sky 蓝 α0.32 / 暗色 vampire 红 α0.38） | E2E+手动 | ✅ T35（亮色自动） ⬜（暗色视觉复核） |
+| H12 | 外壳字体 | sys-tokens 本仓库维护 Noto Sans SC；woff2 分片在位；index 不加载 vendor tokens | 单测 | ✅ test_fonts |
+| H7 | 选区配色对比 | 编辑器 ::selection 背景与画布底色拉开对比（a1 亮 = --sys-primary-shallow #888cf0） | E2E+手动 | ✅ T35（亮色自动） ⬜（暗色视觉复核） |
 
 ## I. 拖放
 
@@ -211,7 +183,7 @@
 
 | 编号 | 特性 | 测试点 | 方式 | 自动化 |
 | --- | --- | --- | --- | --- |
-| K1 | 首启进首页 | startup_page=home 且 config 有 last_file：welcome 关闭后仍进首页、3 快速操作、空态提示 | E2E | ✅ T00 |
+| K1 | 首启进首页 | startup_page=home 且 config 有 last_file：welcome 关闭后仍进首页、4 快速操作（含学习仓库）、空态提示 | E2E | ✅ T00 |
 | K2 | 启动页策略 | 仅 restore 才恢复；home/缺失/非法一律首页。首页打开文档走 ensureEditor | 单测/E2E | ✅ T00 / T00b ⬜（restore 档手动） |
 | K3 | 仓库增删改 | add 去重（大小写不敏感）/rename 空名拒绝/remove/失效标记不丢弃 | 单测 | ✅ TestProjects |
 | K4 | 排序 | 置顶最前 → last_opened_at 倒序 | 单测 | ✅ test_pin_and_sort_order |
@@ -222,7 +194,8 @@
 | K9 | 置顶交互 | pin 按钮 → pin-flag 标记 | E2E | ✅ T27 |
 | K10 | 点击进入 | 卡片点击 → 首页隐藏 + 文件树渲染 | E2E | ✅ T28 |
 | K11 | 首页最近区 | 渲染最近；最近 3 个文件单独成卡、其余归入「其他」分组；文件夹项「存为仓库」按钮 | E2E | ✅ T29/T41 |
-| K12 | 移除回空态 | remove → 列表空 + 空态显示（不删磁盘文件） | E2E | ✅ T29 |
+| K12 | 移除回空态 | remove 全部仓库 → 列表空 + 空态显示（不删磁盘文件） | E2E | ✅ T92 |
+| K14 | 学习仓库 | 资源完整；open_tutorial 幂等复制/置顶；E2E 打开导读 | 单测+E2E | ✅ TestTutorial / T89 |
 | K13 | 首页快捷键 | Ctrl+Shift+H 切换 / Esc 关闭 | 手动 | ⬜ 合成键事件可靠性有限 |
 
 ## L. 多窗口 / 单实例 / 默认应用

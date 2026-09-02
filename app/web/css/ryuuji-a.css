@@ -1,61 +1,10 @@
-/* RyuujiDesign A：统一外壳、组件与交互状态；palette 文件只负责语义色。 */
-:root {
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --control-h-sm: 30px;
-  --control-h: 36px;
-  --control-h-lg: 44px;
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 14px;
-  --titlebar-h: 48px;
-  --sidebar-width: 264px;
-  --ease-ui: cubic-bezier(0.2, 0.72, 0.2, 1);
-  --dur-fast: 140ms;
-  --dur-ui: 200ms;
-  --z-sticky: 100;
-  --z-menu: 300;
-  --z-modal: 400;
-  --z-toast: 500;
-  --shadow-contact: 0 2px 10px color-mix(in srgb, var(--primary), transparent 92%);
-  --shadow-overlay: 0 26px 70px -46px color-mix(in srgb, var(--text), transparent 50%);
-  --surface-control: color-mix(in srgb, var(--bg-elevated), var(--bg) 24%);
-  --surface-hover: color-mix(in srgb, var(--primary), var(--bg-elevated) 92%);
-  --edge-soft: color-mix(in srgb, var(--primary), var(--border) 82%);
-  --focus-soft: color-mix(in srgb, var(--primary), transparent 82%);
-  --interactive-fg: var(--primary-deep);
-}
-
-html[data-theme="light"] {
-  color-scheme: light;
-  --surface-raised: #ffffff;
-  --surface-control: color-mix(in srgb, #ffffff, var(--bg) 28%);
-  --surface-hover: color-mix(in srgb, var(--primary), #ffffff 93%);
-  --edge-soft: color-mix(in srgb, var(--primary), #d6dee8 82%);
-  --interactive-fg: color-mix(in srgb, var(--primary-deep), #000000 22%);
-}
-
-html[data-theme="dark"] {
-  color-scheme: dark;
-  --surface-raised: color-mix(in srgb, var(--bg-elevated), #ffffff 3%);
-  --surface-control: color-mix(in srgb, var(--bg-elevated), #ffffff 3%);
-  --surface-hover: color-mix(in srgb, var(--primary), var(--bg-elevated) 88%);
-  --edge-soft: color-mix(in srgb, var(--primary), var(--border) 86%);
-  --shadow-contact: 0 2px 10px rgb(0 0 0 / 0.2);
-  --shadow-overlay: 0 24px 64px -32px rgb(0 0 0 / 0.72);
-  --interactive-fg: var(--primary-deep);
-}
+/* RyuujiDesign A：统一外壳、组件与交互状态。
+   全部令牌（--sys-* 及桥接后的旧变量名）由 vendor/ryuuji + css/sys-bridge.css 供给；
+   本文件只写组件皮肤配方（v4.1/v5 证据配方：卡影+唇、输入三件套、实心选中行、
+   pill 化、主钮实心白字），不重复定义令牌。 */
 
 html,
 body {
-  background: var(--bg);
-  color: var(--text);
   font-kerning: normal;
 }
 
@@ -353,9 +302,11 @@ html[data-theme="dark"] .tb-title .logo {
 }
 
 .tree-item.active {
-  border-color: color-mix(in srgb, var(--primary), transparent 64%);
-  background: var(--primary-bg);
-  color: var(--interactive-fg);
+  /* v5 实心选中行：实心主色 + on-primary 白字 + 顶沿高光唇 */
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--active-fg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
   font-weight: 600;
 }
 
@@ -365,7 +316,10 @@ html[data-theme="dark"] .tb-title .logo {
 }
 
 .tree-item.active .caret,
-.tree-item.active .tw-icon,
+.tree-item.active .tw-icon {
+  color: color-mix(in srgb, var(--active-fg), transparent 28%);
+}
+
 .tree-item:hover .caret,
 .tree-item:hover .tw-icon {
   color: var(--primary);
@@ -400,7 +354,7 @@ html[data-theme="dark"] .tb-title .logo {
   border-top: 1px solid var(--edge-soft);
   background: color-mix(in srgb, var(--bg-elevated), var(--bg) 10%);
   color: var(--text-secondary);
-  font-family: var(--font-ui);
+  font-family: var(--sys-font-ui);
   font-size: 11px;
 }
 
@@ -476,31 +430,32 @@ button.sb-item:hover,
 }
 
 .btn:hover,
-.btn-ghost:hover {
+.btn--text:hover {
   border-color: color-mix(in srgb, var(--primary), transparent 60%);
   background: var(--surface-hover);
   color: var(--interactive-fg);
   transform: translateY(-1px);
 }
 
-html[data-theme="light"] .btn-primary {
-  border-color: color-mix(in srgb, var(--primary-deep), #000000 20%);
-  background: color-mix(in srgb, var(--primary-deep), #000000 18%);
-  color: #ffffff;
-}
-
-html[data-theme="dark"] .btn-primary {
-  border-color: var(--primary);
+.btn--primary {
+  /* 主钮：实心主色 + 白字（色板对比度已锁） */
+  border-color: var(--primary-deep);
   background: var(--primary);
-  color: var(--bg);
+  color: var(--active-fg);
+  box-shadow: var(--shadow-contact);
+  font-weight: 600;
 }
 
-.btn-primary:hover {
-  filter: brightness(0.96);
-  color: inherit;
+.btn--primary:hover {
+  /* hover 明度 -4% + lift 影 + 顶唇；active +1px 由全局按压规则供给 */
+  border-color: var(--primary-deep);
+  background: color-mix(in srgb, var(--primary), #000000 4%);
+  color: var(--active-fg);
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+  transform: translateY(-1px);
 }
 
-.btn-ghost {
+.btn--text {
   border-color: transparent;
   background: transparent;
 }
@@ -531,9 +486,10 @@ select:hover {
 #find-input:focus,
 #replace-input:focus,
 select:focus {
+  /* 输入 focus 三件套（v4.1 Linea 配方）：边换主色 + 底换 ctl-hover + 4px 12% 软环 */
   border-color: var(--primary);
-  background: var(--surface-raised);
-  box-shadow: 0 0 0 3px var(--focus-soft);
+  background: var(--sys-surface-ctl-hover);
+  box-shadow: 0 0 0 4px var(--focus-soft);
   outline: none;
 }
 
@@ -595,11 +551,12 @@ select:focus {
 .modal {
   width: min(680px, calc(100vw - 48px));
   max-height: min(760px, calc(100vh - 48px));
+  /* 面板影+唇（v4.1 Linea 配方）：lift 影 + 顶沿高光 */
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
   color: var(--text);
-  box-shadow: var(--shadow-overlay), 0 1px 0 color-mix(in srgb, #ffffff, transparent 72%) inset;
+  box-shadow: var(--shadow-overlay), var(--sys-paper-lip);
 }
 
 .modal-head {
@@ -619,10 +576,13 @@ select:focus {
   font-size: 12px;
 }
 
-.modal-head .badge {
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 68%);
-  border-radius: 6px;
-  background: var(--primary-bg);
+.pal-badge,
+.si-keys {
+  /* pill 配方（v5）：主色 9% 底 + 22% 边 + primary-ink 字 + 999 圆角。
+     注：.modal-head .badge 无需在此重复——lang/a.css 的 .badge 基座即同一配方 */
+  border: 1px solid color-mix(in srgb, var(--primary), transparent 78%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary), transparent 91%);
   color: var(--interactive-fg);
   font-family: var(--font-mono);
   letter-spacing: 0;
@@ -764,9 +724,11 @@ select:focus {
 #home-greet {
   margin: 0;
   color: var(--text);
-  font-size: 30px;
+  /* display 流式字阶（DESIGN-v4 D1）：门面主标随视口缩放 */
+  font-size: var(--sys-display-sm);
   font-weight: 600;
-  line-height: 1.2;
+  line-height: var(--sys-leading-display);
+  letter-spacing: var(--sys-tracking-display);
   text-wrap: balance;
 }
 
@@ -794,15 +756,16 @@ select:focus {
   border-radius: var(--radius);
   background: var(--surface-raised);
   color: var(--text);
-  box-shadow: none;
+  /* 卡影+唇（v4.1）：rest 即带浅影与顶沿高光 */
+  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
   font-size: 13px;
   font-weight: 600;
 }
 
 .quick-card:hover {
-  border-color: color-mix(in srgb, var(--primary), transparent 54%);
+  /* hover 不加深影：浓边 + 上移 1px */
+  border-color: var(--edge-soft-strong);
   background: var(--surface-hover);
-  box-shadow: var(--shadow-contact);
   transform: translateY(-1px);
 }
 
@@ -895,7 +858,7 @@ select:focus {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius);
   background: var(--surface-raised);
-  box-shadow: none;
+  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
 }
 
 .recent-file-card {
@@ -932,9 +895,8 @@ select:focus {
 
 .repo-card:hover,
 .recent-file-card:hover {
-  border-color: color-mix(in srgb, var(--primary), transparent 54%);
+  border-color: var(--edge-soft-strong);
   background: var(--surface-hover);
-  box-shadow: var(--shadow-contact);
   transform: translateY(-1px);
 }
 
@@ -1079,7 +1041,7 @@ select:focus {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-overlay);
+  box-shadow: var(--shadow-overlay), var(--sys-paper-lip);
   overflow: hidden;
 }
 
@@ -1106,8 +1068,6 @@ select:focus {
 }
 
 #pal-hint,
-.pal-badge,
-.slash-item .si-keys,
 .hint-row .hint-kk {
   border: 1px solid var(--edge-soft);
   border-bottom-width: 2px;
@@ -1133,21 +1093,58 @@ select:focus {
 }
 
 .pal-item:hover,
-.pal-item.active,
 .slash-item:hover,
-.slash-item.active,
 .ctx-item:hover,
-.vditor-hint button:hover,
-.vditor-hint button.vditor-hint--current {
+.vditor-hint button:hover {
   border-color: color-mix(in srgb, var(--primary), transparent 68%);
   background: var(--primary-bg);
   color: var(--text);
 }
 
+/* v5 实心选中行：菜单/列表的选中项 = 实心主色 + 白字 + 顶唇 */
 .pal-item.active,
 .slash-item.active,
 .vditor-hint button.vditor-hint--current {
-  box-shadow: inset 3px 0 0 var(--primary);
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--active-fg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
+}
+
+.pal-item.active .pal-title,
+.pal-item.active .pal-sub,
+.slash-item.active .si-title,
+.slash-item.active .si-desc {
+  color: var(--active-fg);
+}
+
+.pal-item.active .pal-sub,
+.slash-item.active .si-desc {
+  opacity: 0.72;
+}
+
+.pal-item.active .pal-badge,
+.slash-item.active .si-keys {
+  border-color: color-mix(in srgb, var(--active-fg), transparent 72%);
+  background: color-mix(in srgb, var(--active-fg), transparent 86%);
+  color: var(--active-fg);
+}
+
+/* slash.css 对 Vditor hint 用了 !important，实心选中行需同级覆盖 */
+.vditor-hint button.vditor-hint--current {
+  background: var(--primary) !important;
+  color: var(--active-fg) !important;
+}
+
+.vditor-hint button.vditor-hint--current .hint-tt {
+  color: var(--active-fg) !important;
+}
+
+.vditor-hint button.vditor-hint--current .hint-kk,
+.vditor-hint button.vditor-hint--current .hint-row .hint-ic {
+  border-color: color-mix(in srgb, var(--active-fg), transparent 72%) !important;
+  background: color-mix(in srgb, var(--active-fg), transparent 86%) !important;
+  color: var(--active-fg) !important;
 }
 
 .pal-title,
@@ -1177,7 +1174,7 @@ select:focus {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-overlay);
+  box-shadow: var(--shadow-overlay), var(--sys-paper-lip);
 }
 
 #slash-menu,
@@ -1223,6 +1220,13 @@ select:focus {
   font-variant-numeric: tabular-nums;
 }
 
+/* 数字统一 tabular-nums（DESIGN-v4 D2/D4） */
+#sb-count,
+#sb-zoom,
+.home-sec-count {
+  font-variant-numeric: tabular-nums;
+}
+
 /* 编辑内容：去除旧标题胶囊与装饰，保留主题语义色。 */
 .vditor,
 .vditor-reset,
@@ -1249,7 +1253,7 @@ select:focus {
 .vditor-reset h5,
 .vditor-reset h6 {
   color: var(--text) !important;
-  font-family: var(--font-ui) !important;
+  font-family: var(--font-body, "LXGW WenKai", "Noto Sans SC", sans-serif) !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
   text-wrap: balance;
@@ -1264,11 +1268,17 @@ select:focus {
   text-align: left !important;
 }
 
-.vditor-reset h1::after,
-.vditor-reset h3::before,
-.vditor-reset h4::before {
-  content: none !important;
-  display: none !important;
+/* H 侧标（Vditor IR 的 hN:before 原生机制）：与标题文字拉开边距
+   （原生 padding-right 仅 4px，侧标几乎贴着文字）；此槽位不可另作装饰。 */
+.vditor-ir .vditor-reset > h1:before,
+.vditor-ir .vditor-reset > h2:before,
+.vditor-ir .vditor-reset > h3:before,
+.vditor-ir .vditor-reset > h4:before,
+.vditor-ir .vditor-reset > h5:before,
+.vditor-ir .vditor-reset > h6:before {
+  margin-left: -40px !important;
+  padding-right: 12px !important;
+  color: var(--text-muted) !important;
 }
 
 .vditor-reset h2 {

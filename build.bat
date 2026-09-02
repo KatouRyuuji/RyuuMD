@@ -1,122 +1,145 @@
-@echo off
-chcp 936 >NUL
-cd /d "%~dp0"
-
-REM ---- Ñ¡ÔñÄ£Ê½: onefile(Ä¬ÈÏ) | onedir ----
-set "MODE=%~1"
-if "%MODE%"=="" set "MODE=onefile"
-
-if /i "%MODE%"=="onefile" goto :onefile
-if /i "%MODE%"=="onedir" goto :onedir
-echo [´íÎó] Î´ÖªÄ£Ê½ "%MODE%"¡£
-echo ÓÃ·¨: build.bat [onefile^|onedir]
-echo   onefile  (Ä¬ÈÏ) µ¥ÎÄ¼þ exe,±ãÓÚ·Ö·¢,²úÎïÔÚ dist\RyuuMD.exe
-echo   onedir           µ¥ÎÄ¼þ¼Ð,Æô¶¯¿ì,²úÎïÔÚ dist\RyuuMD\
-pause
-exit /b 1
-
-:onefile
-set "SPEC=RyuuMD-onefile.spec"
-set "DESC=µ¥ÎÄ¼þ onefile"
-set "OUTPATH=dist\RyuuMD.exe"
-goto :start
-
-:onedir
-set "SPEC=RyuuMD.spec"
-set "DESC=µ¥ÎÄ¼þ¼Ð onedir"
-set "OUTPATH=dist\RyuuMD"
-goto :start
-
-:start
-echo ============================================
-echo   RyuuMD Ä«¶Á - ´ò°ü½Å±¾  [Ä£Ê½: %DESC%]
-echo ============================================
-echo.
-
-REM ---- 1. ¼ì²é Python ----
-python --version >NUL 2>&1
-if errorlevel 1 (
-    echo [´íÎó] Î´ÕÒµ½ Python,ÇëÏÈ°²×° Python 3.10+ ²¢¼ÓÈë PATH¡£
-    pause
-    exit /b 1
-)
-for /f "delims=" %%v in ('python --version') do echo Ê¹ÓÃ %%v
-
-REM ---- 2. ¼ì²é²¢°²×°ÒÀÀµ(ÒÑ°²×°ÔòÌø¹ý) ----
-echo.
-echo [1/5] ¼ì²é²¢°²×°ÒÀÀµ / PyInstaller ...
-
-REM ÏÈ¼ì²é PyInstaller ÊÇ·ñÒÑ¾­¿ÉÓÃ,¿ÉÓÃÔò²»ÕÛÌÚ pip(±ÜÃâ C:\Python312\Scripts Ð´È¨ÏÞÎÊÌâ)
-python -m PyInstaller --version >NUL 2>&1
-if not errorlevel 1 (
-    echo   PyInstaller ÒÑ°²×°,Ìø¹ýÒÀÀµ°²×°
-    goto :deps_ok
-)
-
-REM PyInstaller È±Ê§Ê±¸ÄÓÃ pip
-python -m pip --version >NUL 2>&1
-if errorlevel 1 (
-    echo   Î´¼ì²âµ½ pip,ÏÈ³¢ÊÔÍ¨¹ý ensurepip Òýµ¼°²×° ...
-    python -m ensurepip --user
-    if errorlevel 1 python -m ensurepip
-    if errorlevel 1 (
-        echo [´íÎó] ensurepip Òýµ¼Ê§°Ü,ÇëÊÖ¶¯°²×° pip¡£
-        pause
-        exit /b 1
-    )
-)
-
-REM °²×°ÒÀÀµ(È«¾ÖÄ¿Â¼ÎÞÐ´È¨ÏÞÊ±,ÍË»Ø --user)
-python -m pip install -r requirements.txt pyinstaller
-if errorlevel 1 (
-    echo   È«¾Ö°²×°Ê§°Ü,¸ÄÓÃ --user °²×° ...
-    python -m pip install --user -r requirements.txt pyinstaller
-    if errorlevel 1 (
-        echo [´íÎó] ÒÀÀµ°²×°Ê§°Ü,Çë¼ì²éÍøÂç»ò pip Ô´¡£
-        pause
-        exit /b 1
-    )
-)
-
-:deps_ok
-
-REM ---- 2.5 ´ò°üÇ°µ¥Ôª²âÊÔÕ¢ÃÅ(E2E ÐèÕæÊµ´°¿Ú,ÇëÊÖ¶¯ÅÜ python run_tests.py) ----
-echo.
-echo [2/5] ÔËÐÐµ¥Ôª²âÊÔ ...
-python -m unittest discover -s tests -p "test_api.py" >NUL 2>&1
-if errorlevel 1 (
-    echo [´íÎó] µ¥Ôª²âÊÔÎ´Í¨¹ý,ÒÑÖÐÖ¹´ò°ü¡£ÇëÏÈÔËÐÐ python run_tests.py ¶¨Î»ÐÞ¸´¡£
-    pause
-    exit /b 1
-)
-echo   µ¥Ôª²âÊÔÍ¨¹ý¡£
-
-REM ---- 3. ÇåÀí¾É²úÎï(Ö»ÇåÀíµ±Ç°Ä£Ê½Ä¿±ê,±£ÁôÁíÒ»Ä£Ê½²úÎï) ----
-echo.
-echo [3/5] ÇåÀí¾É²úÎï (%OUTPATH%) ...
-if exist build rmdir /s /q build
-if exist "%OUTPATH%\" (
-    rmdir /s /q "%OUTPATH%"
-) else (
-    if exist "%OUTPATH%" del /q "%OUTPATH%"
-)
-
-REM ---- 4. Ö´ÐÐ´ò°ü ----
-echo.
-echo [4/5] Ö´ÐÐ PyInstaller ´ò°ü (%SPEC%) ...
-python -m PyInstaller --noconfirm --clean "%SPEC%"
-if errorlevel 1 (
-    echo [´íÎó] ´ò°üÊ§°Ü¡£
-    pause
-    exit /b 1
-)
-
-REM ---- 5. Íê³É ----
-echo.
-echo [5/5] ´ò°üÍê³É!
-echo --------------------------------------------
-echo  Ä£Ê½     : %DESC%
-echo  Êä³öÂ·¾¶ : %cd%\%OUTPATH%
-echo --------------------------------------------
-echo.
-pause
+@echo off
+chcp 936 >NUL
+cd /d "%~dp0"
+
+REM ---- ï¿½ï¿½Ñ¡Ä£Ê½: onefile(Ä¬ï¿½ï¿½) | onedir ----
+set "MODE=%~1"
+if "%MODE%"=="" set "MODE=onefile"
+
+REM ---- ï¿½ï¿½ pause: ï¿½Ú¶ï¿½ï¿½ï¿½ï¿½ï¿½ nopause ï¿½ò»·¾ï¿½ï¿½ï¿½ï¿½ï¿½ RYUUMD_NOPAUSE=1ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½/CI ï¿½ï¿½ï¿½Ã£ï¿½ ----
+set "NOPAUSE="
+if /i "%~2"=="nopause" set "NOPAUSE=1"
+if "%RYUUMD_NOPAUSE%"=="1" set "NOPAUSE=1"
+
+if /i "%MODE%"=="onefile" goto :onefile
+if /i "%MODE%"=="onedir" goto :onedir
+echo [ï¿½ï¿½ï¿½ï¿½] Î´ÖªÄ£Ê½ "%MODE%"
+echo ï¿½Ã·ï¿½: build.bat [onefile^|onedir] [nopause]
+echo   onefile  (Ä¬ï¿½ï¿½) ï¿½ï¿½ï¿½Ä¼ï¿½ exeï¿½ï¿½ï¿½ï¿½ï¿½Ú·Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ dist\RyuuMD.exe
+echo   onedir           Ä¿Â¼ï¿½æ£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì£¬ï¿½ï¿½ï¿½ï¿½ï¿½ dist\RyuuMD\
+echo   nopause          ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½È°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½/CI ï¿½Ã£ï¿½ï¿½ï¿½Ò²ï¿½ï¿½ï¿½ï¿½ RYUUMD_NOPAUSE=1
+call :maybe_pause
+exit /b 1
+
+:onefile
+set "SPEC=RyuuMD-onefile.spec"
+set "DESC=ï¿½ï¿½ï¿½Ä¼ï¿½ onefile"
+set "OUTPATH=dist\RyuuMD.exe"
+goto :start
+
+:onedir
+set "SPEC=RyuuMD.spec"
+set "DESC=Ä¿Â¼ï¿½ï¿½ onedir"
+set "OUTPATH=dist\RyuuMD"
+goto :start
+
+:start
+echo ============================================
+echo   RyuuMD ï¿½ï¿½ï¿½ - ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½  [Ä£Ê½: %DESC%]
+echo ============================================
+echo.
+
+REM ---- 0. ï¿½Ø±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½ RyuuMDï¿½ï¿½Õ¼ï¿½ï¿½ dist ï¿½ï¿½ï¿½ï¿½áµ¼ï¿½ï¿½ PermissionErrorï¿½ï¿½ ----
+tasklist /fi "imagename eq RyuuMD.exe" 2>NUL | find /i "RyuuMD.exe" >NUL
+if not errorlevel 1 (
+    echo [0/5] ï¿½ï¿½âµ½ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½ RyuuMD.exeï¿½ï¿½ï¿½È½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¼ï¿½Ã¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ...
+    taskkill /f /im RyuuMD.exe >NUL 2>&1
+    REM ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½Í·ï¿½
+    ping -n 3 127.0.0.1 >NUL
+)
+
+REM ---- 1. ï¿½ï¿½ï¿½ Python ----
+python --version >NUL 2>&1
+if errorlevel 1 (
+    echo [ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ Python,ï¿½ï¿½ï¿½È°ï¿½×° Python 3.10+ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ PATH
+    call :maybe_pause
+    exit /b 1
+)
+for /f "delims=" %%v in ('python --version') do echo Ê¹ï¿½ï¿½ %%v
+
+REM ---- 2. ï¿½ï¿½é²¢ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ / PyInstallerï¿½ï¿½ï¿½Ñ°ï¿½×°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ----
+echo.
+echo [1/5] ï¿½ï¿½é²¢ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ / PyInstaller ...
+
+REM ï¿½È¼ï¿½ PyInstaller ï¿½Ç·ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½Îµï¿½ï¿½ï¿½ pip(ï¿½ï¿½ï¿½ï¿½ C:\Python312\Scripts Ð´È¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
+python -m PyInstaller --version >NUL 2>&1
+if not errorlevel 1 (
+    echo   PyInstaller ï¿½Ñ°ï¿½×°,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×°
+    goto :deps_ok
+)
+
+REM PyInstaller È±Ê§Ê±ï¿½ï¿½ï¿½ï¿½ pip
+python -m pip --version >NUL 2>&1
+if errorlevel 1 (
+    echo   Î´ï¿½ï¿½âµ½ pip,ï¿½È³ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ ensurepip ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×° ...
+    python -m ensurepip --user
+    if errorlevel 1 python -m ensurepip
+    if errorlevel 1 (
+        echo [ï¿½ï¿½ï¿½ï¿½] ensurepip ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½,ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½×° pip
+        call :maybe_pause
+        exit /b 1
+    )
+)
+
+REM ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½(È«ï¿½ï¿½Ä¿Â¼ï¿½ï¿½Ð´È¨ï¿½ï¿½Ê±,ï¿½Ë»ï¿½ --user)
+python -m pip install -r requirements.txt pyinstaller
+if errorlevel 1 (
+    echo   È«ï¿½Ö°ï¿½×°Ê§ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ --user ï¿½ï¿½×° ...
+    python -m pip install --user -r requirements.txt pyinstaller
+    if errorlevel 1 (
+        echo [ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×°Ê§ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ pip Ô´
+        call :maybe_pause
+        exit /b 1
+    )
+)
+
+:deps_ok
+
+REM ---- 2.5 ï¿½ï¿½ï¿½Ç°ï¿½ï¿½Ôªï¿½ï¿½ï¿½ï¿½Õ¢ï¿½Å£ï¿½ï¿½ï¿½ï¿½éµ¥ï¿½ï¿½È«ï¿½ï¿½;E2E ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½ python run_tests.pyï¿½ï¿½ ----
+echo.
+echo [2/5] ï¿½ï¿½ï¿½Ðµï¿½Ôªï¿½ï¿½ï¿½Ô£ï¿½test_api + test_cloud + test_search + test_fontsï¿½ï¿½ ...
+python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts -q >NUL 2>&1
+if errorlevel 1 (
+    echo [ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½Ôªï¿½ï¿½ï¿½ï¿½Î´Í¨ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ python run_tests.py ï¿½ï¿½Î»ï¿½Þ¸ï¿½
+    call :maybe_pause
+    exit /b 1
+)
+echo   ï¿½ï¿½Ôªï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½
+
+REM ---- 3. ï¿½ï¿½ï¿½ï¿½ï¿½É²ï¿½ï¿½ï¿½(Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°Ä£Ê½Ä¿ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»Ä£Ê½ï¿½ï¿½ï¿½ï¿½) ----
+echo.
+echo [3/5] ï¿½ï¿½ï¿½ï¿½ï¿½É²ï¿½ï¿½ï¿½ (%OUTPATH%) ...
+if exist build rmdir /s /q build
+if exist "%OUTPATH%\" (
+    rmdir /s /q "%OUTPATH%"
+) else (
+    if exist "%OUTPATH%" del /q "%OUTPATH%"
+)
+
+REM ---- 4. Ö´ï¿½Ð´ï¿½ï¿½ ----
+echo.
+echo [4/5] Ö´ï¿½ï¿½ PyInstaller ï¿½ï¿½ï¿½ (%SPEC%) ...
+python -m PyInstaller --noconfirm --clean "%SPEC%"
+if errorlevel 1 (
+    echo [ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½ï¿½Ê§ï¿½ï¿½
+    call :maybe_pause
+    exit /b 1
+)
+
+REM ---- 5. ï¿½ï¿½ï¿½ ----
+echo.
+echo [5/5] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½!
+echo --------------------------------------------
+echo  Ä£Ê½     : %DESC%
+echo  ï¿½ï¿½ï¿½Â·ï¿½ï¿½ : %cd%\%OUTPATH%
+if exist "%OUTPATH%" (
+    for %%A in ("%OUTPATH%") do echo  ï¿½ï¿½Ð¡     : %%~zA ï¿½Ö½ï¿½
+)
+echo --------------------------------------------
+echo.
+call :maybe_pause
+exit /b 0
+
+:maybe_pause
+if not defined NOPAUSE pause
+exit /b 0

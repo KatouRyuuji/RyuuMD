@@ -80,7 +80,7 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 - 「未填写 WebDAV 地址」：只开了开关没填服务器；
 - 「该仓库未开启云同步」：未勾选「同步全部仓库」，也未在首页点云朵；
 - 401/403：用户名或应用密码错误（坚果云必须用应用密码）；
-- SSL 错误：内网 NAS 自签证书可勾选「忽略 SSL」，公网不要勾；
+- SSL 错误：内网 NAS 自签证书可勾选「忽略 SSL」；公网使用受信任证书；
 - 冲突文件 `*.conflict-*.md`：两边同时改过，打开对比后自行合并；
 - 关闭同步：关掉总开关即可，本地文件不受影响。可再删
   `cloud-state.json` 与 config 里的 `cloud_sync.password`。
@@ -88,7 +88,7 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 ## 4. 测试与质量门禁
 
 ```bash
-python run_tests.py     # 单测 108 + E2E 63，全绿才可发布
+python run_tests.py     # 单测 126 + E2E 90，全绿才可发布
 ```
 
 E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
@@ -99,7 +99,10 @@ E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
 
 1. `python run_tests.py` 全绿；
 2. 更新 `version_info.txt` 版本号（降低杀软误报的版本资源）；
-3. `build.bat`（onefile）与/或 `build.bat onedir`；
+3. `build.bat [onefile|onedir] [nopause]`：
+   - 自动结束运行中的 RyuuMD.exe（防止占用 dist 产物导致 PermissionError）；
+   - 内置单测闸门（test_api + test_cloud + test_search + test_fonts，失败即终止）；
+   - 交互双击运行结尾 `pause`；脚本/CI 调用传第二参 `nopause`（或 `RYUUMD_NOPAUSE=1`）；
 4. 手动清单走查（TEST_PLAN 末节）；
 5. 产物：`dist/RyuuMD.exe`（onefile）/ `dist/RyuuMD/`（onedir），两者可共存；
 6. **macOS（未公证）**：推送 `v*` tag 或手动跑 Actions **macOS 打包**；

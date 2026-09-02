@@ -1,84 +1,14 @@
 /* ============================================================
    RyuuMD 主题 —— 应用外壳（侧栏 / 标题栏 / 菜单 / 弹窗）
-   明暗由 html[data-theme=light|dark] 决定；配色由 html[data-palette] 覆盖。
-   此处 :root 是 sky，[data-theme=dark] 是 vampire；11 变体见 themes.css。
-   亮色画布/边框用 color-mix 随 --primary 淡染，换 palette 后不再残留 sky 蓝。
+   明暗由 html[data-theme=light|dark] 决定；配色由 html[data-palette] 决定。
+   颜色/形状/动效/z 阶来自 css/sys-tokens.css 与 vendor/ryuuji 色板；
+   应用变量经 css/sys-bridge.css 映射。本文件写布局与结构。
    ============================================================ */
 
-/* 本地字体（霞鹜文楷 / Cascadia Code）改由 app.js 在首屏后动态加载 css/fonts.css，
-   避免 25MB 字体与启动关键路径抢磁盘 IO。--font-ui/--font-mono 回退栈仍在下方。 */
-
-:root {
-  /* —— phycat sky（亮色，核心蓝 #3498db） —— */
-  --primary: #3498db;
-  --primary-deep: #2980b9;
-  --primary-shallow: #aed6f1;
-  --primary-bg: #eaf2f8;
-  --primary-bg-soft: #f4faff;
-
-  /* 面板纯白；画布/悬停/边框随 --primary 淡染（sky 下约等于原 #eef6fc / #e7eef6） */
-  --bg: color-mix(in srgb, var(--primary), #ffffff 92%);
-  --bg-elevated: #ffffff;        /* 工具栏/侧栏/状态栏/卡片 */
-  --sidebar-bg: #ffffff;
-  --sidebar-border: color-mix(in srgb, var(--primary), #ffffff 88%);
-  --text: #2c3e50;
-  --text-secondary: #5b7187;
-  --text-muted: #93a6b8;
-  --border: color-mix(in srgb, var(--primary), #ffffff 88%);
-  --hover-bg: color-mix(in srgb, var(--primary), #ffffff 92%);
-  --active-bg: #5296d5;          /* 激活文件背景（实蓝） */
-  --active-fg: #ffffff;          /* 激活文件文字 */
-  --shadow: 0 8px 30px color-mix(in srgb, var(--primary), transparent 88%);
-  --shadow-sm: 0 2px 10px color-mix(in srgb, var(--primary), transparent 92%);
-  --glass-bg: rgba(255, 255, 255, 0.86);
-  --scrollbar-thumb: rgba(44, 62, 80, 0.28);   /* 半透明，浅底上也可见（--border 太浅会隐形） */
-  --selection-bg: color-mix(in srgb, var(--primary), transparent 68%);    /* 选区随主色，与画布拉开对比 */
-
-  --radius: 10px;
-  --radius-sm: 7px;
-  --radius-lg: 16px;
-  --titlebar-h: 40px;
-
-  --font-ui: "LXGW WenKai", -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-
-  --danger: #c0392b;
-  --danger-fg: #ffffff;
-  --success: #1e8449;
-  --success-fg: #ffffff;
-}
-
-:root[data-theme="dark"] {
-  /* —— phycat vampire（暗色，吸血鬼红 #ff5555 / 背景 #282a36） —— */
-  --primary: #ff5555;
-  --primary-deep: #ff3b3b;
-  --primary-shallow: #bd93f9;
-  --primary-bg: rgba(255, 85, 85, 0.14);
-  --primary-bg-soft: rgba(255, 85, 85, 0.07);
-
-  /* 取自参考图：侧栏/工具栏深、卡片略亮、画布居中 */
-  --bg: #20222a;                 /* 编辑画布底色 */
-  --bg-elevated: #282a35;        /* 工具栏/卡片/状态栏 */
-  --sidebar-bg: #191a20;
-  --sidebar-border: #2f313c;
-  --text: #f8f8f2;
-  --text-secondary: #b7bdca;
-  --text-muted: #7e8c9f;
-  --border: #2f313c;
-  --hover-bg: #2f313c;
-  --active-bg: rgba(255, 85, 85, 0.22);
-  --active-fg: #ff8a8a;
-  --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
-  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --glass-bg: rgba(25, 26, 32, 0.86);
-  --scrollbar-thumb: rgba(248, 248, 242, 0.25);
-  --selection-bg: color-mix(in srgb, var(--primary), transparent 62%);
-
-  --danger: #ff6b6b;
-  --danger-fg: #1a1b20;
-  --success: #2ed573;
-  --success-fg: #102015;
-}
+/* 霞鹜文楷 / Cascadia Code 由 app.js 在首屏后加载 css/fonts.css，
+   与启动关键路径错开磁盘 IO。外壳字体 --sys-font-ui（Noto Sans SC 分片 VF）；
+   编辑器正文默认霞鹜文楷；设置里的 font_ui / font_mono 经 app.js 写入
+   --font-body / --font-mono。 */
 
 * {
   box-sizing: border-box;
@@ -90,10 +20,11 @@ body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  font-family: var(--font-ui);
+  font-family: var(--sys-font-ui);
   background: var(--bg);
   color: var(--text);
-  -webkit-font-smoothing: antialiased;
+  /* Windows Chromium 默认 font-smoothing:auto，低 DPR 走子像素。
+     Vditor 使用 subpixel-antialiased。 */
   text-rendering: optimizeLegibility;
 }
 
@@ -385,12 +316,12 @@ body {
 .tree-item.recent.missing .tw-name {
   text-decoration: line-through;
 }
-.btn-ghost {
+.btn--text {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-secondary);
 }
-.btn-ghost:hover {
+.btn--text:hover {
   background: var(--hover-bg);
   color: var(--text);
 }
@@ -552,13 +483,13 @@ body {
   border-color: var(--primary);
   color: var(--primary);
 }
-.btn-primary {
+.btn--primary {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
   font-weight: 600;
 }
-.btn-primary:hover {
+.btn--primary:hover {
   background: var(--primary-deep);
   border-color: var(--primary-deep);
   color: #fff;
@@ -613,6 +544,24 @@ body {
   font-weight: 700;
   letter-spacing: -1px;
   font-family: var(--font-mono);
+}
+
+/* 设置弹窗头部：齿轮图标、透明底。特异性与 vendor lang/a.css 的
+   html[data-lang="a"] .badge:not(...) 同为 0,3,1，本文件后加载生效。 */
+html[data-lang="a"] .modal-head .badge--plain {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  letter-spacing: 0;
+}
+html[data-lang="a"] .modal-head .badge--plain svg {
+  width: 22px;
+  height: 22px;
 }
 .modal-head h2 {
   margin: 0;

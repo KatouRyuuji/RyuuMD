@@ -142,12 +142,8 @@
     );
   }
 
-  /* 待办勾选交给 Vditor 原生处理。
-     历史教训:曾在此自绘守卫(捕获阶段 stopPropagation + 手动翻转 DOM checked 以
-     避免 Vditor 整篇 Lute 重渲染),但守卫只改了 DOM、没更新 Vditor 内部 model,
-     下一帧 Vditor 从 model 重渲染会把 checkbox 刷回原状——勾选完全失效。
-     原生处理会正确同步源码 [ ]<->[x] 并重渲染,是唯一可靠路径,不要再加守卫。 */
-  function bindCheckboxGuard() { /* 已废弃:保留空实现以免改动所有调用点 */ }
+  /* 待办勾选由 Vditor 原生处理，与源码 [ ]/[x] 同步。 */
+  function bindCheckboxGuard() { /* 空实现：调用点仍在，行为由 Vditor 原生勾选完成。 */ }
 
   /* 当前操作风格（notion / wolai）——交由 slash.js 处理，这里仅保留接口兼容。 */
   function setOpStyle(s) {
@@ -469,14 +465,6 @@
     sc.scrollTop = Math.round((ratio || 0) * Math.max(max, 0));
   }
 
-  function toggleTypewriter(on) {
-    const wrap = document.getElementById("editor-wrap");
-    if (!wrap) return false;
-    if (on == null) wrap.classList.toggle("typewriter-mode");
-    else wrap.classList.toggle("typewriter-mode", !!on);
-    return wrap.classList.contains("typewriter-mode");
-  }
-
   function focus() {
     if (vditor && ready) vditor.focus();
   }
@@ -547,7 +535,11 @@
       acceptNode(n) {
         const p = n.parentElement;
         if (!p) return NodeFilter.FILTER_REJECT;
-        if (p.closest("code, pre, a, .wiki-link")) return NodeFilter.FILTER_REJECT;
+        // 守卫：跳过代码/已有链接/已装饰节点。注意 Vditor IR 的内容根本身就是
+        // <pre class="vditor-reset">（即 root），closest 必命中它——命中 root 不算，
+        // 否则全篇永远被拒（该守卫曾致双链装饰整体失效）。
+        const guard = p.closest("code, pre, a, .wiki-link");
+        if (guard && guard !== root) return NodeFilter.FILTER_REJECT;
         if (!n.nodeValue || n.nodeValue.indexOf("[[") < 0) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       },
@@ -619,12 +611,55 @@
     });
   }
 
+  /* 专注模式的「当前块」追踪：CSS 不能用 :focus-within 判定光标块——编辑器失焦
+     （点状态栏/侧栏/切窗口）时全文会连正在编辑的块一起淡化。改为 selectionchange
+     驱动的显式 .focus-current 标记，淡化规则只排除它（与 hover）。 */
+  let focusCurrentEl = null;
+  let focusTrackTimer = null;
+
+  function clearFocusCurrent() {
+    if (focusCurrentEl) focusCurrentEl.classList.remove("focus-current");
+    focusCurrentEl = null;
+  }
+
+  function trackFocusBlock() {
+    const wrap = document.getElementById("editor-wrap");
+    if (!wrap || !wrap.classList.contains("focus-mode") || curMode !== "ir") {
+      clearFocusCurrent();
+      return;
+    }
+    const panel = activePanel();
+    const sel = window.getSelection();
+    let el = sel && sel.anchorNode;
+    if (!panel || !el || !panel.contains(el)) { clearFocusCurrent(); return; }
+    if (el.nodeType !== Node.ELEMENT_NODE) el = el.parentElement;
+    while (el && el.parentElement !== panel) el = el.parentElement;
+    if (el === panel || !el) { clearFocusCurrent(); return; }
+    if (focusCurrentEl === el) return;
+    clearFocusCurrent();
+    focusCurrentEl = el;
+    focusCurrentEl.classList.add("focus-current");
+  }
+
+  let focusTrackBound = false;
+  function bindFocusTrack() {
+    if (focusTrackBound) return;
+    focusTrackBound = true;
+    document.addEventListener("selectionchange", () => {
+      clearTimeout(focusTrackTimer);
+      focusTrackTimer = setTimeout(trackFocusBlock, 90);
+    });
+  }
+
   function toggleFocusMode(on) {
     const wrap = document.getElementById("editor-wrap");
     if (!wrap) return false;
     if (on == null) wrap.classList.toggle("focus-mode");
     else wrap.classList.toggle("focus-mode", !!on);
-    return wrap.classList.contains("focus-mode");
+    const next = wrap.classList.contains("focus-mode");
+    if (next) { bindFocusTrack(); trackFocusBlock(); }
+    else clearFocusCurrent();
+    return next;
   }
 
   window.Editor = {
@@ -649,7 +684,6 @@
     focus,
     isReady: () => ready,
     toggleFocusMode,
-    toggleTypewriter,
     enhanceRendered,
   };
 })();

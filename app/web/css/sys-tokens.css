@@ -1,0 +1,159 @@
+/* =============================================================================
+   sys-tokens.css — RyuuMD 共享原语（空间/字号/字体/动效/z 阶）
+   本仓库维护。外壳 Noto Sans SC（css/noto-sans-sc.css），等宽 Cascadia Code。
+   颜色由 palettes.css 写入 --sys-*。
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------
+     空间阶梯(4px 原子,8 级)
+     ------------------------------------------------------------------ */
+  --sys-space-1: 4px;
+  --sys-space-2: 8px;
+  --sys-space-3: 12px;
+  --sys-space-4: 16px;
+  --sys-space-5: 24px;
+  --sys-space-6: 32px;
+  --sys-space-7: 48px;
+  --sys-space-8: 64px;
+
+  /* ------------------------------------------------------------------
+     尺寸令牌(消灭魔法数字;DESIGN-v3 §2.1)
+     控件高三档 / 壳层宽(侧栏·抽屉) / 叠层宽(模态三档·cmdk·notice)
+     ------------------------------------------------------------------ */
+  --sys-control-h-sm: 28px;
+  --sys-control-h-md: 36px;
+  --sys-control-h-lg: 44px;
+  --sys-sidebar-w: 232px;
+  --sys-drawer-w: 360px;
+  --sys-modal-sm: 320px;
+  --sys-modal-md: 480px;
+  --sys-modal-lg: 720px;
+  --sys-cmdk-w: 560px;
+  --sys-notice-w: 340px;
+
+  /* ------------------------------------------------------------------
+     版式度量(DESIGN-v3 §2.1)
+     band-h   = 页头/页脚腰封唯一高度(窄屏 ≤640px 由文末媒体查询降为 12px)
+     margin-w = B6 书口宽(§1.4-⑥ 槽,≤120px)
+     measure  = 长文限宽(A 默认 68ch;B 语言层覆盖为 72ch)
+     ------------------------------------------------------------------ */
+  --sys-band-h: clamp(13px, 1.5vw, 16px);
+  --sys-margin-w: clamp(64px, 8vw, 120px);
+  --sys-measure: 68ch;
+
+  /* ------------------------------------------------------------------
+     字号阶梯(9 级,xs→5xl;契约 §3 记作 xs..3xl 系列)
+     xs=辅助/角标  sm=次要  md=紧凑正文  lg=正文  xl=强调/小标题
+     2xl=四级标题  3xl=三级标题  4xl=二级标题  5xl=一级标题/展示
+     ------------------------------------------------------------------ */
+  --sys-text-xs: 12px;
+  --sys-text-sm: 13px;
+  --sys-text-md: 14px;
+  --sys-text-lg: 16px;
+  --sys-text-xl: 18px;
+  --sys-text-2xl: 20px;
+  --sys-text-3xl: 24px;
+  --sys-text-4xl: 30px;
+  --sys-text-5xl: 38px;
+
+  /* ------------------------------------------------------------------
+     display 流式字阶(DESIGN-v4 §D1,新增不改旧 9 档)
+     门面 hero/章节大编号/页脚大字标专用,随视口流式缩放;
+     行高压至 1.08、字距 -0.02em(语言 B 等宽 display 由 lang/b.css 覆盖字距 0)
+     ------------------------------------------------------------------ */
+  --sys-display-sm: clamp(30px, 4vw, 44px);
+  --sys-display-md: clamp(38px, 6vw, 64px);
+  --sys-display-lg: clamp(48px, 8.5vw, 96px);
+  --sys-display-xl: clamp(64px, 13vw, 160px);
+  --sys-leading-display: 1.08;
+  --sys-tracking-display: -0.02em;
+
+  /* 行高(§6.10: 正文 1.5-1.7) */
+  --sys-leading-tight: 1.3;
+  --sys-leading-normal: 1.6;
+  --sys-leading-loose: 1.7;
+
+  /* ------------------------------------------------------------------
+     字体族(RyuuMD：外壳 Noto Sans SC VF，等宽 Cascadia Code；
+     webfont 由 app/web/css/noto-sans-sc.css 与 fonts.css 加载)
+     ------------------------------------------------------------------ */
+  --sys-font-ui: "Noto Sans SC", sans-serif;
+  --sys-font-display: "Noto Sans SC", sans-serif;
+  --sys-font-mono: "Cascadia Code", "Cascadia Mono", "JetBrains Mono",
+    "Fira Code", Consolas, "Courier New", monospace;
+
+  /* ------------------------------------------------------------------
+     字重阶梯(Noto Sans SC VF 400-700;契约:正文 regular,
+     强调/表头 semibold,标题 bold,控件标签 medium)
+     ------------------------------------------------------------------ */
+  --sys-font-weight-regular: 400;
+  --sys-font-weight-medium: 500;
+  --sys-font-weight-semibold: 600;
+  --sys-font-weight-bold: 700;
+
+  /* ------------------------------------------------------------------
+     动效(§6.9;曲线取值与 phycat 裁剪规则一致,语言 B 的 bounce 在 lang/b.css 覆盖)
+     ------------------------------------------------------------------ */
+  --sys-ease-smooth: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --sys-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --sys-ease-exit: ease-in;
+
+  /* 时长: 状态色 100 / hover 位移 180 / 弹窗 240 / 抽屉面板 320 / 转场上限 400 */
+  --sys-dur-1: 100ms;
+  --sys-dur-2: 180ms;
+  --sys-dur-3: 240ms;
+  --sys-dur-4: 320ms;
+  --sys-dur-5: 400ms;
+
+  /* ------------------------------------------------------------------
+     描边线宽(语言 B 硬描边 1-1.5px,A 统一 1px;阶梯供组件三档引用)
+     ------------------------------------------------------------------ */
+  --sys-border-w-1: 1px;
+  --sys-border-w-2: 1.5px;
+  --sys-border-w-3: 2px;
+
+  /* ------------------------------------------------------------------
+     比例带断点(§3.1,宽÷高纵横比 r 的下限阈值;供 JS/截图流水线读取,
+     CSS 媒体查询无法消费变量,各带分数写法同步维护于注释)
+     b1 超纵 9:21   r ≥ 0.43(媒体查询 43/100)
+     b2 纵带 9:16   r ≥ 0.56(14/25)
+     b3 近方 1:1    r ≥ 0.75(3/4)
+     b4 横带 3:2    r ≥ 1.33(4/3)
+     b5 宽横 16:9   r ≥ 1.78(16/9)
+     b6 超宽 21:9   r ≥ 2.33(21/9)
+     ------------------------------------------------------------------ */
+  --sys-bp-b1: 0.43;
+  --sys-bp-b2: 0.56;
+  --sys-bp-b3: 0.75;
+  --sys-bp-b4: 1.33;
+  --sys-bp-b5: 1.78;
+  --sys-bp-b6: 2.33;
+
+  /* ------------------------------------------------------------------
+     z-index 阶梯(浮层低于遮罩;数值留间隔便于插入)
+     ------------------------------------------------------------------ */
+  --sys-z-float: 40;
+  --sys-z-sticky: 100;
+  --sys-z-drawer: 200;
+  --sys-z-overlay: 300;
+  --sys-z-modal: 400;
+  --sys-z-popover: 450;
+  --sys-z-toast: 500;
+  --sys-z-tooltip: 600;
+  --sys-z-shellbar: 700;
+
+  /* 色板未就绪时的回退;正式值由 palettes.css 写入 */
+  --sys-on-danger: #ffffff;
+  --sys-primary-ink: var(--sys-primary-deep);
+
+  /* --sys-text-3(三级文字色,由 palettes.css 按板定义): 页面级令牌,
+     系统层无消费者,仅 f1/f4 页面消费;保留不删(DESIGN-v3 §2.1) */
+}
+
+/* 窄屏(≤640px)腰封降为 12px(DESIGN-v3 §2.1) */
+@media (max-width: 640px) {
+  :root {
+    --sys-band-h: 12px;
+  }
+}

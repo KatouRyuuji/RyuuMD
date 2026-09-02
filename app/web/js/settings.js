@@ -6,29 +6,22 @@
   let cfg = null;
   let onApply = null; // (partialConfig) => void
 
-  const LIGHT_PALETTES = [
-    { id: "cherry", name: "樱桃红", color: "#aa1111" },
-    { id: "caramel", name: "焦糖橙", color: "#f59e0b" },
-    { id: "forest", name: "森绿", color: "#11aa63" },
-    { id: "mint", name: "薄荷青", color: "#3db8bf" },
-    { id: "sky", name: "天蓝", color: "#3498db" },
-    { id: "prussian", name: "普鲁士蓝", color: "#1D4E89" },
-    { id: "sakura", name: "樱花粉", color: "#ff7096" },
-    { id: "mauve", name: "淡紫", color: "#A06EB4" },
-  ];
-  const DARK_PALETTES = [
-    { id: "vampire", name: "吸血鬼", color: "#ff5555" },
-    { id: "radiation", name: "辐射", color: "#4cd964" },
-    { id: "abyss", name: "深渊", color: "#00f3ff" },
+  /* RyuujiDesign v6.1 A 语言色板：每板自带明暗双态（palettes.css），
+     色板选择不再分亮暗两组；色值为各板亮色命名主色（供色块展示）。 */
+  const PALETTES = [
+    { id: "a1", name: "A-1 霜纸靛蓝", color: "#4a51e8" },
+    { id: "a2", name: "A-2 和红", color: "#e3253f" },
+    { id: "a3", name: "A-3 藤色", color: "#9550e0" },
+    { id: "a4", name: "A-4 柳染", color: "#85c91e" },
+    { id: "a5", name: "A-5 水浅葱", color: "#17bec8" },
+    { id: "a6", name: "A-6 樱花", color: "#f04572" },
   ];
   const FONT_UI_PRESETS = [
     { value: "", label: "默认（霞鹜文楷）" },
+    { value: "Noto Sans SC", label: "Noto Sans SC" },
     { value: "Microsoft YaHei", label: "微软雅黑" },
     { value: "SimSun", label: "宋体" },
     { value: "KaiTi", label: "楷体" },
-    { value: "Segoe UI", label: "Segoe UI" },
-    { value: "-apple-system, BlinkMacSystemFont, system-ui, \"Segoe UI\", \"Microsoft YaHei\", sans-serif", label: "系统默认" },
-    { value: "__custom__", label: "自定义…" },
   ];
   const FONT_MONO_PRESETS = [
     { value: "", label: "默认（Cascadia Code）" },
@@ -56,7 +49,7 @@
     mask.innerHTML = `
       <div class="modal settings-modal" role="dialog" aria-modal="true" aria-label="设置">
         <div class="modal-head">
-          <span class="badge">${window.ICONS.gear}</span>
+          <span class="badge badge--plain">${window.ICONS.gear}</span>
           <div>
             <h2>设置</h2>
             <p>偏好将自动保存</p>
@@ -115,8 +108,15 @@
             </div>
             <div class="setting-row">
               <div>
+                <div class="label">学习仓库</div>
+                <div class="desc">内置交互教程仓库，随意涂改不影响内置原件</div>
+              </div>
+              <button class="btn" id="set-tutorial">打开</button>
+            </div>
+            <div class="setting-row">
+              <div>
                 <div class="label">公式引擎</div>
-                <div class="desc">KaTeX 渲染更快；MathJax 与 Typora 相同，兼容更多 LaTeX 宏与语法。切换后编辑器自动重建</div>
+                <div class="desc">KaTeX 渲染更快；MathJax 兼容更多 LaTeX 宏与语法。切换后编辑器自动重建</div>
               </div>
               <div class="segmented" id="set-math-engine">
                 <button data-v="katex">KaTeX</button>
@@ -140,7 +140,7 @@
             <div class="setting-row">
               <div>
                 <div class="label">主题外观</div>
-                <div class="desc">工具栏按钮在亮 / 暗之间对切；配色在下方分别记忆</div>
+                <div class="desc">工具栏按钮在亮 / 暗之间对切；配色方案每板自带明暗双态</div>
               </div>
               <div class="segmented" id="set-theme">
                 <button data-v="light">亮色</button>
@@ -149,26 +149,17 @@
             </div>
             <div class="setting-row">
               <div>
-                <div class="label">亮色配色</div>
-                <div class="desc">点选即时保存。当前是暗色时只记住，切回亮色后生效</div>
+                <div class="label">配色方案</div>
               </div>
-              <div class="palette-swatches" id="swatch-light">${swatchHtml(LIGHT_PALETTES)}</div>
+              <div class="palette-swatches" id="swatch-palette">${swatchHtml(PALETTES)}</div>
             </div>
             <div class="setting-row">
               <div>
-                <div class="label">暗色配色</div>
-                <div class="desc">点选即时保存。当前是亮色时只记住，切到暗色后生效</div>
-              </div>
-              <div class="palette-swatches" id="swatch-dark">${swatchHtml(DARK_PALETTES)}</div>
-            </div>
-            <div class="setting-row">
-              <div>
-                <div class="label">界面字体</div>
-                <div class="desc">外壳与编辑区正文；默认霞鹜文楷</div>
+                <div class="label">正文字体</div>
+                <div class="desc">只影响编辑器正文；外壳固定 Noto Sans SC</div>
               </div>
               <div class="font-field">
                 <select class="field-input" id="set-font-ui">${optionHtml(FONT_UI_PRESETS)}</select>
-                <input class="field-input" id="set-font-ui-custom" placeholder="本机字体名" spellcheck="false" hidden />
               </div>
             </div>
             <div class="setting-row">
@@ -208,14 +199,14 @@
               <label class="check-line"><input type="checkbox" id="cloud-insecure" /> 忽略 SSL 证书错误（仅内网 NAS 自签证书时勾选）</label>
               <div class="cloud-actions">
                 <button class="btn" id="cloud-test">测试连接</button>
-                <button class="btn btn-primary" id="cloud-sync-now">立即同步</button>
+                <button class="btn btn--primary" id="cloud-sync-now">立即同步</button>
               </div>
               <div id="cloud-status"></div>
             </div>
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn btn-primary" id="set-close">完成</button>
+          <button class="btn btn--primary" id="set-close">完成</button>
         </div>
       </div>`;
 
@@ -225,15 +216,19 @@
     bindSeg("set-startup", "startup_page");
     bindSeg("set-second-launch", "second_launch");
     bindSeg("set-math-engine", "math_engine");
-    bindSwatches("swatch-light", "palette_light");
-    bindSwatches("swatch-dark", "palette_dark");
-    bindFont("set-font-ui", "set-font-ui-custom", "font_ui", FONT_UI_PRESETS);
+    bindSwatches("swatch-palette", "palette");
+    bindFontSimple("set-font-ui", "font_ui", FONT_UI_PRESETS);
     bindFont("set-font-mono", "set-font-mono-custom", "font_mono", FONT_MONO_PRESETS);
     document.getElementById("set-close").addEventListener("click", close);
     // 重开欢迎页：关闭设置后走 App 的欢迎流程（含风格选择与持久化）
     document.getElementById("set-welcome").addEventListener("click", () => {
       close();
       if (window.App && window.App.showWelcome) window.App.showWelcome();
+    });
+    // 学习仓库：关闭设置后走 App 的打开流程（含幂等复制与导读加载）
+    document.getElementById("set-tutorial").addEventListener("click", () => {
+      close();
+      if (window.App && window.App.openTutorial) window.App.openTutorial();
     });
     bindDefaultApp();
     bindAutoSave();
@@ -260,6 +255,18 @@
         syncSwatches();
         if (onApply) onApply({ [key]: btn.dataset.v });
       });
+    });
+  }
+
+  /* 正文字体：纯预设下拉（无自定义输入）；旧配置中的自定义值不在预设里时回显默认项，
+     用户重新选择后才覆盖，不会静默丢设置。 */
+  function bindFontSimple(selectId, key, presets) {
+    const sel = document.getElementById(selectId);
+    const cur = cfg[key] || "";
+    sel.value = presets.some((p) => p.value === cur) ? cur : "";
+    sel.addEventListener("change", () => {
+      cfg[key] = sel.value;
+      if (onApply) onApply({ [key]: sel.value });
     });
   }
 
@@ -315,10 +322,10 @@
         }
         if (st.is_default) {
           btn.textContent = "已是默认 ✓";
-          btn.classList.add("btn-ghost");
+          btn.classList.add("btn--text");
         } else {
           btn.textContent = "设为默认";
-          btn.classList.remove("btn-ghost");
+          btn.classList.remove("btn--text");
         }
       } catch (e) { /* 后端不可用时保持默认文案 */ }
     }
@@ -485,8 +492,7 @@
   }
 
   function syncSwatches() {
-    setSwatch("swatch-light", cfg.palette_light || "sky");
-    setSwatch("swatch-dark", cfg.palette_dark || "vampire");
+    setSwatch("swatch-palette", cfg.palette || "a1");
   }
 
   function setSeg(id, val) {

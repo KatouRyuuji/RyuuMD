@@ -1,0 +1,66 @@
+/* =============================================================================
+   themes/light.css — 亮色主题件(跨语言共享)
+   -----------------------------------------------------------------------------
+   职责: 只放"随亮暗分叉"的交互主题件——焦点环 / 选区染色 / 滚动条 / disabled
+   颜色一律消费 lang 层提供的 --sys-* 令牌,本文件不出现语言相关硬编码。
+   与 dark.css 结构对称,差异仅在个别取值(disabled 不透明度、滚动条轨底)。
+   ========================================================================== */
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --sys-disabled-opacity: 0.5;
+  --sys-selection-bg: var(--sys-primary-shallow);
+  --sys-selection-text: var(--sys-text);
+  --sys-scrollbar-thumb: var(--sys-border-strong);
+  --sys-scrollbar-thumb-hover: var(--sys-text-2);
+}
+
+/* ---- 焦点环(primary 2px outline,offset 2px;全组件可见) ---- */
+html[data-theme="light"] :focus-visible {
+  outline: 2px solid var(--sys-primary);
+  outline-offset: 2px;
+}
+html[data-theme="light"] :focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---- 选区染色 ---- */
+html[data-theme="light"] ::selection {
+  background: var(--sys-selection-bg);
+  color: var(--sys-selection-text);
+}
+
+/* ---- 滚动条(细轨;thumb 圆角随语言令牌:A 圆润 / B 硬朗) ---- */
+html[data-theme="light"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sys-scrollbar-thumb) transparent;
+}
+html[data-theme="light"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html[data-theme="light"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--sys-scrollbar-thumb);
+  border: 3px solid var(--sys-bg);
+  border-radius: var(--sys-radius-lg);
+}
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--sys-scrollbar-thumb-hover);
+}
+html[data-theme="light"] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---- disabled 态(统一降不透明度 + 禁止交互指针) ----
+   pointer-events:none(v4.1 复核): 根除禁用态 hover 皮肤泄漏(语言层 hover
+   规则特异性高于结构层冻结);aria-disabled 全库零使用,无焦点可达性损失 */
+html[data-theme="light"] [disabled],
+html[data-theme="light"] [aria-disabled="true"],
+html[data-theme="light"] .is-disabled {
+  opacity: var(--sys-disabled-opacity);
+  cursor: not-allowed;
+  pointer-events: none;
+}

@@ -156,17 +156,12 @@
   font-size: 12px;
 }
 
-#editor-wrap.focus-mode #statusbar { opacity: 0.38; }
-#editor-wrap.focus-mode #editor .vditor-ir .vditor-reset > *:not(:hover):not(:focus-within) {
-  opacity: 0.34;
+/* 专注模式：淡化非当前块。当前块由 editor.js selectionchange 打 .focus-current；
+   hover 块保持可读。状态栏保持不透明，供模式切换与路径操作。 */
+#editor-wrap.focus-mode #editor .vditor-ir .vditor-reset > *:not(:hover):not(.focus-current) {
+  opacity: 0.42;
   transition: opacity 0.16s ease;
 }
-#editor-wrap.typewriter-mode #editor .vditor-ir .vditor-reset,
-#editor-wrap.typewriter-mode #editor .vditor-sv {
-  padding-top: 32vh;
-  padding-bottom: 48vh;
-}
-
 #editor-wrap.readable-width #editor .vditor-ir .vditor-reset,
 #editor-wrap.readable-width #editor .vditor-sv {
   max-width: 42rem;

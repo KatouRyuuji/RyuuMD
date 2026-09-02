@@ -17,17 +17,25 @@ from typing import Any
 
 APP_NAME = "RyuuMD"
 
+# RyuujiDesign A 语言色板 id；旧 phycat id 在 Config._load 时映射到此集合
+_VALID_PALETTES = frozenset({"a1", "a2", "a3", "a4", "a5", "a6"})
+_LEGACY_PALETTE_MAP = {
+    "cherry": "a2", "vampire": "a2", "caramel": "a2", "sakura": "a6", "mauve": "a3",
+    "mint": "a5", "abyss": "a5", "forest": "a4", "radiation": "a4",
+    "sky": "a1", "prussian": "a1",
+}
+
 # 默认配置
 DEFAULTS: dict[str, Any] = {
     # 操作风格：notion = typora+notion（/h1 等英文/符号触发）
     #          wolai  = typora+wolai（/bt1、/dmk 等拼音缩写触发）
     "operation_style": "notion",
-    # 主题明暗：light | dark（决定 Vditor setTheme 与基础明暗；配色见 palette_*）
+    # 主题明暗：light | dark（决定 Vditor setTheme 与基础明暗）
     "theme": "light",
-    # 亮色模式使用的 phycat 配色变体（cherry/caramel/forest/mint/sky/prussian/sakura/mauve）
-    "palette_light": "sky",
-    # 暗色模式使用的 phycat 配色变体（vampire/radiation/abyss）
-    "palette_dark": "vampire",
+    # 配色方案：RyuujiDesign v6.1 A 语言色板 a1 霜靛 / a2 和红 / a3 藤色 / a4 柳染 /
+    # a5 水浅葱 / a6 樱花；每板自带明暗双态（palettes.css）。旧 phycat 的
+    # palette_light/palette_dark 键由前端读取时经映射表迁移为本键（api.py/app.js 各一份）
+    "palette": "a1",
     # 界面字体；空字符串 = 跟随主题默认（霞鹜文楷）
     "font_ui": "",
     # 等宽字体；空字符串 = 跟随主题默认（Cascadia Code）
@@ -66,8 +74,6 @@ DEFAULTS: dict[str, Any] = {
     "sidebar_width": 256,
     # 专注模式：淡化非当前段落并收起侧栏
     "focus_mode": False,
-    # 打字机模式：当前行尽量保持在编辑区中部
-    "typewriter_mode": False,
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,
@@ -112,12 +118,27 @@ class Config:
         self._data: dict[str, Any] = copy.deepcopy(DEFAULTS)
         self._load()
 
+    def _migrate_palette(self, loaded: dict[str, Any]) -> None:
+        """旧配置只有 palette_light/dark 或 phycat id 时，写入 palette a1–a6。"""
+        pal = self._data.get("palette")
+        if "palette" not in loaded:
+            theme = self._data.get("theme")
+            legacy = loaded.get("palette_dark" if theme == "dark" else "palette_light")
+            self._data["palette"] = _LEGACY_PALETTE_MAP.get(str(legacy or ""), "a1")
+            return
+        if pal not in _VALID_PALETTES:
+            self._data["palette"] = _LEGACY_PALETTE_MAP.get(str(pal or ""), "a1")
+
     def _load(self) -> None:
         if self._path.exists():
             try:
                 loaded = json.loads(self._path.read_text(encoding="utf-8"))
                 if isinstance(loaded, dict):
                     self._data.update(loaded)
+                    before = loaded.get("palette")
+                    self._migrate_palette(loaded)
+                    if self._data.get("palette") != before:
+                        self._save()
             except Exception:
                 # 配置损坏时回退到默认值，不阻断启动
                 pass

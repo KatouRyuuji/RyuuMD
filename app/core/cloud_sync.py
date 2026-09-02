@@ -425,7 +425,7 @@ class CloudEngine:
             return "download"
         if not loc and not rem:
             return "skip"
-        # 双方都在：用内容指纹。无历史记录时比大小+hash
+        # 双方都在：用内容指纹；无 fingerprint 记录时比大小+hash
         try:
             local_data = Path(loc["path"]).read_bytes()
         except OSError:
