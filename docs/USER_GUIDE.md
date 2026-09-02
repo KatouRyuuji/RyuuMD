@@ -9,8 +9,21 @@
 
 ### 1.1 直接运行（绿色版）
 
+**Windows**
+
 - **onedir 版**：解压后双击 `RyuuMD/RyuuMD.exe`；
 - **onefile 版**：双击单个 `RyuuMD.exe`（首次启动略慢，需解压到临时目录）。
+
+**macOS（Apple Silicon，未公证）**
+
+解压 `RyuuMD-mac-arm64.zip` 后：
+
+1. 右键 `RyuuMD.app` →「打开」→ 提示里再点「打开」（未公证包会被拦截，这是正常的）；
+2. 或双击同目录的「打开 RyuuMD.command」；
+3. 或终端执行 `xattr -cr RyuuMD.app` 后再双击。
+
+仅支持 M 系列 Mac。配置在 `~/Library/Application Support/RyuuMD`。
+「设为默认 Markdown 应用」仅 Windows 提供；Mac 请用右键 →「打开方式」。
 
 无需安装、无需联网，所有资源内置本地。
 

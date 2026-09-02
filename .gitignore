@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 build/
 dist/
+assets/icon.icns
 .venv/
 venv/
 *.spec.bak

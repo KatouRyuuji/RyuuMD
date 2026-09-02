@@ -8,7 +8,7 @@
 
 | 路径 | 内容 | 可否删除 |
 | --- | --- | --- |
-| `%APPDATA%\RyuuMD\config.json` | 全部配置：偏好、仓库列表、最近记录、会话、窗口尺寸、编辑区缩放、可读宽度、**云同步账号（含密码）** | 可，删后回默认（不影响笔记文件） |
+| `%APPDATA%\RyuuMD\config.json`（macOS：`~/Library/Application Support/RyuuMD/config.json`） | 全部配置：偏好、仓库列表、最近记录、会话、窗口尺寸、编辑区缩放、可读宽度、**云同步账号（含密码）** | 可，删后回默认（不影响笔记文件） |
 | `%APPDATA%\RyuuMD\cloud-state.json` | 云同步指纹（相对路径 → sha/mtime），用于三路比对 | 可，删后下次按内容重新对齐 |
 | `%APPDATA%\RyuuMD\instance.json` | 单实例锁（端口+token），运行时存在 | 运行中勿删；异常残留可删 |
 | `%APPDATA%\RyuuMD\默认应用验证.md` | 「设为默认」流程生成的验证文档 | 可随时删 |
@@ -102,7 +102,10 @@ E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
 3. `build.bat`（onefile）与/或 `build.bat onedir`；
 4. 手动清单走查（TEST_PLAN 末节）；
 5. 产物：`dist/RyuuMD.exe`（onefile）/ `dist/RyuuMD/`（onedir），两者可共存；
-6. 本地提交勿直接推远端（项目约定）。
+6. **macOS（未公证）**：推送 `v*` tag 或手动跑 Actions **macOS 打包**；
+   产物 `RyuuMD-mac-arm64.zip`。无 Apple 签名，用户需右键打开或 `xattr -cr`。
+   本机 Windows 不能打 Mac 包。有 Mac 时 `bash build-mac.sh`。
+7. 本地提交勿直接推远端（项目约定）。
 
 ## 6. 升级兼容性注意
 

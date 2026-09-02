@@ -33,6 +33,7 @@ import webview  # noqa: E402
 
 from app.core.api import Api  # noqa: E402
 from app.core.config import Config  # noqa: E402
+from main import start_webview  # noqa: E402
 
 # 控制台为 GBK 时避免打印中文乱码:测试名/结果统一用 ASCII
 def A(s: str) -> str:
@@ -1272,8 +1273,8 @@ def main() -> int:
         title="RyuuMD E2E", url=index, js_api=api, width=1200, height=800
     )
     api.bind_window(window)
-    webview.start(lambda: threading.Thread(target=_run, args=(window,), daemon=True).start(),
-                  gui="edgechromium", debug=False)
+    start_webview(lambda: threading.Thread(target=_run, args=(window,), daemon=True).start(),
+                  debug=False)
     return 1 if any(not ok for _, ok, _ in results) else 0
 
 

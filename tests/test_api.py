@@ -838,6 +838,34 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(data2["font_mono"], "Consolas")
         self.assertEqual(data2["sidebar_width"], 320)
 
+    def test_webview_gui_windows_is_edgechromium(self):
+        from main import webview_gui
+
+        if sys.platform == "win32":
+            self.assertEqual(webview_gui(), "edgechromium")
+        else:
+            self.assertIsNone(webview_gui())
+
+    def test_data_dir_respects_appdata(self):
+        from app.core.config import _data_dir_base
+
+        self.assertEqual(_data_dir_base(), Path(os.environ["APPDATA"]))
+
+    def test_data_dir_darwin_without_appdata(self):
+        from unittest.mock import patch
+
+        import app.core.config as cfg
+
+        fake_home = Path("/Users/tester")
+        env = {k: v for k, v in os.environ.items() if k != "APPDATA"}
+        with patch.dict(os.environ, env, clear=True):
+            with patch.object(cfg.sys, "platform", "darwin"):
+                with patch.object(cfg.Path, "home", return_value=fake_home):
+                    self.assertEqual(
+                        cfg._data_dir_base(),
+                        fake_home / "Library" / "Application Support",
+                    )
+
 
 class TestAssets(unittest.TestCase):
     def test_hljs_themes_exist(self):

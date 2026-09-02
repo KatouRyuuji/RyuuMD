@@ -1,7 +1,8 @@
 """配置持久化：操作风格、主题、上次打开的文件/文件夹、欢迎弹窗状态等。
 
-配置写入用户数据目录（Windows: %APPDATA%/RyuuMD），与程序文件分离，
-保证打包后仍可读写。
+配置写入用户数据目录，与程序文件分离，保证打包后仍可读写。
+Windows: %APPDATA%/RyuuMD；macOS: ~/Library/Application Support/RyuuMD。
+测试通过设置 APPDATA 覆盖任意平台的落点。
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -85,9 +87,18 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+def _data_dir_base() -> Path:
+    """用户数据根目录（不含 APP_NAME）。APPDATA 优先，便于测试隔离。"""
+    env = os.environ.get("APPDATA")
+    if env:
+        return Path(env)
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support"
+    return Path.home()
+
+
 def _data_dir() -> Path:
-    base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    d = Path(base) / APP_NAME
+    d = _data_dir_base() / APP_NAME
     d.mkdir(parents=True, exist_ok=True)
     return d
 

@@ -8,11 +8,11 @@
 
 | 层 | 技术 | 说明 |
 | --- | --- | --- |
-| 外壳 | pywebview（gui=edgechromium） | 复用系统 WebView2，包体极小 |
+| 外壳 | pywebview（Windows: edgechromium / macOS: 默认 Cocoa） | 复用系统 WebView2 / WKWebView，包体极小 |
 | 编辑器 | Vditor（vendor 全量内置） | IR 即时渲染 / SV 源码双模式 |
 | 前端 | 原生 HTML/CSS/JS，零框架零构建 | IIFE 模块 + `window.Xxx` 命名空间 |
 | 后端 | Python 3.10+，仅 pywebview 一个三方依赖 | JS ↔ Python 经 js_api 桥 |
-| 持久化 | JSON（%APPDATA%/RyuuMD/config.json） | 线程安全，损坏自动回退默认 |
+| 持久化 | JSON（Win: %APPDATA%/RyuuMD；Mac: ~/Library/Application Support/RyuuMD） | 线程安全，损坏自动回退默认 |
 
 原则：**轻量、本地优先、极速**。不引框架、不加构建步骤；默认同步关闭无需联网。
 新功能优先复用现有模式（事件委托、innerHTML 单次赋值、配置即状态）。
@@ -20,7 +20,7 @@
 ## 2. 目录与模块职责
 
 ```
-main.py                     进程入口：单实例判定、WindowManager、webview.start
+main.py                     进程入口：单实例判定、WindowManager、start_webview
 app/core/
   config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键，tmp+replace 原子写）
   fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS/IMAGE_EXTS + skip_dir_name + count_md_files + recycle_file + atomic_write_*（保存/云同步落盘统一原子写）
@@ -282,15 +282,19 @@ python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他
 ## 7. 打包发布
 
 ```bash
-build.bat            # onefile（默认）
-build.bat onedir     # onedir
+build.bat            # Windows onefile（默认）
+build.bat onedir     # Windows onedir
+bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同脚本）
 ```
 
-- 脚本会先跑单元测试作门禁（`[2/5]` 步），单测不过则中止构建，E2E 需手动 `python run_tests.py`；
+- Windows 脚本会先跑单元测试作门禁（`[2/5]` 步），单测不过则中止构建，E2E 需手动 `python run_tests.py`；
+- Mac 包用独立 `RyuuMD-mac.spec`（`BUNDLE` + `.icns`），**不要**改 Windows spec；
+- `start_webview()`（`main.py`）在 Windows 传 `gui=edgechromium`，其它平台不传 gui；
 - 新增的 `app/web` 静态资源自动随 `('app/web','app/web')` datas 打包；
 - 新增 Python 模块经 import 自动分析，无需改 spec；
-- 若引入新的动态 import → 加 `hiddenimports`；
+- 若引入新的动态 import → 加 `hiddenimports`（Mac 为 `webview.platforms.cocoa`）；
 - 发布前过一遍 `docs/TEST_PLAN.md` 手动清单（含多窗口/关联/拖放真实操作）。
+- GitHub Actions：`.github/workflows/macos-pack.yml`，`v*` tag 或手动触发；产物未公证。
 
 ### 7.1 防杀软误报
 

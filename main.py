@@ -1,6 +1,6 @@
 """RyuuMD —— 轻量、全本地、极速的 Markdown 编辑/阅读工具。
 
-技术栈：pywebview（系统 WebView2）+ Vditor 即时渲染编辑器。
+技术栈：pywebview（Windows WebView2 / macOS WKWebView）+ Vditor 即时渲染编辑器。
 - 全本地，无需联网
 - 拖入 md 文件或文件夹即可打开
 - 以仓库形式管理笔记目录，首页快速切换，支持多窗口
@@ -27,6 +27,32 @@ def resource_path(*parts: str) -> str:
     """兼容 PyInstaller 打包后的资源路径。"""
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, *parts)
+
+
+def webview_gui() -> str | None:
+    """Windows 固定 Edge WebView2；其它平台不传 gui，由 pywebview 选 Cocoa/GTK。
+
+    不要传 gui='cocoa'：start() 的合法值只有 cef/qt/gtk/mshtml/edgechromium，
+    macOS 默认后端就是 Cocoa。
+    """
+    if sys.platform == "win32":
+        return "edgechromium"
+    return None
+
+
+def start_webview(*args, **kwargs):
+    """webview.start 的平台包装：补 GUI 后端，其余参数原样透传。"""
+    gui = webview_gui()
+    if gui is not None:
+        kwargs.setdefault("gui", gui)
+    return webview.start(*args, **kwargs)
+
+
+def _app_icon() -> str | None:
+    """pywebview：Windows 用 .ico，macOS 用 .icns（源码态若尚未生成则省略）。"""
+    name = "icon.icns" if sys.platform == "darwin" else "icon.ico"
+    path = resource_path("assets", name)
+    return path if os.path.isfile(path) else None
 
 
 def _initial_path_from_argv() -> str:
@@ -174,13 +200,10 @@ def main() -> None:
 
     manager.create(initial)
 
-    # 应用图标（标题栏 / 任务栏）。winforms(edgechromium) 后端会读取
-    # _state['icon'] 设置窗口 Icon —— 文档虽写 GTK/QT，但 Windows 实际生效。
-    icon_path = resource_path("assets", "icon.ico")
-    icon = icon_path if os.path.isfile(icon_path) else None
-
+    # 应用图标（标题栏 / 任务栏 / Dock）。Windows 读 .ico；macOS 打包后
+    # Dock 图标主要来自 .app 的 icns，此处再传一份给 pywebview。
     try:
-        webview.start(gui="edgechromium", debug=False, icon=icon)
+        start_webview(debug=False, icon=_app_icon())
     finally:
         server.stop()
 

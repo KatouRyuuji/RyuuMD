@@ -28,6 +28,8 @@ os.environ["APPDATA"] = _TMP_APPDATA.name
 
 import webview  # noqa: E402
 
+from main import start_webview  # noqa: E402
+
 from app.core.api import Api  # noqa: E402
 from app.core.config import Config  # noqa: E402
 
@@ -244,8 +246,8 @@ def main() -> int:
     index = str(ROOT / "app" / "web" / "index.html")
     window = webview.create_window(title=TITLE, url=index, js_api=api, width=1360, height=860)
     api.bind_window(window)
-    webview.start(lambda: threading.Thread(target=_run, args=(window,), daemon=True).start(),
-                  gui="edgechromium", debug=False)
+    start_webview(lambda: threading.Thread(target=_run, args=(window,), daemon=True).start(),
+                  debug=False)
     return 0
 
 

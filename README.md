@@ -91,7 +91,26 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 代码层面无法彻底避免），可向微软提交误报：
 <https://www.microsoft.com/en-us/wdsi/filesubmission>。
 
+### macOS（Apple Silicon，未公证）
+
+本机是 Windows，Mac 包由 GitHub Actions 的 `macos-latest` runner 构建：
+
+- 推送 `v*` tag，或在 Actions 里手动跑 **macOS 打包**；
+- 产物 `RyuuMD-mac-arm64.zip`（`.app` + 说明 + `打开 RyuuMD.command`）；
+- **未签名、未公证**。首次打开：右键 `RyuuMD.app` → 打开；或双击 `打开 RyuuMD.command`；
+  或终端 `xattr -cr RyuuMD.app`。
+- 仅 Apple Silicon（M 系列）。Intel Mac 不支持。
+- 配置目录：`~/Library/Application Support/RyuuMD`。
+
+有 Mac 本机时也可：
+
+```bash
+bash build-mac.sh
+```
+
 ## 快捷键
+
+Mac 上修饰键为 `⌘`（与下表 `Ctrl` 对应）。
 
 | 操作 | 快捷键 |
 | --- | --- |

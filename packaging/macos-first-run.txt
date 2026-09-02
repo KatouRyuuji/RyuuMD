@@ -1,0 +1,19 @@
+RyuuMD for macOS（Apple Silicon，未公证）
+========================================
+
+本包未经 Apple 公证，也没有开发者签名。从网上下载后，系统会拦截首次打开。
+
+打开方法（任选其一）
+
+1. 右键 RyuuMD.app → 打开 → 在提示框再点「打开」
+2. 双击「打开 RyuuMD.command」（会先清除隔离属性再启动）
+3. 终端：
+   xattr -cr /path/to/RyuuMD.app
+   open /path/to/RyuuMD.app
+
+说明
+
+- 仅支持 Apple Silicon（M 系列）。Intel Mac 无法运行。
+- 配置目录：~/Library/Application Support/RyuuMD
+- 「设为默认 Markdown 应用」仅 Windows 提供；Mac 可用右键 → 打开方式。
+- 快捷键修饰键为 ⌘（与 Windows 的 Ctrl 对应）。

@@ -27,7 +27,7 @@ import webview  # noqa: E402
 
 from app.core.config import Config  # noqa: E402
 from app.core.singleton import InstanceServer  # noqa: E402
-from main import WindowManager  # noqa: E402
+from main import WindowManager, start_webview  # noqa: E402
 
 PASS = True
 
@@ -105,7 +105,7 @@ def main():
     mgr.create("")
     threading.Thread(target=work, args=(config,), daemon=True).start()
     try:
-        webview.start(gui="edgechromium", debug=False)
+        start_webview(debug=False)
     finally:
         server.stop()
 
