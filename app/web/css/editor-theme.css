@@ -90,9 +90,8 @@
 .vditor-sv .strong { color: var(--text); }
 
 /* ===========================================================
-   标题：装饰由 ryuuji-a.css 接管（h1 底部分隔线、h2 左竖线、其余净版）。
-   本层只保留基础字重。H 侧标使用 Vditor IR 的 hN:before，标题装饰走
-   其它属性，与侧标伪元素槽分开。
+   标题字阶与装饰由 ryuuji-a.css 接管。本层只清 Vditor 默认边框，
+   避免与 IR 侧标（hN:before）抢伪元素槽。
    =========================================================== */
 .vditor-reset h1,
 .vditor-reset h2,
@@ -100,17 +99,10 @@
 .vditor-reset h4,
 .vditor-reset h5,
 .vditor-reset h6 {
-  border: none !important;
-  font-weight: 700 !important;
+  border: none;
   color: var(--text);
   position: relative;
 }
-
-.vditor-reset h4 {
-  font-size: 1.1em !important;
-  margin: 0.9em 0 !important;
-}
-.vditor-reset h5, .vditor-reset h6 { font-size: 1em !important; opacity: .9; }
 
 /* ===========================================================
    链接 / 行内代码 / 强调
@@ -305,18 +297,54 @@
   background: var(--el-soo-shallow) !important;
   border-radius: 8px;
 }
-/* 超宽公式 / SVG 图表：横向滚动而非溢出破版（Vditor 默认与 vnote 均未处理）。
-   echarts / mindmap 是固定高度交互图，维持 Vditor 默认 overflow:hidden 不动 */
+/* 超宽公式横向滚动。mermaid / flowchart 的 svg 按内容高度收缩
+   （IR 画布是 height:100%，子级百分高度会撑满视口）。
+   echarts / mindmap 维持 Vditor 固定高度。 */
 .vditor-reset .language-math,
-.vditor-reset .language-mermaid,
-.vditor-reset .language-flowchart,
-.vditor-reset .language-graphviz,
-.vditor-reset .language-markmap,
 .vditor-reset .language-abc,
 .vditor-reset .language-plantuml {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 4px 0; /* 防 KaTeX 上下标贴边被裁 */
+}
+.vditor-ir__preview,
+.vditor-ir__preview > pre {
+  height: auto !important;
+  min-height: 0 !important;
+}
+.vditor-ir__preview:has(.language-mermaid),
+.vditor-ir__preview:has(.language-flowchart),
+.vditor-ir__preview:has(.language-graphviz),
+.vditor-ir__preview:has(.language-markmap) {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* 只打预览层：源码里的 code.language-mermaid 不能设 flex，否则隐藏围栏被撑到上千像素。 */
+.vditor-ir__preview .language-mermaid,
+.vditor-ir__preview .language-flowchart,
+.vditor-ir__preview .language-graphviz,
+.vditor-ir__preview .language-markmap {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: auto;
+  overflow-y: visible;
+  display: block;
+  line-height: 0;
+  padding: 12px 8px;
+  text-align: center;
+}
+.vditor-ir__preview .language-mermaid svg,
+.vditor-ir__preview .language-flowchart svg,
+.vditor-ir__preview .language-graphviz svg,
+.vditor-ir__preview .language-markmap svg {
+  height: auto !important;
+  max-width: 100%;
+  width: auto !important;
+  display: inline-block;
+  vertical-align: top;
 }
 .vditor-ir { caret-color: var(--el); }
 .vditor-reset::selection,
@@ -327,22 +355,18 @@
   color: var(--text-muted) !important;
 }
 
-/* 标题「类型标识」(#, ##…)：聚焦时放在正文左侧栏外，与标题底色/竖条错开。
-   标题 position:relative，标记为其直接子节点。 */
-.vditor-ir__node--expand .vditor-ir__marker--heading {
-  position: absolute;
-  right: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-right: 10px;
+/* 标题里的 # / ## / ### 不显示：左侧只保留 H1–H6 侧标。
+   展开时也不拉到槽里，避免和侧标对换、transition 造成跳动。 */
+.vditor-ir .vditor-reset > :is(h1, h2, h3, h4, h5, h6) > .vditor-ir__marker--heading {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
   padding: 0 !important;
-  color: var(--text-muted) !important;
-  font-family: var(--font-mono);
-  font-size: 0.8em;
-  font-weight: 400;
-  line-height: 1;
-  white-space: nowrap;
-  pointer-events: none;
+  opacity: 0 !important;
+  transition: none !important;
+  pointer-events: none !important;
 }
 
 /* ===========================================================

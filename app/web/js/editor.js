@@ -27,6 +27,73 @@
   let onModeChange = null;
   let getDocDir = null;    // () => 当前文档目录，用于相对图片转 file://
 
+  /* Vditor 默认 flowchart.htmlLabels=true：测量用 foreignObject 会继承编辑区
+     width（约 980px），每个节点被当成近千像素，viewBox 变成 2000×2000，
+     图只占左上角。拦截 initialize，改用 SVG 文本标签。 */
+  function patchMermaidInit() {
+    const m = window.mermaid;
+    if (!m || !m.initialize || m.initialize.__ryuu) return;
+    const orig = m.initialize.bind(m);
+    m.initialize = function (cfg) {
+      cfg = Object.assign({}, cfg || {});
+      cfg.flowchart = Object.assign({}, cfg.flowchart || {}, {
+        htmlLabels: false,
+        useMaxWidth: true,
+      });
+      return orig(cfg);
+    };
+    m.initialize.__ryuu = true;
+  }
+  if (window.mermaid) {
+    patchMermaidInit();
+  } else {
+    try {
+      let mermaidVal;
+      Object.defineProperty(window, "mermaid", {
+        configurable: true,
+        enumerable: true,
+        get() { return mermaidVal; },
+        set(v) { mermaidVal = v; patchMermaidInit(); },
+      });
+    } catch (e) { /* 环境不允许再定义 mermaid 时走 getBBox 收缩 */ }
+  }
+
+  function fitMermaidSvg(svg) {
+    if (!svg || !svg.getBBox) return;
+    let box;
+    try { box = svg.getBBox(); } catch (e) { return; }
+    if (!box || box.width < 2 || box.height < 2) return;
+    const pad = 12;
+    const w = box.width + pad * 2;
+    const h = box.height + pad * 2;
+    svg.setAttribute("viewBox",
+      (box.x - pad) + " " + (box.y - pad) + " " + w + " " + h);
+    svg.setAttribute("width", String(Math.ceil(w)));
+    svg.setAttribute("height", String(Math.ceil(h)));
+    svg.style.width = "auto";
+    svg.style.maxWidth = "100%";
+    svg.style.height = "auto";
+    svg.style.display = "inline-block";
+  }
+
+  function fitAllMermaid(root) {
+    const el = root || document;
+    if (!el.querySelectorAll) return;
+    el.querySelectorAll(".language-mermaid svg").forEach(fitMermaidSvg);
+  }
+
+  function bindMermaidFit() {
+    const host = document.getElementById("editor");
+    if (!host || host._ryuuMermaidFit) return;
+    host._ryuuMermaidFit = true;
+    let t = 0;
+    const mo = new MutationObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(() => fitAllMermaid(host), 40);
+    });
+    mo.observe(host, { childList: true, subtree: true });
+  }
+
   function init({ theme, change, outline, onReady, mode, modeChange, docDir, mathEngine }) {
     onChange = change;
     onOutline = outline;
@@ -75,6 +142,8 @@
       }
       bindCheckboxGuard();
       bindEditorClicks();
+      bindMermaidFit();
+      fitAllMermaid(document.getElementById("editor"));
       if (onReady) onReady();
     }
     vditor = new Vditor("editor", {
@@ -282,6 +351,8 @@
     });
     if (dirty) {
       try { Vditor.mermaidRender(el, "vendor/vditor", curTheme); } catch (e) { /* ignore */ }
+      setTimeout(() => fitAllMermaid(el), 80);
+      setTimeout(() => fitAllMermaid(el), 400);
     }
   }
 

@@ -1241,7 +1241,7 @@ select:focus {
 .vditor-wysiwyg .vditor-reset,
 .vditor-sv {
   width: min(100%, 980px);
-  padding: 40px clamp(32px, 5vw, 72px) 96px !important;
+  padding: 40px clamp(68px, 7vw, 80px) 96px !important;
   font-size: 16px !important;
   line-height: 1.78 !important;
 }
@@ -1254,18 +1254,72 @@ select:focus {
 .vditor-reset h6 {
   color: var(--text) !important;
   font-family: var(--font-body, "LXGW WenKai", "Noto Sans SC", sans-serif) !important;
-  font-weight: 600 !important;
   letter-spacing: 0 !important;
+  line-height: 1.35 !important;
   text-wrap: balance;
+  background: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding-left: 12px !important;
+  padding-right: 0 !important;
+  padding-top: 0 !important;
+  box-shadow: none !important;
 }
 
+/* 档次：h1 章题短条 > h2 节题左竖 > h3–h6 只靠字号。
+   六级同一 padding-left，IR 侧标对齐；左竖画在内边距里，不挤正文。 */
 .vditor-reset h1 {
-  margin: 1.8em 0 0.8em !important;
-  padding: 0 0 0.45em !important;
-  border-bottom: 1px solid var(--edge-soft) !important;
-  background: none !important;
-  font-size: 2em !important;
+  margin: 1.55em 0 0.65em !important;
+  padding-bottom: 0 !important;
+  font-size: 1.85em !important;
+  font-weight: 700 !important;
   text-align: left !important;
+}
+.vditor-reset h1::after {
+  content: "";
+  display: block;
+  width: 2.2em;
+  height: 3px;
+  margin-top: 0.32em;
+  border-radius: 2px;
+  background: var(--primary);
+}
+
+.vditor-reset h2 {
+  margin: 1.4em 0 0.5em !important;
+  padding-bottom: 0 !important;
+  font-size: 1.5em !important;
+  font-weight: 700 !important;
+  box-shadow: inset 3px 0 0 var(--primary) !important;
+}
+
+.vditor-reset h3 {
+  margin: 1.25em 0 0.45em !important;
+  padding-bottom: 0 !important;
+  font-size: 1.28em !important;
+  font-weight: 600 !important;
+}
+
+.vditor-reset h4 {
+  margin: 1.15em 0 0.4em !important;
+  padding-bottom: 0 !important;
+  font-size: 1.14em !important;
+  font-weight: 600 !important;
+}
+
+.vditor-reset h5 {
+  margin: 1.05em 0 0.35em !important;
+  padding-bottom: 0 !important;
+  font-size: 1.05em !important;
+  font-weight: 600 !important;
+}
+
+.vditor-reset h6 {
+  margin: 1em 0 0.3em !important;
+  padding-bottom: 0 !important;
+  font-size: 1em !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
 }
 
 /* H 侧标（Vditor IR 的 hN:before 原生机制）：与标题文字拉开边距
@@ -1276,33 +1330,14 @@ select:focus {
 .vditor-ir .vditor-reset > h4:before,
 .vditor-ir .vditor-reset > h5:before,
 .vditor-ir .vditor-reset > h6:before {
-  margin-left: -40px !important;
+  margin-left: -48px !important;
   padding-right: 12px !important;
   color: var(--text-muted) !important;
-}
-
-.vditor-reset h2 {
-  margin: 1.7em 0 0.7em !important;
-  padding: 0 0 0 12px !important;
-  border: 0 !important;
-  border-left: 3px solid var(--primary) !important;
-  border-radius: 0 !important;
-  background: none !important;
-  color: var(--text) !important;
-  font-size: 1.5em !important;
-  line-height: 1.35 !important;
 }
 
 .vditor-reset h2:hover,
 .vditor-reset h3:hover {
   transform: none !important;
-}
-
-.vditor-reset h3 {
-  margin: 1.5em 0 0.65em !important;
-  padding: 0 !important;
-  border: 0 !important;
-  font-size: 1.22em !important;
 }
 
 .vditor-reset p {
