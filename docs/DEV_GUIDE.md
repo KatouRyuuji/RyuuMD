@@ -25,7 +25,8 @@ app/core/
   config.py                 Config：线程安全 JSON 配置（DEFAULTS 定义全部键，tmp+replace 原子写）
   fsutil.py                 共享常量 MD_EXTS/IGNORE_DIRS/IMAGE_EXTS + skip_dir_name + count_md_files + recycle_file + atomic_write_*（保存/云同步落盘统一原子写）
   api.py                    Api：暴露给 JS 的全部方法（每窗口一个实例；含文件管理 rename/move/delete、append_capture、open_tutorial）
-  search.py                 仓库 md 索引 / 全文搜索 / [[wikilink]] / 待办标签断链 / 未链接提及
+  search.py                 仓库 md 索引 / 全文搜索 / 标题与内容检索 / [[wikilink]] / 待办标签断链 / 未链接提及
+  anthropic.py              Anthropic Messages 客户端、ask 前缀、文档/仓库概括、语义搜索
   projects.py               ProjectStore：仓库增删改查/置顶/排序/打开计时
   file_assoc.py             Windows 文件关联：注册 + SHOpenWithDialog + 状态查询
   singleton.py              单实例：try_forward（客户端）/ InstanceServer（服务端）
@@ -40,7 +41,7 @@ app/web/
   css/editor-theme.css      Vditor 渲染区 phycat 排版身份（装饰保留，色值经桥接随色板）
   css/ryuuji-a.css          组件皮肤层（A 语言配方：卡影+唇/实心选中行/输入三件套/pill）
   css/slash.css             斜杠菜单
-  css/palette.css           命令面板 + 本文查找条 + 专注/可读宽度
+  css/palette.css           命令面板 + 本文查找条 + 可读宽度
   vendor/ryuuji/            配色与皮肤：styles/{palettes,motion,patterns,lang/a,themes/{light,dark}}.css
   css/noto-sans-sc.css      外壳 Noto Sans SC 可变字重分片 webfont
   js/icons.js               内联 SVG 图标集（feather 风格，currentColor）
@@ -49,15 +50,17 @@ app/web/
   js/sidebar.js             侧栏：文件树/大纲/最近（容器级事件委托）+ 文件右键管理菜单 + 目录全折叠
   js/home.js                首页：仓库双视图/快速操作/最近/重命名弹窗
   js/welcome.js             首次欢迎窗口
-  js/settings.js            设置弹窗（通用 / 外观 / 云同步 分组标签页）
+  js/settings.js            设置弹窗（通用 / 外观 / 云同步 / AI 分组标签页）
   js/editor.js              Vditor 封装：模式切换（保持阅读位置）/大纲提取/主题/大文档策略/相对图片/wikilink
-  js/palette.js             Ctrl+P 快速打开 / Ctrl+Shift+P 命令 / Ctrl+Shift+F 搜索 / 待办·标签·断链·提及索引
-  js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放、贴图、自动保存、可读宽度/专注、确认框、Toast 队列
+  js/palette.js             Ctrl+P / Ctrl+Shift+P / Ctrl+Shift+F（标题/内容即时搜；语义与 ask 仅 Enter）
+  js/ai_panel.js            AI 侧栏：提问 / 概括 / 知识谱系；Esc 入栈；白名单 Markdown；进行中互斥
+  js/app.js                 主控制器：boot、启动策略、打开/保存、快捷键、拖放、贴图、自动保存、可读宽度、确认框、Toast 队列
 tests/
   test_api.py               Python 层单测（unittest，零三方依赖）
   test_fonts.py             外壳字体门闩（sys-tokens 本仓库维护、Noto webfont 在位）
   test_cloud.py             云同步门闩/双向/冲突
   test_search.py            仓库检索/wikilink/贴图/日记/待办索引/收集箱
+  test_ai.py                Anthropic 协议/概括/三模式/ask；http(s) 白名单与禁重定向；仓库边界；谱系缓存失效
   test_e2e.py               真实窗口 E2E（evaluate_js 探针）
 ```
 
@@ -229,21 +232,23 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
   按钮用体系类名 `.btn` / `.btn--primary` / `.btn--text`；徽章用体系 pill。
   新增组件命名前先查 `vendor/ryuuji/styles/lang/a.css` 选择器，撞名时改用体系类名。
 - `#body` 为 `position: relative`，使 `#home`（`position:absolute; inset:0`）锚定在主区内、工具栏可见。
-- 弹窗 `Esc`：`App.registerEscape` 栈由 `bindShortcuts` 统一弹出（Palette / 查找条优先）；设置/欢迎/确认/输入框/首页重命名都入栈。
+- 弹窗 `Esc`：`App.registerEscape` 栈由 `bindShortcuts` 统一弹出（Palette / 查找条优先）；设置/欢迎/确认/输入框/首页重命名/AI 侧栏都入栈。
 - 确认框：`App.confirm({ title, message, okText, cancelText }) -> Promise<boolean>`，Esc=取消、Enter=确认。
 - Toast：`App.toast(msg, { type, duration })`，最多 3 条堆叠；文案含「失败」时自动 `error`（默认 4s，`--danger`）。
-- 状态栏 `#sb-views`：可读宽度 / 专注，点击等效命令面板对应命令，激活态 `var(--primary)`。
+- 状态栏 `#sb-views`：可读宽度，点击等效命令面板对应命令，激活态 `var(--primary)`。
+- 工具栏显隐与界面状态强相关：`body.is-home`（home.js `syncHomeButton` 维护）隐藏侧栏/保存/AI/所在目录；`body.no-doc`（app.js `updateDocName` 维护）隐藏所在目录。规则集中在 app.css。
 - 工具栏窄窗：`1080px` / `960px` 两档隐藏 `.ib-label`，只留图标，`title` 补偿。
 
-**T12（设置弹窗）**：三个分组标签页，切换只显隐、不重渲染（避免云同步输入丢失）。
+**T12（设置弹窗）**：四个分组标签页，切换只显隐、不重渲染（避免云同步与 AI 输入丢失）。
 
 | 分组 | 内容 |
 | --- | --- |
 | 通用 | 操作风格、启动时显示、再次启动程序、默认 Markdown 应用、欢迎页、学习仓库、公式引擎、自动保存、日记目录 |
 | 外观 | 主题亮/暗、配色方案 6 swatch（写入 `palette`）、正文字体、等宽字体 |
 | 云同步 | 启用开关 + 现有 WebDAV 面板（`save_cloud_settings` 独立通道不动） |
+| AI | Anthropic Base URL / API Key / 模型（`update_config` 写入 `ai`）；语义与 `ask` 仅 Enter 请求 |
 
-新增设置项归入对应分组。可读宽度、专注模式、编辑区缩放走状态栏 / 命令面板。
+新增设置项归入对应分组。可读宽度、编辑区缩放走状态栏 / 命令面板。
 点色板 swatch 只写 `palette`。
 
 ## 5. 开发与调试
@@ -271,7 +276,7 @@ python main.py                        # 开发运行
 
 ```bash
 python run_tests.py                   # 单测 + E2E 全量
-python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts -v
+python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts tests.test_ai -v
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```
 

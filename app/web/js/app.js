@@ -54,7 +54,6 @@
     applyZoom(state.config.editor_zoom || 100, true);
     applyReadable(!!state.config.readable_width, true);
     applySidebarWidth(state.config.sidebar_width || 256);
-    if (state.config.focus_mode) applyFocusVisual(true);
     syncViewToggles();
     window.SlashMenu.setStyle(state.config.operation_style);
     window.Editor.setOpStyle(state.config.operation_style);
@@ -95,10 +94,12 @@
         const res = await a.get_recent();
         return (res && res.items) || [];
       },
-      search: async (q) => {
+      search: async (q, mode) => {
         const a = api();
-        if (!a || !a.search_vault) return { hits: [] };
-        return a.search_vault(state.currentFolder || "", q || "");
+        if (!a) return { hits: [] };
+        if (a.search_notes) return a.search_notes(state.currentFolder || "", q || "", mode || "title");
+        if (a.search_vault) return a.search_vault(state.currentFolder || "", q || "");
+        return { hits: [] };
       },
       onPickFile: (it) => { if (it && it.path) openFileByPath(it.path); },
       onPickHit: (it) => {
@@ -111,6 +112,14 @@
         if (!a || !a.vault_index) return { items: [] };
         return a.vault_index(state.currentFolder || "", kind, q || "", state.currentPath || "");
       },
+    });
+
+    window.AiPanel.init({
+      api,
+      getFolder: () => state.currentFolder || "",
+      getPath: () => state.currentPath || "",
+      getContent: () => (window.Editor && window.Editor.getValue ? window.Editor.getValue() : ""),
+      toast,
     });
 
     // 与编辑器无关的后台任务：不等 Vditor，避免首页被 lute.min.js 堵住
@@ -128,7 +137,7 @@
       font_ui: "", font_mono: "",
       operation_style: "notion", display_mode: "ir",
       welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
-      readable_width: false, sidebar_width: 256, focus_mode: false,
+      readable_width: false, sidebar_width: 256,
       startup_page: "home",
     };
   }
@@ -429,6 +438,7 @@
   // 文件夹打开/刷新的统一处理；后端超限截断时明确提示（隐藏/巨型目录已被后端过滤）
   function applyFolder(res, announce) {
     if (announce && window.Home && window.Home.isOpen()) window.Home.hide();
+    if (state.currentFolder !== res.root && window.AiPanel) window.AiPanel.resetKnowledge();
     state.currentFolder = res.root;
     window.Sidebar.renderTree(res.tree, res.name);
     if (state.currentPath) window.Sidebar.markActive(state.currentPath);
@@ -609,14 +619,12 @@
 
   function bindViewToggles() {
     on("sb-readable", () => toggleReadable());
-    on("sb-focus", () => toggleFocus());
   }
 
   function syncViewToggles() {
     const wrap = document.getElementById("editor-wrap");
     const map = {
       "sb-readable": wrap && wrap.classList.contains("readable-width"),
-      "sb-focus": wrap && wrap.classList.contains("focus-mode"),
     };
     Object.keys(map).forEach((id) => {
       const el = document.getElementById(id);
@@ -624,24 +632,6 @@
       el.classList.toggle("active", !!map[id]);
       el.setAttribute("aria-pressed", map[id] ? "true" : "false");
     });
-  }
-
-  function applyFocusVisual(on) {
-    const side = document.getElementById("sidebar");
-    const next = window.Editor.toggleFocusMode(on == null ? null : !!on);
-    if (side) {
-      if (next) {
-        if (state._sideBeforeFocus == null) {
-          state._sideBeforeFocus = side.classList.contains("collapsed");
-        }
-        side.classList.add("collapsed");
-      } else {
-        if (state._sideBeforeFocus === false) side.classList.remove("collapsed");
-        state._sideBeforeFocus = null;
-      }
-    }
-    syncViewToggles();
-    return next;
   }
 
   function applySidebarWidth(px) {
@@ -712,6 +702,8 @@
   function updateDocName(name) {
     const base = name || (state.currentPath ? basename(state.currentPath) : "未命名");
     docNameEl.innerHTML = esc(base) + (state.dirty ? '<span class="dirty">●</span>' : "");
+    // 无文档时隐藏「所在目录」等文档态按钮（规则见 app.css body.no-doc）
+    document.body.classList.toggle("no-doc", !state.currentPath);
   }
 
   // ---------------------------------------------------------------
@@ -727,6 +719,7 @@
     on("btn-new", newDoc);
     on("btn-save", save);
     on("btn-search", () => window.Palette.openSearch());
+    on("btn-ai", () => window.AiPanel.toggle());
     on("btn-new-window", openNewWindow);
     on("btn-reveal", revealCurrentDir);
     on("btn-theme", toggleTheme);
@@ -864,7 +857,6 @@
     }
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
-    if ("focus_mode" in partial) applyFocusVisual(!!partial.focus_mode);
     if ("sidebar_width" in partial) applySidebarWidth(partial.sidebar_width);
   }
 
@@ -1264,12 +1256,6 @@
     else if (!res.cancelled) toast("导出失败：" + (res.error || ""));
   }
 
-  function toggleFocus() {
-    const on = applyFocusVisual(null);
-    applyConfig({ focus_mode: on });
-    toast(on ? "已进入专注模式" : "已退出专注模式");
-  }
-
   function appCommands() {
     return [
       { id: "save", title: "保存", keys: "Ctrl+S", group: "文件", run: save },
@@ -1289,6 +1275,9 @@
       { id: "capture", title: "快速收集", keys: "", group: "文件", run: captureQuick },
       { id: "quick-open", title: "快速打开笔记", keys: "Ctrl+P", group: "导航", run: () => window.Palette.openFiles() },
       { id: "search", title: "在仓库中搜索", keys: "Ctrl+Shift+F", group: "导航", run: () => window.Palette.openSearch() },
+      { id: "summarize-doc", title: "概括当前文档", keys: "", group: "AI", run: () => runAiAction(window.AiPanel.summarizeDoc) },
+      { id: "summarize-vault", title: "概括当前仓库", keys: "", group: "AI", run: () => runAiAction(window.AiPanel.summarizeVault) },
+      { id: "knowledge-tree", title: "生成 / 刷新知识谱系", keys: "", group: "AI", run: () => runAiAction(() => window.AiPanel.knowledge()) },
       { id: "find", title: "在本文查找", keys: "Ctrl+F", group: "导航", run: () => openFindBar() },
       { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => openFindBar({ replace: true }) },
       { id: "goto-line", title: "转到行", keys: "Ctrl+G", group: "导航", run: goToLine },
@@ -1303,7 +1292,6 @@
       { id: "home", title: "首页", keys: "Ctrl+Shift+H", group: "导航", run: () => toggleHome() },
       { id: "sidebar", title: "切换侧栏", keys: "Ctrl+Shift+B", group: "视图", run: () => document.getElementById("sidebar").classList.toggle("collapsed") },
       { id: "theme", title: "切换主题", keys: "Ctrl+Shift+L", group: "视图", run: toggleTheme },
-      { id: "focus", title: "专注模式", keys: "", group: "视图", run: toggleFocus },
       { id: "readable", title: "切换可读宽度", keys: "", group: "视图", run: toggleReadable },
       { id: "fold-all", title: "折叠全部目录", keys: "", group: "视图", run: () => foldTree(true) },
       { id: "unfold-all", title: "展开全部目录", keys: "", group: "视图", run: () => foldTree(false) },
@@ -1596,6 +1584,12 @@
   function newNoteBeside() {
     const dir = state.currentPath ? dirname(state.currentPath) : state.currentFolder;
     newNoteInFolder(dir);
+  }
+
+  // AI 交互统一收在右侧 AI 侧栏（js/ai_panel.js）；命令面板入口开栏并执行
+  function runAiAction(fn) {
+    window.AiPanel.open();
+    fn();
   }
 
   async function showVaultStats() {
@@ -2013,7 +2007,6 @@
     openExternal,
     openDailyNote,
     exportHtml,
-    toggleFocus,
     newNoteInFolder,
     openTutorial,
     revealCurrentDir,

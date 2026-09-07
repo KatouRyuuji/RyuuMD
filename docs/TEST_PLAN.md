@@ -6,8 +6,9 @@
 + **查找替换 / 笔记模板 / 复制路径与双链**
 + **仓库待办 / 标签 / 断链 / 孤立笔记 / 磁盘重载**
 + **可读宽度 / 转到行 / 快速收集 / 目录全折叠 / 未链接提及**
-+ **内置学习仓库 / 外壳 Noto Sans SC / mermaid 与公式 / 段落转换与块操作**。
-自动化分层：**Python API 层单元测试**(`tests/test_api.py` + `tests/test_cloud.py` + `tests/test_search.py` + `tests/test_fonts.py`,unittest,零依赖）与
++ **内置学习仓库 / 外壳 Noto Sans SC / mermaid 与公式 / 段落转换与块操作**
++ **Anthropic AI 配置 / 文档与仓库概括 / 标题·内容·语义搜索 / ask 前缀问答**。
+自动化分层：**Python API 层单元测试**(`tests/test_api.py` + `tests/test_cloud.py` + `tests/test_search.py` + `tests/test_fonts.py` + `tests/test_ai.py`,unittest,零依赖）与
 **真实窗口端到端测试**(`tests/test_e2e.py`,pywebview + evaluate_js 探针断言）。
 统一入口：根目录 `run_tests.py`（先单测后 E2E，任一失败退出码非零）。
 
@@ -16,8 +17,8 @@
 
 ## 当前实测结果
 
-- **单元测试：126/126 通过**。
-- **E2E:90/90 通过**。
+- **单元测试：140/140 通过**。
+- **E2E:92/92 通过**。
 - 多窗口/单实例已做真实进程冒烟：主实例启动写锁 → 第二进程 254ms 秒退
   （转发成功）→ 主实例新窗口打开目标文档（last_file 证实）。
 - 多窗口链路回归脚本：`python tests/smoke_multiwindow.py` —— 真实双进程验证
@@ -102,9 +103,9 @@
 | E1 | 按钮文字 | 11 个 .icon-btn（含新窗口、所在目录）均有非空 .ib-label | E2E | ✅ T02 |
 | E2 | 图标注入 | [data-icon] 均注入 <svg>；文字未被覆盖 | E2E | ✅ T03 |
 | E3 | 主题切换 | data-theme 切换；按钮图标 sun/moon 换且文字保留；持久化 | E2E | ✅ T11 |
-| E4 | 设置弹窗 | 打开/3 个分组 tab/外观 6 swatch 与字体下拉/学习仓库按钮/云同步面板默认隐藏/关闭 | E2E | ✅ T12 / T42 / T47 |
+| E4 | 设置弹窗 | 打开/4 个分组 tab（通用/外观/云同步/AI）/外观 6 swatch 与字体下拉/学习仓库按钮/云同步面板默认隐藏/关闭 | E2E | ✅ T12 / T42 / T47 |
 | E8 | 设置 Esc | Esc 关闭且 dialog 无障碍 | E2E | ✅ T62 |
-| E9 | 状态栏视图 | 可读宽度按钮可切换；专注按钮存在 | E2E | ✅ T63 |
+| E9 | 状态栏视图 | 可读宽度按钮可切换；专注按钮已移除 | E2E | ✅ T63 |
 | E10 | 侧栏宽度 | 拖拽手柄 role=separator；默认 --sidebar-width 256px | E2E | ✅ T64 |
 | E11 | 确认框 | Esc 取消 | E2E | ✅ T65 |
 | E5 | 保存 | Ctrl+S 写盘并清除脏标记 ●（合成快捷键真实写盘回读验证） | E2E | ✅ T40 |
@@ -233,6 +234,9 @@
 | --- | --- | --- | --- | --- |
 | N1 | 文件索引 | 过滤 node_modules 与 `*.assets`；query 匹配文件名 | 单测 | ✅ test_search |
 | N2 | 全文搜索 | 文件名优先，正文带行号摘要 | 单测 | ✅ |
+| N2b | 标题/内容/语义 | `search_notes` 三种 kind；语义走 mock Anthropic | 单测 | ✅ test_ai |
+| N2c | ask 前缀 | `ask 什么是 WebDAV` / `ASK  测试` 进问答；`asking`/`ask` 不进 | 单测 | ✅ test_ai |
+| N2d | 文档/仓库概括 | mock HTTP 请求含正文/多篇笔记，返回模型文本 | 单测 | ✅ test_ai |
 | N3 | wikilink | 相对路径、同目录优先、缺失 suggested | 单测 | ✅ |
 | N3b | 反向链接 | `find_backlinks` 命中 `[[wikilink]]` | 单测 | ✅ test_backlinks |
 | N4 | 贴图 | `{stem}.assets/` 落盘；空数据拒绝；无目标拒绝 | 单测 | ✅ |
@@ -240,12 +244,16 @@
 | N6 | HTML 包装 | 标题转义 | 单测 | ✅ |
 | N7 | Ctrl+P 面板 | 打开/Esc 关闭 | E2E | ✅ T43 |
 | N8 | Ctrl+Shift+P | 列出「保存」等命令 | E2E | ✅ T44 |
-| N9 | 搜索按钮 | 仓库搜索提示文案 | E2E | ✅ T45 |
+| N9 | 搜索按钮 | 仓库搜索面含标题/内容/语义 | E2E | ✅ T45 |
+| N9b | AI 侧栏 | 工具栏按钮开关侧栏；概括文档/仓库与知识谱系入口齐全 | E2E | ✅ T93 |
+| N9c | ask 前缀 UI | 搜索输入 `ask ` 后面板进入回答态；不自动请求 | E2E | ✅ T94 |
+| N9e | AI Esc | Esc 关闭已打开的 AI 侧栏 | E2E | ✅ T96 |
+| N9d | 工具栏状态显隐 | 首页隐藏侧栏/保存/AI/所在目录，回编辑器恢复 | E2E | ✅ T95 |
 | N10 | Ctrl+F | 查找条开闭 | E2E | ✅ T46 |
 | N11 | 自动保存开关 | 默认开启 | E2E | ✅ T47 |
 | N12 | 日记 API | 创建当日文档 | E2E | ✅ T48 |
 | N13 | insertValue | 插入文本可见 | E2E | ✅ T49 |
-| N14 | 专注模式 | `.focus-mode` 切换 | E2E | ✅ T50 |
+| N14 | 专注模式 | 已移除（含配置键 focus_mode） | 单测 | ✅ test_api 断言 DEFAULTS 无 focus_mode |
 | N15 | 目录右键新建 | 文件夹菜单含新建笔记/文件夹/资源管理器 | E2E | ✅ T51 |
 | N16 | 标题跳转 | `jumpToHeading` 滚离顶部（与大纲点击同源） | E2E | ✅ T52 |
 | N17 | 编辑区缩放 | `applyZoom(120)` 状态栏与 zoom 样式 | E2E | ✅ T53 |

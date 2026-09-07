@@ -13,8 +13,8 @@
     { icon: "slash", title: "斜杠命令", desc: "输入 / 呼出菜单，标题、表格、公式一键插入" },
     { icon: "lock", title: "全本地 · 隐私安全", desc: "无需联网与账号，文件始终留在你的电脑里" },
     { icon: "toc", title: "文件树与大纲", desc: "侧栏浏览文件夹，大纲一点即达，长文不迷路" },
-    { icon: "palette", title: "RyuujiDesign 配色", desc: "A 语言六套色板（明暗双态自适应），还可自选界面与等宽字体" },
-    { icon: "drag", title: "拖拽即开", desc: "拖入 .md 或文件夹直接打开，记忆上次会话" },
+    { icon: "palette", title: "RyuujiDesign 配色", desc: "A 语言六套色板（明暗双态自适应），正文与等宽可自选，外壳固定 Noto Sans SC" },
+    { icon: "drag", title: "拖拽即开", desc: "拖入 .md 或文件夹直接打开；默认回首页，也可在设置恢复上次会话" },
   ];
 
   function buildFeatureCards() {

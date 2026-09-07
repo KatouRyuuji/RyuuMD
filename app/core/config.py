@@ -25,6 +25,13 @@ _LEGACY_PALETTE_MAP = {
     "sky": "a1", "prussian": "a1",
 }
 
+# Anthropic Messages 默认；DEFAULTS["ai"] 与此同一份，避免两处漂移
+DEFAULT_AI: dict[str, Any] = {
+    "base_url": "https://api.anthropic.com",
+    "api_key": "",
+    "model": "claude-sonnet-4-20250514",
+}
+
 # 默认配置
 DEFAULTS: dict[str, Any] = {
     # 操作风格：notion = typora+notion（/h1 等英文/符号触发）
@@ -72,8 +79,6 @@ DEFAULTS: dict[str, Any] = {
     "readable_width": False,
     # 侧栏宽度（像素），拖拽右缘调整，范围 180–480，双击恢复 256
     "sidebar_width": 256,
-    # 专注模式：淡化非当前段落并收起侧栏
-    "focus_mode": False,
     # 窗口尺寸
     "window_width": 1280,
     "window_height": 820,
@@ -90,6 +95,8 @@ DEFAULTS: dict[str, Any] = {
         "insecure_ssl": False,
         "sync_all_projects": False,
     },
+    # Anthropic Messages 协议：用户自备兼容端点（官方或本地中转）
+    "ai": dict(DEFAULT_AI),
 }
 
 

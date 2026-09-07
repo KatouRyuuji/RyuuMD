@@ -160,16 +160,6 @@ def _run(window) -> None:
     # —— 回到亮色，浮层类 ——
     step(window, "07-ctx-editor",
          'document.getElementById("btn-theme").click();', sleep=1.5)
-    # 专注模式镜头：光标放第 8 个顶层块（标题3 附近），验证淡化与光标块高亮
-    step(window, "06c-editor-focus",
-         'window.Editor.toggleFocusMode(true);'
-         '(function(){var bs=document.querySelectorAll(".vditor-ir .vditor-reset > *");'
-         'var t=bs[Math.min(7,bs.length-1)];var r=document.createRange();'
-         'r.selectNodeContents(t);r.collapse(false);'
-         'var s=window.getSelection();s.removeAllRanges();s.addRange(r);'
-         't.scrollIntoView({block:"center"});})()', sleep=1.0)
-    window.evaluate_js('window.Editor.toggleFocusMode(false)')
-    time.sleep(0.3)
     window.evaluate_js(
         "(function(){var el=document.querySelector('.vditor-reset')||document.querySelector('#editor');"
         "var r=el.getBoundingClientRect();"
@@ -227,6 +217,25 @@ def _run(window) -> None:
     # —— 欢迎弹窗（亮色） ——
     step(window, "14-welcome-modal",
          'window.App.showWelcome()', sleep=1.2)
+
+    # —— AI：设置 AI 标签页 ——
+    step(window, "15-settings-ai",
+         'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
+         'document.getElementById("btn-settings").click();'
+         'document.querySelector(".settings-tab[data-tab=\\"ai\\"]").click()', sleep=0.9)
+
+    # —— AI：搜索面板 ask 回答框（未配置 Key 时展示错误态，构图参考） ——
+    step(window, "16-palette-ask",
+         'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
+         'window.Palette.openSearch();'
+         'var i=document.getElementById("pal-input");'
+         'i.value="ask 什么是 WebDAV";'
+         'i.dispatchEvent(new Event("input"))', sleep=1.6)
+
+    # —— AI：右侧 AI 侧栏（编辑器态，未配置 Key 时空态） ——
+    step(window, "17-ai-sidebar",
+         'window.Palette.close();window.Home.hide();'
+         'document.getElementById("btn-ai").click()', sleep=0.8)
 
     print("done ->", OUT_DIR)
     window.destroy()

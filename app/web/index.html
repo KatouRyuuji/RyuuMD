@@ -45,6 +45,7 @@
       <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
       <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
       <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
+      <button class="icon-btn" id="btn-ai" title="AI 侧栏" aria-label="AI 侧栏" aria-expanded="false"><span class="ib-icon" data-icon="sparkles"></span><span class="ib-label">AI</span></button>
       <button class="icon-btn" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
       <button class="icon-btn" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
 
@@ -116,7 +117,6 @@
             <button type="button" class="sb-item sb-cloud" id="sb-cloud" title="云同步" style="display:none">云同步</button>
             <div class="sb-views" id="sb-views">
               <button type="button" class="sb-view" id="sb-readable" data-icon="readable" title="可读宽度" aria-label="可读宽度" aria-pressed="false"></button>
-              <button type="button" class="sb-view" id="sb-focus" data-icon="focus" title="专注模式" aria-label="专注模式" aria-pressed="false"></button>
             </div>
             <div class="sb-modes" id="sb-modes" role="group" aria-label="编辑模式">
               <button class="sb-mode active" data-mode="ir" aria-pressed="true">渲染</button>
@@ -125,6 +125,26 @@
           </div>
         </div>
       </main>
+
+      <!-- AI 侧栏（右侧，工具栏 AI 按钮开关） -->
+      <aside id="ai-sidebar" aria-label="AI 助手" hidden>
+        <div class="ai-side-head">
+          <span class="ai-side-title"><span class="ai-side-logo" data-icon="sparkles"></span>AI 助手</span>
+          <button type="button" class="ai-side-x" id="ai-side-close" title="关闭" aria-label="关闭 AI 侧栏" data-icon="close"></button>
+        </div>
+        <div class="ai-side-actions">
+          <button type="button" class="btn" id="ai-sum-doc">概括当前文档</button>
+          <button type="button" class="btn" id="ai-sum-vault">概括当前仓库</button>
+          <button type="button" class="btn" id="ai-knowledge">生成知识谱系</button>
+        </div>
+        <div class="ai-side-log" id="ai-side-log">
+          <div class="ai-side-empty" id="ai-side-empty">问点什么，或让 AI 概括文档、梳理仓库知识谱系。<br />先在设置 → AI 填好 Base URL / API Key / 模型。</div>
+        </div>
+        <div class="ai-side-ask">
+          <input id="ai-ask-input" aria-label="向 AI 提问" placeholder="向 AI 提问…" spellcheck="false" autocomplete="off" />
+          <button type="button" class="ai-ask-send" id="ai-ask-send" title="发送" aria-label="发送" data-icon="send"></button>
+        </div>
+      </aside>
 
       <!-- 首页（覆盖在编辑器之上） -->
       <div id="home" role="region" aria-label="首页工作台">
@@ -202,6 +222,12 @@
         <input id="pal-input" aria-label="命令面板搜索" spellcheck="false" autocomplete="off" />
         <span id="pal-hint"></span>
       </div>
+      <div id="pal-modes" hidden>
+        <button type="button" class="pal-mode active" data-mode="title">标题</button>
+        <button type="button" class="pal-mode" data-mode="content">内容</button>
+        <button type="button" class="pal-mode" data-mode="semantic">语义</button>
+      </div>
+      <div id="pal-answer" hidden></div>
       <div id="pal-list"></div>
       <div id="pal-empty" style="display:none">没有匹配</div>
       <div id="pal-foot">↑↓ 选择 · Enter 打开 · Esc 关闭</div>
@@ -233,6 +259,7 @@
   <script src="js/home.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/convert.js"></script>
+  <script src="js/ai_panel.js"></script>
   <script src="js/palette.js"></script>
   <script src="js/app.js"></script>
 </body>

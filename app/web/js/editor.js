@@ -682,57 +682,6 @@
     });
   }
 
-  /* 专注模式的「当前块」追踪：CSS 不能用 :focus-within 判定光标块——编辑器失焦
-     （点状态栏/侧栏/切窗口）时全文会连正在编辑的块一起淡化。改为 selectionchange
-     驱动的显式 .focus-current 标记，淡化规则只排除它（与 hover）。 */
-  let focusCurrentEl = null;
-  let focusTrackTimer = null;
-
-  function clearFocusCurrent() {
-    if (focusCurrentEl) focusCurrentEl.classList.remove("focus-current");
-    focusCurrentEl = null;
-  }
-
-  function trackFocusBlock() {
-    const wrap = document.getElementById("editor-wrap");
-    if (!wrap || !wrap.classList.contains("focus-mode") || curMode !== "ir") {
-      clearFocusCurrent();
-      return;
-    }
-    const panel = activePanel();
-    const sel = window.getSelection();
-    let el = sel && sel.anchorNode;
-    if (!panel || !el || !panel.contains(el)) { clearFocusCurrent(); return; }
-    if (el.nodeType !== Node.ELEMENT_NODE) el = el.parentElement;
-    while (el && el.parentElement !== panel) el = el.parentElement;
-    if (el === panel || !el) { clearFocusCurrent(); return; }
-    if (focusCurrentEl === el) return;
-    clearFocusCurrent();
-    focusCurrentEl = el;
-    focusCurrentEl.classList.add("focus-current");
-  }
-
-  let focusTrackBound = false;
-  function bindFocusTrack() {
-    if (focusTrackBound) return;
-    focusTrackBound = true;
-    document.addEventListener("selectionchange", () => {
-      clearTimeout(focusTrackTimer);
-      focusTrackTimer = setTimeout(trackFocusBlock, 90);
-    });
-  }
-
-  function toggleFocusMode(on) {
-    const wrap = document.getElementById("editor-wrap");
-    if (!wrap) return false;
-    if (on == null) wrap.classList.toggle("focus-mode");
-    else wrap.classList.toggle("focus-mode", !!on);
-    const next = wrap.classList.contains("focus-mode");
-    if (next) { bindFocusTrack(); trackFocusBlock(); }
-    else clearFocusCurrent();
-    return next;
-  }
-
   window.Editor = {
     init,
     rebuild,
@@ -754,7 +703,6 @@
     setScrollRatio,
     focus,
     isReady: () => ready,
-    toggleFocusMode,
     enhanceRendered,
   };
 })();

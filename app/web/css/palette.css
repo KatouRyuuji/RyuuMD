@@ -44,6 +44,84 @@
 #pal-icon[data-kind="file"]::before { content: "P"; }
 #pal-icon[data-kind="command"]::before { content: ">"; }
 #pal-icon[data-kind="search"]::before { content: "F"; }
+#pal-icon[data-kind="ask"]::before { content: "A"; }
+
+#pal-modes {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+}
+#pal-modes[hidden] { display: none; }
+.pal-mode {
+  border: 1px solid var(--border);
+  background: var(--sidebar-bg);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pal-mode:hover { color: var(--primary); border-color: var(--primary); }
+.pal-mode.active {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+#pal-answer {
+  margin: 8px 12px 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--sidebar-bg);
+  max-height: 280px;
+  overflow-y: auto;
+}
+#pal-answer[hidden] { display: none; }
+.pal-ask-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+.pal-ask-q {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.pal-ask-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.pal-ask-body h1, .pal-ask-body h2, .pal-ask-body h3,
+.pal-ask-body h4, .pal-ask-body h5, .pal-ask-body h6 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0.45em 0 0.15em;
+}
+.pal-ask-body ul { margin: 0.3em 0; padding-left: 1.2em; }
+.pal-ask-body pre {
+  margin: 0.4em 0;
+  padding: 8px;
+  overflow-x: auto;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, inherit);
+  font-size: 12px;
+}
+.pal-ask-note {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.pal-ask-wait, .pal-ask-error { white-space: pre-wrap; }
+.pal-ask-wait { color: var(--text-muted); }
+.pal-ask-error { color: var(--danger, #c62828); }
+
 #pal-input {
   flex: 1;
   min-width: 0;
@@ -156,12 +234,6 @@
   font-size: 12px;
 }
 
-/* 专注模式：淡化非当前块。当前块由 editor.js selectionchange 打 .focus-current；
-   hover 块保持可读。状态栏保持不透明，供模式切换与路径操作。 */
-#editor-wrap.focus-mode #editor .vditor-ir .vditor-reset > *:not(:hover):not(.focus-current) {
-  opacity: 0.42;
-  transition: opacity 0.16s ease;
-}
 #editor-wrap.readable-width #editor .vditor-ir .vditor-reset,
 #editor-wrap.readable-width #editor .vditor-sv {
   max-width: 42rem;

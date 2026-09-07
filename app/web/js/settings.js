@@ -1,5 +1,5 @@
-/* 设置弹窗：通用 / 外观 / 云同步 三个分组标签页。
-   切换标签只显隐、不重渲染，避免云同步输入丢失。
+/* 设置弹窗：通用 / 外观 / 云同步 / AI 四个分组标签页。
+   切换标签只显隐、不重渲染，避免云同步与 AI 输入丢失。
    变更即时回调 App 应用并持久化（无确定/取消）。 */
 (function () {
   const mask = document.getElementById("settings-mask");
@@ -59,6 +59,7 @@
           <button type="button" class="settings-tab active" data-tab="general" role="tab">通用</button>
           <button type="button" class="settings-tab" data-tab="appearance" role="tab">外观</button>
           <button type="button" class="settings-tab" data-tab="cloud" role="tab">云同步</button>
+          <button type="button" class="settings-tab" data-tab="ai" role="tab">AI</button>
         </div>
         <div class="modal-body">
           <div class="settings-pane active" data-pane="general">
@@ -204,6 +205,17 @@
               <div id="cloud-status"></div>
             </div>
           </div>
+          <div class="settings-pane" data-pane="ai">
+            <p class="cloud-hint">使用 Anthropic Messages 协议（官方或兼容中转）。笔记摘录与提问会发往你填写的 Base URL；API Key 保存在本机配置且不回显。语义搜索与 <code>ask</code> 提问需按 Enter 才会请求。</p>
+            <div class="field-grid ai-fields">
+              <label for="ai-base-url">Base URL</label>
+              <input class="field-input" id="ai-base-url" placeholder="https://api.anthropic.com" spellcheck="false" />
+              <label for="ai-api-key">API Key</label>
+              <input class="field-input" id="ai-api-key" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off" />
+              <label for="ai-model">模型</label>
+              <input class="field-input" id="ai-model" placeholder="claude-sonnet-4-20250514" spellcheck="false" />
+            </div>
+          </div>
         </div>
         <div class="modal-foot">
           <button class="btn btn--primary" id="set-close">完成</button>
@@ -233,6 +245,7 @@
     bindDefaultApp();
     bindAutoSave();
     bindCloud();
+    bindAi();
     syncActive();
   }
 
@@ -468,6 +481,57 @@
       const res = await api.sync_cloud("");
       status.textContent = res.message || (res.ok ? "同步完成" : (res.error || "同步失败"));
       if (window.App) window.App.toast(res.ok ? (res.message || "同步完成") : "同步失败：" + (res.error || ""), res.ok ? undefined : { type: "error" });
+    });
+  }
+
+  function aiCfg() {
+    return cfg.ai || (cfg.ai = {
+      base_url: "",
+      api_key: "",
+      model: "",
+      api_key_set: false,
+    });
+  }
+
+  function bindAi() {
+    const a = () => window.pywebview && window.pywebview.api;
+    const ai = aiCfg();
+    const urlEl = document.getElementById("ai-base-url");
+    const keyEl = document.getElementById("ai-api-key");
+    const modelEl = document.getElementById("ai-model");
+    urlEl.value = ai.base_url || "";
+    keyEl.value = "";
+    keyEl.placeholder = ai.api_key_set ? "已保存，留空则不修改" : "sk-…";
+    modelEl.value = ai.model || "";
+
+    async function persist() {
+      const payload = {
+        base_url: urlEl.value.trim(),
+        api_key: keyEl.value.trim(),
+        model: modelEl.value.trim(),
+      };
+      cfg.ai = Object.assign(aiCfg(), payload, {
+        api_key: "",
+        api_key_set: !!(payload.api_key || ai.api_key_set),
+      });
+      keyEl.placeholder = cfg.ai.api_key_set ? "已保存，留空则不修改" : "sk-…";
+      const api = a();
+      if (api && api.update_config) {
+        const res = await api.update_config({ ai: payload });
+        if (res && res.ok) {
+          if (onApply) onApply({ ai: cfg.ai });
+          return;
+        }
+        if (res && !res.ok && window.App) {
+          window.App.toast("保存 AI 设置失败：" + (res.error || ""), { type: "error" });
+        }
+        return;
+      }
+      if (onApply) onApply({ ai: cfg.ai });
+    }
+
+    [urlEl, keyEl, modelEl].forEach((el) => {
+      el.addEventListener("change", () => persist());
     });
   }
 

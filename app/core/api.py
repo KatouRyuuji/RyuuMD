@@ -22,6 +22,7 @@ import webview
 
 from . import file_assoc
 from .cloud_sync import get_engine, public_cloud, save_cloud
+from . import anthropic as ai_client
 from .config import Config
 from .fsutil import IMAGE_EXTS, IGNORE_DIRS, MD_EXTS, atomic_write_text, recycle_file, skip_dir_name  # noqa: F401
 from .projects import ProjectStore
@@ -49,6 +50,8 @@ class Api:
         self._window_manager = window_manager
         # 本窗口的初始打开路径（命令行 / 单实例转发 / 新窗口传入），前端启动时拉取
         self._initial_path = initial_path
+        # 知识谱系缓存：规范化仓库根 → 生成结果；写盘或 refresh 时失效
+        self._knowledge_cache: dict[str, dict[str, Any]] = {}
 
     def bind_window(self, window: "webview.Window") -> None:
         self._window = window
@@ -66,14 +69,20 @@ class Api:
     def get_config(self) -> dict[str, Any]:
         data = self.config.all()
         data["cloud_sync"] = public_cloud(data.get("cloud_sync"))
+        data["ai"] = ai_client.public_ai(data.get("ai"))
         return data
 
     def set_config(self, key: str, value: Any) -> dict[str, Any]:
+        if key == "ai":
+            value = ai_client.merge_ai(self.config.get("ai"), value)
         self.config.set(key, value)
         return {"ok": True}
 
     def update_config(self, values: dict[str, Any]) -> dict[str, Any]:
-        self.config.update(values or {})
+        values = dict(values or {})
+        if "ai" in values:
+            values["ai"] = ai_client.merge_ai(self.config.get("ai"), values.get("ai"))
+        self.config.update(values)
         return {"ok": True}
 
     # ------------------------------------------------------------------
@@ -152,6 +161,7 @@ class Api:
             atomic_write_text(p, content)
             self.config.set("last_file", str(p))
             self._add_recent(str(p), "file")
+            self._invalidate_knowledge(str(p))
             self._maybe_cloud_push(str(p))
             st = p.stat()
             return {"ok": True, "path": str(p), "mtime": st.st_mtime, "size": st.st_size}
@@ -170,6 +180,7 @@ class Api:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("", encoding="utf-8")
             self._add_recent(str(target), "file")
+            self._invalidate_knowledge(str(target))
             return {"ok": True, "path": str(target), "name": target.name}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -245,11 +256,13 @@ class Api:
                         return {"ok": False, "error": "同名文件已存在"}
                 os.rename(p, target)
                 self._sync_path_refs(str(p), str(target))
+                self._invalidate_knowledge(str(target))
                 return {"ok": True, "path": str(target), "name": target.name}
             if target.exists():
                 return {"ok": False, "error": "同名文件已存在"}
             os.rename(p, target)
             self._sync_path_refs(str(p), str(target))
+            self._invalidate_knowledge(str(target))
             return {"ok": True, "path": str(target), "name": target.name}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -271,6 +284,8 @@ class Api:
                 return {"ok": False, "error": "目标位置已存在同名文件"}
             shutil.move(str(p), str(target))
             self._sync_path_refs(str(p), str(target))
+            self._invalidate_knowledge(str(p))
+            self._invalidate_knowledge(str(target))
             return {"ok": True, "path": str(target)}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -292,6 +307,7 @@ class Api:
                 return {"ok": False, "error": "不是已存在的 Markdown 文件"}
             recycle_file(str(p))
             self.remove_recent(str(p))
+            self._invalidate_knowledge(str(p))
             if self.config.get("last_file", "") == str(p):
                 self.config.set("last_file", "")
             return {"ok": True}
@@ -315,6 +331,7 @@ class Api:
                 return {"ok": False, "error": "副本过多"}
             shutil.copy2(str(p), str(dest))
             self._add_recent(str(dest), "file")
+            self._invalidate_knowledge(str(dest))
             return {"ok": True, "path": str(dest), "name": dest.name}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -764,6 +781,92 @@ class Api:
             return {"ok": False, "error": "请先打开仓库或文件夹", "hits": []}
         return vault_search.search_vault(root, query)
 
+    def _ai_cfg(self) -> dict[str, Any]:
+        return ai_client.normalize_ai(self.config.get("ai"))
+
+    def search_notes(self, folder: str = "", query: str = "", mode: str = "title") -> dict[str, Any]:
+        """标题 / 内容 / 语义检索；查询以 `ask ` 为前缀时走 AI 问答。"""
+        is_ask, _rest = ai_client.parse_ask_prefix(query)
+        root = self._vault_root(folder)
+        if not is_ask and not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "hits": []}
+        return ai_client.run_search(root, query, mode, self._ai_cfg())
+
+    def _knowledge_key(self, root: str) -> str:
+        try:
+            return os.path.normcase(str(Path(root).resolve()))
+        except OSError:
+            return os.path.normcase(str(root or ""))
+
+    def _invalidate_knowledge(self, path_or_folder: str = "") -> None:
+        """笔记写盘后丢掉所属仓库的谱系缓存。"""
+        raw = (path_or_folder or "").strip()
+        if not raw:
+            self._knowledge_cache.clear()
+            return
+        try:
+            target = Path(raw).resolve()
+        except OSError:
+            target = Path(raw)
+        drop: list[str] = []
+        tgt = os.path.normcase(str(target))
+        for key in self._knowledge_cache:
+            root = os.path.normcase(str(key))
+            if tgt == root or tgt.startswith(root + os.sep):
+                drop.append(key)
+        for key in drop:
+            self._knowledge_cache.pop(key, None)
+
+    def summarize_document(self, path: str = "", content: str = "", folder: str = "") -> dict[str, Any]:
+        """概括当前文档：优先用传入正文（含未保存编辑），读盘时受仓库边界约束。"""
+        title = Path(path).name if path else "未命名"
+        body = content if content is not None else ""
+        if not str(body).strip() and path:
+            vault = self._vault_root(folder)
+            if vault:
+                p = self._md_in_vault(folder, path)
+                if p is None:
+                    return {"ok": False, "error": "只能概括当前仓库内的 Markdown", "text": ""}
+            else:
+                p = Path(path)
+                if not self._is_md_file(p):
+                    return {"ok": False, "error": "文件不存在", "text": ""}
+            try:
+                body = p.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                return {"ok": False, "error": str(e), "text": ""}
+            title = p.name
+        if not str(body).strip():
+            return {"ok": False, "error": "请先打开一篇文档", "text": ""}
+        return ai_client.summarize_document(title, body, self._ai_cfg())
+
+    def summarize_vault(self, folder: str = "") -> dict[str, Any]:
+        """概括当前仓库内的笔记材料。"""
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "text": ""}
+        return ai_client.summarize_vault(root, self._ai_cfg())
+
+    def ask_ai(self, folder: str = "", question: str = "") -> dict[str, Any]:
+        """AI 侧栏提问：附当前仓库摘录走 Anthropic 回答。"""
+        return ai_client.ask_question(question, self._vault_root(folder), self._ai_cfg())
+
+    def knowledge_tree(self, folder: str = "", refresh: bool = False) -> dict[str, Any]:
+        """生成仓库知识谱系；结果按仓库缓存，refresh=True 重新生成。"""
+        root = self._vault_root(folder)
+        if not root:
+            return {"ok": False, "error": "请先打开仓库或文件夹", "text": ""}
+        key = self._knowledge_key(root)
+        if not refresh and key in self._knowledge_cache:
+            cached = dict(self._knowledge_cache[key])
+            cached["cached"] = True
+            return cached
+        res = ai_client.knowledge_tree(root, self._ai_cfg())
+        if res.get("ok"):
+            self._knowledge_cache[key] = dict(res)
+        res["cached"] = False
+        return res
+
     def resolve_wikilink(
         self, folder: str = "", name: str = "", current_file: str = ""
     ) -> dict[str, Any]:
@@ -852,6 +955,7 @@ class Api:
                 atomic_write_text(dest, existing.rstrip() + "\n" + block)
             else:
                 atomic_write_text(dest, "# " + dest.stem + "\n" + block)
+            self._invalidate_knowledge(str(dest))
             self._maybe_cloud_push(str(dest))
             st = dest.stat()
             return {
@@ -939,6 +1043,7 @@ class Api:
                             body = apply_template_vars(raw, title=date, now=now)
                         break
                 target.write_text(body, encoding="utf-8")
+                self._invalidate_knowledge(str(target))
             return self.read_file(str(target))
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}

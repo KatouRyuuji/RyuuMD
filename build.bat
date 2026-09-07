@@ -98,7 +98,7 @@ if errorlevel 1 (
 REM ---- 2.5 ���ǰ��Ԫ����բ�ţ����鵥��ȫ��;E2E ����ʵ����,���ֶ��� python run_tests.py�� ----
 echo.
 echo [2/5] ���е�Ԫ���ԣ�test_api + test_cloud + test_search + test_fonts�� ...
-python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts -q >NUL 2>&1
+python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts tests.test_ai -q >NUL 2>&1
 if errorlevel 1 (
     echo [����] ��Ԫ����δͨ��,����ֹ������������� python run_tests.py ��λ�޸�
     call :maybe_pause

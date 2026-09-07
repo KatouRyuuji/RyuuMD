@@ -821,14 +821,15 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(DEFAULTS["font_ui"], "")
         self.assertEqual(DEFAULTS["font_mono"], "")
         self.assertEqual(DEFAULTS["sidebar_width"], 256)
-        self.assertEqual(DEFAULTS["focus_mode"], False)
+        self.assertNotIn("focus_mode", DEFAULTS)  # 专注模式已移除
         self.assertNotIn("typewriter_mode", DEFAULTS)  # 打字机模式已移除
+        from app.core.config import DEFAULT_AI
+        self.assertEqual(DEFAULTS["ai"], DEFAULT_AI)
         cfg = Config()
         self.assertEqual(cfg.get("palette"), "a1")
         self.assertEqual(cfg.get("font_ui"), "")
         self.assertEqual(cfg.get("font_mono"), "")
         self.assertEqual(cfg.get("sidebar_width"), 256)
-        self.assertEqual(cfg.get("focus_mode"), False)
 
     def test_update_config_writes_palette_and_font(self):
         api = make_api()
@@ -837,7 +838,7 @@ class TestConfig(unittest.TestCase):
             "font_ui": "KaiTi",
             "font_mono": "Consolas",
             "sidebar_width": 320,
-            "focus_mode": True,
+            "readable_width": True,
         })
         self.assertTrue(res["ok"])
         data = api.get_config()
@@ -845,7 +846,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(data["font_ui"], "KaiTi")
         self.assertEqual(data["font_mono"], "Consolas")
         self.assertEqual(data["sidebar_width"], 320)
-        self.assertTrue(data["focus_mode"])
+        self.assertTrue(data["readable_width"])
         self.assertNotIn("typewriter_mode", data)
         data2 = make_api().get_config()
         self.assertEqual(data2["palette"], "a3")

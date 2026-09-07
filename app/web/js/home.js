@@ -32,6 +32,8 @@
     refresh();
     homeEl.classList.add("show");
     syncHomeButton(true);
+    // 首页态 AI 按钮隐藏，侧栏一并收起，保持 chrome 一致
+    if (window.AiPanel && window.AiPanel.close) window.AiPanel.close();
   }
 
   function hide() {
@@ -51,6 +53,8 @@
   function syncHomeButton(active) {
     const btn = document.getElementById("btn-home");
     if (btn) btn.classList.toggle("active", active);
+    // 首页态工具栏只留全局动作（显隐规则见 app.css body.is-home）
+    document.body.classList.toggle("is-home", active);
   }
 
   // ---------------------------------------------------------------

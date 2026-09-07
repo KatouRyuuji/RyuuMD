@@ -143,7 +143,7 @@ CASES = [
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
          js=("(function(){var ids=['btn-home','btn-sidebar','btn-open-folder','btn-open-file',"
-             "'btn-new','btn-save','btn-search','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
+             "'btn-new','btn-save','btn-search','btn-ai','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
              "var bs=document.querySelectorAll('#toolbar .icon-btn');"
              "if(bs.length!==ids.length)return 'count='+bs.length;"
              "for(var i=0;i<ids.length;i++){"
@@ -234,11 +234,11 @@ CASES = [
          js=("document.documentElement.getAttribute('data-theme')==='light'"
              "&&document.documentElement.getAttribute('data-palette')==='a1'")),
 
-    dict(name="T12 设置弹窗:三个分组 tab、外观配色与字体、云同步默认收起",
+    dict(name="T12 设置弹窗:四个分组 tab、外观配色与字体、云同步默认收起、AI 字段",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
          js=("(function(){var m=document.getElementById('settings-mask');"
              "if(!m.classList.contains('open'))return 'not open';"
-             "if(m.querySelectorAll('.settings-tab').length!==3)return 'tabs='+m.querySelectorAll('.settings-tab').length;"
+             "if(m.querySelectorAll('.settings-tab').length!==4)return 'tabs='+m.querySelectorAll('.settings-tab').length;"
              "if(!document.getElementById('set-autosave')||!document.getElementById('set-daily-folder'))return 'missing general';"
              "if(!document.getElementById('set-math-engine'))return 'missing math engine';"
              "if(!document.getElementById('set-tutorial'))return 'missing tutorial';"
@@ -246,6 +246,7 @@ CASES = [
              "if(sw!==6)return 'swatch '+sw;"
              "if(!document.getElementById('set-font-ui')||!document.getElementById('set-font-mono'))return 'missing font';"
              "if(!document.getElementById('cloud-enabled')||document.getElementById('cloud-panel').classList.contains('show'))return 'cloud';"
+             "if(!document.getElementById('ai-base-url')||!document.getElementById('ai-api-key')||!document.getElementById('ai-model'))return 'missing ai';"
              "return true;})()"),
          setup2="document.getElementById('set-close').click()", sleep2=0.4,
          js2="!document.getElementById('settings-mask').classList.contains('open')"),
@@ -700,7 +701,11 @@ CASES = [
          js=("(function(){var m=document.getElementById('palette-mask');"
              "if(!m.classList.contains('open'))return 'not open';"
              "var h=document.getElementById('pal-hint').textContent;"
-             "return h.indexOf(" + JV("搜索") + ")>=0?true:'hint='+h;})()"),
+             "if(h.indexOf(" + JV("搜索") + ")<0 && h.indexOf(" + JV("语义") + ")<0)return 'hint='+h;"
+             "var modes=document.getElementById('pal-modes');"
+             "if(!modes||modes.hidden)return 'no modes';"
+             "if(!modes.querySelector('[data-mode=title]')||!modes.querySelector('[data-mode=content]')||!modes.querySelector('[data-mode=semantic]'))return 'missing mode';"
+             "return true;})()"),
          setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
@@ -735,14 +740,6 @@ CASES = [
              "if(v.indexOf('INSERT-E2E')<0)return 'no insert:'+v.slice(0,40);"
              "var h=window.Editor.getHTML();"
              "return (typeof h==='string')?true:'html='+typeof h;})()")),
-
-    dict(name="T50 专注模式:切换 editor-wrap 类名",
-         setup="window.Editor.toggleFocusMode(true)",
-         sleep=0.2,
-         js="document.getElementById('editor-wrap').classList.contains('focus-mode')",
-         setup2="window.Editor.toggleFocusMode(false)",
-         sleep2=0.2,
-         js2="!document.getElementById('editor-wrap').classList.contains('focus-mode')"),
 
     dict(name="T51 目录右键菜单:新建笔记/文件夹/资源管理器三项",
          setup=("window.Sidebar.renderTree([{type:'dir',name:'docs',path:'/d/docs',children:[]},"
@@ -885,7 +882,7 @@ CASES = [
          sleep=0.3,
          js=("document.getElementById('editor-wrap').classList.contains('readable-width')"
              "&&document.getElementById('sb-readable').classList.contains('active')"
-             "&&!!document.getElementById('sb-focus')&&!!!document.getElementById('sb-typewriter')"),
+             "&&!!!document.getElementById('sb-focus')&&!!!document.getElementById('sb-typewriter')"),
          setup2="document.getElementById('sb-readable').click()",
          sleep2=0.3,
          js2="!document.getElementById('editor-wrap').classList.contains('readable-width')"),
@@ -1328,6 +1325,66 @@ CASES = [
               "if(cards||rows)return 'cards='+cards+' rows='+rows;"
               "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'empty hidden';"
               "return true;})()")),
+
+    dict(name="T93 AI 侧栏:工具栏按钮开关与入口齐全",
+         setup="document.getElementById('btn-ai').click()",
+         sleep=0.3,
+         js=("(function(){var p=document.getElementById('ai-sidebar');"
+             "if(!p||p.hidden)return 'panel hidden';"
+             "if(!document.getElementById('ai-sum-doc'))return 'no doc';"
+             "if(!document.getElementById('ai-sum-vault'))return 'no vault';"
+             "if(!document.getElementById('ai-knowledge'))return 'no knowledge';"
+             "if(!document.getElementById('ai-ask-input'))return 'no ask';"
+             "var t=p.textContent;"
+             "if(t.indexOf(" + JV("概括当前文档") + ")<0)return 'no doc text';"
+             "if(t.indexOf(" + JV("概括当前仓库") + ")<0)return 'no vault text';"
+             "if(t.indexOf(" + JV("知识谱系") + ")<0)return 'no knowledge text';"
+             "return true;})()"),
+         setup2="document.getElementById('btn-ai').click()",
+         sleep2=0.2,
+         js2="document.getElementById('ai-sidebar').hidden"),
+
+    dict(name="T94 搜索 ask 前缀:面板进入 AI 回答态",
+         setup=("window.Palette.openSearch();"
+                "var el=document.getElementById('pal-input');"
+                "el.value=" + JV("ask 什么是 WebDAV") + ";"
+                "el.dispatchEvent(new Event('input',{bubbles:true}));"),
+         sleep=0.5,
+         js=("(function(){var pal=document.getElementById('palette');"
+             "var ans=document.getElementById('pal-answer');"
+             "if(!document.getElementById('palette-mask').classList.contains('open'))return 'not open';"
+             "if(!(pal.classList.contains('is-ask')||(ans&&!ans.hidden)))return 'not ask';"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T96 AI 侧栏:Esc 关闭",
+         setup="document.getElementById('btn-ai').click()",
+         sleep=0.3,
+         js="document.getElementById('ai-sidebar')&&!document.getElementById('ai-sidebar').hidden",
+         setup2="window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="document.getElementById('ai-sidebar').hidden"),
+
+    dict(name="T95 工具栏随状态显隐:首页隐藏文档态按钮",
+         setup="window.Home.show()",
+         sleep=0.4,
+         js=("(function(){"
+             "var hid=['btn-sidebar','btn-save','btn-ai','btn-reveal'];"
+             "for(var i=0;i<hid.length;i++){"
+             "var b=document.getElementById(hid[i]);"
+             "if(getComputedStyle(b).display!=='none')return 'shown on home:'+hid[i];}"
+             "if(!document.body.classList.contains('is-home'))return 'no is-home';"
+             "return true;})()"),
+         setup2="window.Home.hide()",
+         sleep2=0.4,
+         js2=("(function(){"
+              "var ids=['btn-sidebar','btn-save','btn-ai'];"
+              "for(var i=0;i<ids.length;i++){"
+              "var b=document.getElementById(ids[i]);"
+              "if(getComputedStyle(b).display==='none')return 'hidden on editor:'+ids[i];}"
+              "return !document.body.classList.contains('is-home');})()")),
 ]
 
 

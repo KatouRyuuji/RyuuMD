@@ -1082,6 +1082,55 @@ select:focus {
   padding: 6px;
 }
 
+#pal-modes {
+  gap: 4px;
+  padding: 8px 12px 2px;
+}
+
+.pal-mode {
+  min-height: 28px;
+  border: 1px solid var(--edge-soft);
+  border-radius: 999px;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+}
+
+.pal-mode:hover {
+  border-color: color-mix(in srgb, var(--primary), transparent 58%);
+  color: var(--text);
+}
+
+.pal-mode.active {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--active-fg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
+}
+
+#pal-answer {
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-elevated), transparent 20%);
+  box-shadow: var(--shadow-contact);
+}
+
+#ai-sidebar {
+  border-left: 1px solid var(--edge-soft);
+  background: var(--surface-raised);
+}
+
+.ai-entry {
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-elevated), transparent 20%);
+  box-shadow: var(--shadow-contact);
+}
+
+.ai-ask-send {
+  color: var(--active-fg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
+}
+
 .pal-item,
 .slash-item,
 .ctx-item,

@@ -7,6 +7,9 @@
   const emptyEl = document.getElementById("pal-empty");
   const hintEl = document.getElementById("pal-hint");
   const iconEl = document.getElementById("pal-icon");
+  const modesEl = document.getElementById("pal-modes");
+  const answerEl = document.getElementById("pal-answer");
+  const palBox = document.getElementById("palette");
 
   const HINTS = {
     file: "快速打开笔记",
@@ -22,11 +25,36 @@
   const INDEX_MODES = { tasks: 1, tags: 1, broken: 1, orphans: 1, mentions: 1 };
 
   let mode = "file";
+  let searchMode = "title";
   let items = [];
   let activeIdx = 0;
   let seq = 0;
   let handlers = {};
   let debounceTimer = null;
+
+  function isAskQuery(q) {
+    return /^ask\s+\S/i.test(String(q || "").trim());
+  }
+
+  // ask / 语义只在 Enter 时打模型；标题与内容仍即时搜
+  function searchFiresOnInput(q, mode) {
+    if (isAskQuery(q)) return false;
+    if ((mode || searchMode) === "semantic") return false;
+    return true;
+  }
+
+  function syncSearchChrome() {
+    const searching = mode === "search";
+    if (modesEl) modesEl.hidden = !searching;
+    if (searching && modesEl) {
+      modesEl.querySelectorAll(".pal-mode").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === searchMode);
+      });
+    }
+    const asking = searching && isAskQuery(input.value);
+    if (palBox) palBox.classList.toggle("is-ask", asking);
+    if (iconEl && searching) iconEl.setAttribute("data-kind", asking ? "ask" : "search");
+  }
 
   function isOpen() {
     return mask && mask.classList.contains("open");
@@ -38,11 +66,16 @@
 
   function open(nextMode) {
     mode = HINTS[nextMode] ? nextMode : "file";
+    if (mode === "search") searchMode = "title";
     mask.classList.add("open");
-    hintEl.textContent = HINTS[mode];
+    hintEl.textContent = mode === "search"
+      ? "标题 / 内容即时搜；语义与 ask 按 Enter"
+      : HINTS[mode];
     iconEl.setAttribute("data-kind", mode === "command" || mode === "search" || INDEX_MODES[mode] ? (INDEX_MODES[mode] ? "search" : mode) : "file");
     input.value = "";
-    input.placeholder = HINTS[mode] + "…";
+    input.placeholder = mode === "search" ? "搜索笔记，或输入 ask 加空格后按 Enter 提问…" : HINTS[mode] + "…";
+    if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
+    syncSearchChrome();
     input.focus();
     renderLoading();
     refresh();
@@ -52,6 +85,9 @@
     mask.classList.remove("open");
     items = [];
     input.value = "";
+    if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
+    if (palBox) palBox.classList.remove("is-ask");
+    if (modesEl) modesEl.hidden = true;
   }
 
   function renderLoading() {
@@ -208,25 +244,118 @@
     if (!q.trim()) {
       items = [];
       emptyEl.style.display = "";
-      emptyEl.textContent = "输入关键词，搜索当前仓库";
+      emptyEl.textContent = "输入关键词，或 ask 加空格后按 Enter 提问";
       listEl.innerHTML = "";
+      if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
+      syncSearchChrome();
       return;
     }
+    if (isAskQuery(q)) {
+      renderAskPending(q);
+      if (!handlers.search) return;
+      const res = await handlers.search(q, searchMode);
+      if (my !== seq) return;
+      renderAskResult(res);
+      return;
+    }
+    if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
     if (!handlers.search) { items = []; render(); return; }
-    const res = await handlers.search(q);
+    const res = await handlers.search(q, searchMode);
     if (my !== seq) return;
+    if (res && res.kind === "ask") {
+      renderAskResult(res);
+      return;
+    }
     const hits = (res && res.hits) || [];
+    const badgeOf = (k) => {
+      if (k === "title" || k === "name") return "标题";
+      if (k === "semantic") return "语义";
+      return "内容";
+    };
     items = hits.map((h) => ({
       kind: "hit",
+      hitKind: h.kind,
       title: h.name,
-      sub: (h.kind === "name" ? h.rel : ((h.line ? h.line + ": " : "") + (h.snippet || h.rel))),
+      sub: (h.kind === "title" || h.kind === "name" ? h.rel : ((h.line ? h.line + ": " : "") + (h.snippet || h.rel))),
       path: h.path,
       line: h.line,
       snippet: h.snippet,
-      badge: h.kind === "name" ? "文件名" : "正文",
+      badge: badgeOf(h.kind),
     }));
     activeIdx = 0;
     render();
+  }
+
+  function renderAskDraft(q) {
+    items = [];
+    listEl.innerHTML = "";
+    emptyEl.style.display = "none";
+    syncSearchChrome();
+    if (!answerEl) return;
+    answerEl.hidden = false;
+    const parsed = String(q || "").trim().replace(/^ask\s+/i, "");
+    answerEl.innerHTML = '<div class="pal-ask-label">AI 回答</div>'
+      + '<div class="pal-ask-q">' + esc(parsed) + "</div>"
+      + '<div class="pal-ask-body pal-ask-wait">按 Enter 提问（将调用已配置的模型）</div>';
+  }
+
+  function renderSemanticHint(q) {
+    items = [];
+    listEl.innerHTML = "";
+    syncSearchChrome();
+    if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
+    emptyEl.style.display = "";
+    emptyEl.textContent = (q || "").trim()
+      ? "按 Enter 进行语义搜索（将调用已配置的模型）"
+      : "输入问题后按 Enter 进行语义搜索";
+  }
+
+  let searchInflight = false;
+
+  async function runPaidSearch() {
+    if (searchInflight) return;
+    searchInflight = true;
+    try {
+      await refresh();
+    } finally {
+      searchInflight = false;
+    }
+  }
+
+  function renderAskPending(q) {
+    items = [];
+    listEl.innerHTML = "";
+    emptyEl.style.display = "none";
+    syncSearchChrome();
+    if (!answerEl) return;
+    answerEl.hidden = false;
+    const parsed = String(q || "").trim().replace(/^ask\s+/i, "");
+    answerEl.innerHTML = '<div class="pal-ask-label">AI 回答</div>'
+      + '<div class="pal-ask-q">' + esc(parsed) + '</div>'
+      + '<div class="pal-ask-body pal-ask-wait">正在询问…</div>';
+  }
+
+  function renderAskResult(res) {
+    items = [];
+    listEl.innerHTML = "";
+    emptyEl.style.display = "none";
+    syncSearchChrome();
+    if (!answerEl) return;
+    answerEl.hidden = false;
+    const qtext = (res && res.question) || String(input.value || "").trim().replace(/^ask\s+/i, "");
+    const err = res && !res.ok ? (res.error || "提问失败") : "";
+    const answer = (res && (res.answer || res.text)) || "";
+    const body = err
+      ? '<div class="pal-ask-body pal-ask-error">' + esc(err) + "</div>"
+      : '<div class="pal-ask-body">' + ((window.AiText && window.AiText.markdown)
+        ? window.AiText.markdown(answer || "（无内容）")
+        : esc(answer || "（无内容）")) + "</div>";
+    const note = res && res.truncated
+      ? '<div class="pal-ask-note">仅根据仓库前若干篇摘录，结果可能不完整。</div>'
+      : "";
+    answerEl.innerHTML = '<div class="pal-ask-label">AI 回答</div>'
+      + '<div class="pal-ask-q">' + esc(qtext) + "</div>"
+      + body + note;
   }
 
   function choose() {
@@ -265,14 +394,49 @@
     } else if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
+      if (mode === "search" && (isAskQuery(input.value) || searchMode === "semantic")) {
+        runPaidSearch();
+        return;
+      }
       choose();
     }
   }
 
   input.addEventListener("input", () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(refresh, mode === "command" ? 0 : 120);
+    const q = input.value;
+    syncSearchChrome();
+    if (mode === "search" && isAskQuery(q)) {
+      renderAskDraft(q);
+      return;
+    }
+    if (mode === "search" && !searchFiresOnInput(q, searchMode)) {
+      renderSemanticHint(q);
+      return;
+    }
+    const delay = mode === "command" ? 0 : 120;
+    debounceTimer = setTimeout(refresh, delay);
   });
+
+  if (modesEl) {
+    modesEl.querySelectorAll(".pal-mode").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        searchMode = btn.dataset.mode || "title";
+        syncSearchChrome();
+        const q = input.value;
+        if (mode === "search" && isAskQuery(q)) {
+          renderAskDraft(q);
+          return;
+        }
+        if (!searchFiresOnInput(q, searchMode)) {
+          renderSemanticHint(q);
+          return;
+        }
+        refresh();
+      });
+    });
+  }
   input.addEventListener("keydown", onKey);
   document.addEventListener("keydown", (e) => {
     if (isOpen()) onKey(e);
@@ -291,6 +455,18 @@
     openBroken: () => open("broken"),
     openOrphans: () => open("orphans"),
     openMentions: () => open("mentions"),
+    getSearchMode: () => searchMode,
+    setSearchMode: (m) => {
+      searchMode = m || "title";
+      syncSearchChrome();
+      if (!isOpen()) return;
+      const q = input.value;
+      if (isAskQuery(q)) renderAskDraft(q);
+      else if (!searchFiresOnInput(q, searchMode)) renderSemanticHint(q);
+      else refresh();
+    },
+    searchFiresOnInput,
+    isAskQuery,
   };
 })();
 

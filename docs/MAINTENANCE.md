@@ -101,7 +101,7 @@ E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
 2. 更新 `version_info.txt` 版本号（降低杀软误报的版本资源）；
 3. `build.bat [onefile|onedir] [nopause]`：
    - 自动结束运行中的 RyuuMD.exe（防止占用 dist 产物导致 PermissionError）；
-   - 内置单测闸门（test_api + test_cloud + test_search + test_fonts，失败即终止）；
+   - 内置单测闸门（test_api + test_cloud + test_search + test_fonts + test_ai，失败即终止）；
    - 交互双击运行结尾 `pause`；脚本/CI 调用传第二参 `nopause`（或 `RYUUMD_NOPAUSE=1`）；
 4. 手动清单走查（TEST_PLAN 末节）；
 5. 产物：`dist/RyuuMD.exe`（onefile）/ `dist/RyuuMD/`（onedir），两者可共存；

@@ -155,6 +155,101 @@ def search_vault(root: str, query: str, max_hits: int = MAX_HITS) -> dict[str, A
     return {"ok": True, "hits": hits, "truncated": truncated}
 
 
+def list_note_excerpts(
+    root: str | Path,
+    max_files: int = 40,
+    excerpt: int = 800,
+) -> dict[str, Any]:
+    """仓库笔记摘录，供概括与语义检索组装上下文。
+
+    超过 max_files 时 truncated=True，调用方应向用户说明只根据前 N 篇。
+    """
+    root_p = Path(root)
+    items: list[dict[str, Any]] = []
+    truncated = False
+    if not root_p.is_dir():
+        return {"notes": items, "truncated": False, "limit": max_files}
+    for p in iter_md_files(root_p):
+        if len(items) >= max_files:
+            truncated = True
+            break
+        text = _read_head(p)
+        items.append(
+            {
+                "path": str(p),
+                "name": p.name,
+                "rel": _rel(root_p, p),
+                "excerpt": text[:excerpt],
+            }
+        )
+    return {"notes": items, "truncated": truncated, "limit": max_files}
+
+
+def search_by_title(root: str, query: str, max_hits: int = MAX_HITS) -> dict[str, Any]:
+    """按文件名或相对路径匹配，kind 为 title。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "hits": [], "kind": "title"}
+    q = (query or "").strip()
+    if not q:
+        return {"ok": True, "hits": [], "truncated": False, "kind": "title"}
+    q_l = q.lower()
+    hits: list[dict[str, Any]] = []
+    truncated = False
+    for p in iter_md_files(root_p):
+        rel = _rel(root_p, p)
+        if q_l in p.name.lower() or q_l in rel.lower():
+            hits.append(
+                {
+                    "kind": "title",
+                    "path": str(p),
+                    "name": p.name,
+                    "rel": rel,
+                    "line": 0,
+                    "snippet": rel[:SNIPPET_LEN],
+                }
+            )
+            if len(hits) >= max_hits:
+                truncated = True
+                break
+    return {"ok": True, "hits": hits, "truncated": truncated, "kind": "title"}
+
+
+def search_by_content(root: str, query: str, max_hits: int = MAX_HITS) -> dict[str, Any]:
+    """按正文子串匹配，kind 为 content。"""
+    root_p = Path(root)
+    if not root_p.is_dir():
+        return {"ok": False, "error": "文件夹不存在", "hits": [], "kind": "content"}
+    q = (query or "").strip()
+    if not q:
+        return {"ok": True, "hits": [], "truncated": False, "kind": "content"}
+    q_l = q.lower()
+    hits: list[dict[str, Any]] = []
+    truncated = False
+    for p in iter_md_files(root_p):
+        text = _read_head(p)
+        rel = _rel(root_p, p)
+        for i, line in enumerate(text.splitlines(), 1):
+            if q_l in line.lower():
+                hits.append(
+                    {
+                        "kind": "content",
+                        "path": str(p),
+                        "name": p.name,
+                        "rel": rel,
+                        "line": i,
+                        "snippet": line.strip()[:SNIPPET_LEN],
+                    }
+                )
+                if len(hits) >= max_hits:
+                    truncated = True
+                    break
+                break
+        if truncated:
+            break
+    return {"ok": True, "hits": hits, "truncated": truncated, "kind": "content"}
+
+
 def parse_wikilink(raw: str) -> tuple[str, str]:
     """解析 `Name|别名` / `Name#标题`，返回 (目标名, 标题锚点)。"""
     text = (raw or "").strip()
