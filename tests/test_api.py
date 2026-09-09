@@ -959,5 +959,51 @@ class TestTutorial(unittest.TestCase):
         self.assertEqual(len([p for p in projs if Path(p["path"]) == self.dst]), 1)
 
 
+class TestJsApiSurface(unittest.TestCase):
+    """pywebview 会递归暴露 js_api 公开属性；配置/仓库对象不得进桥。"""
+
+    def test_config_and_projects_not_serializable(self):
+        import inspect
+
+        from app.core.projects import ProjectStore
+
+        self.assertFalse(getattr(Config, "_serializable", True))
+        self.assertFalse(getattr(ProjectStore, "_serializable", True))
+        api = make_api()
+        self.assertFalse(getattr(api.config, "_serializable", True))
+        self.assertFalse(getattr(api.projects, "_serializable", True))
+        self.assertTrue(callable(api.search_notes))
+
+        seen: list[int] = []
+        names: list[str] = []
+
+        def walk(obj: object, base: str = "") -> None:
+            oid = id(obj)
+            if oid in seen:
+                return
+            seen.append(oid)
+            for name in dir(obj):
+                if name.startswith("_"):
+                    continue
+                try:
+                    attr = getattr(obj, name)
+                except Exception:
+                    continue
+                if not getattr(attr, "_serializable", True):
+                    continue
+                full = f"{base}.{name}" if base else name
+                if inspect.ismethod(attr) or inspect.isfunction(attr):
+                    names.append(full)
+                elif inspect.isclass(attr) or (
+                    isinstance(attr, object) and not callable(attr) and hasattr(attr, "__module__")
+                ):
+                    walk(attr, full)
+
+        walk(api)
+        self.assertIn("search_notes", names)
+        self.assertFalse(any(n.startswith("config.") or n.startswith("projects.") for n in names))
+        self.assertLess(len(names), 100)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

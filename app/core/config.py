@@ -119,6 +119,9 @@ def _data_dir() -> Path:
 class Config:
     """线程安全的简单 JSON 配置。"""
 
+    # pywebview 会递归暴露 js_api 上的公开属性；禁止把 Config / Path 扫进 JS 桥。
+    _serializable = False
+
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._path = _data_dir() / "config.json"

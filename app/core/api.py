@@ -679,13 +679,71 @@ class Api:
     # ------------------------------------------------------------------
     # 仓库检索 / 双向链接 / 贴图 / 每日笔记 / 导出
     # ------------------------------------------------------------------
+    def _as_existing_dir(self, raw: str) -> str:
+        text = (raw or "").strip()
+        if not text:
+            return ""
+        try:
+            p = Path(text)
+            if p.is_dir():
+                return str(p)
+        except OSError:
+            return ""
+        return ""
+
     def _vault_root(self, folder: str = "") -> str:
-        """当前仓库根：入参优先，否则 last_folder。"""
-        if folder and Path(folder).is_dir():
-            return str(Path(folder))
-        last = self.config.get("last_folder", "") or ""
-        if last and Path(last).is_dir():
+        """当前仓库根：入参目录优先，否则 last_folder。单文件父目录不当仓库。"""
+        hit = self._as_existing_dir(folder)
+        if hit:
+            return hit
+        return self._as_existing_dir(self.config.get("last_folder", "") or "")
+
+    def _vault_for_path(self, path: str) -> str:
+        """已注册仓库或 last_folder 若包含该路径，返回仓库根。"""
+        if not (path or "").strip():
+            return ""
+        proj = self.projects.find_by_containing_path(path)
+        if proj:
+            root = self._as_existing_dir(str(proj.get("path") or ""))
+            if root:
+                return root
+        last = self._as_existing_dir(self.config.get("last_folder", "") or "")
+        if not last:
+            return ""
+        try:
+            Path(path).resolve().relative_to(Path(last).resolve())
             return last
+        except (OSError, ValueError):
+            return ""
+
+    def _search_root(self, folder: str = "") -> str:
+        """搜索根：目录 → 文件所属仓库 → last_folder → last_file 父目录。"""
+        raw = (folder or "").strip()
+        if raw:
+            try:
+                p = Path(raw)
+                if p.is_dir():
+                    return str(p)
+                if p.is_file():
+                    return self._vault_for_path(str(p)) or str(p.parent)
+            except OSError:
+                pass
+        last = self._as_existing_dir(self.config.get("last_folder", "") or "")
+        if last:
+            return last
+        last_file = (self.config.get("last_file", "") or "").strip()
+        if not last_file:
+            return ""
+        try:
+            fp = Path(last_file)
+            hint = str(fp if fp.exists() else fp.parent)
+            vault = self._vault_for_path(hint)
+            if vault:
+                return vault
+            if fp.parent.is_dir():
+                return str(fp.parent)
+        except OSError:
+            return ""
         return ""
 
     def _md_in_vault(self, folder: str, path: str) -> Path | None:
@@ -787,7 +845,7 @@ class Api:
     def search_notes(self, folder: str = "", query: str = "", mode: str = "title") -> dict[str, Any]:
         """标题 / 内容 / 语义检索；查询以 `ask ` 为前缀时走 AI 问答。"""
         is_ask, _rest = ai_client.parse_ask_prefix(query)
-        root = self._vault_root(folder)
+        root = self._search_root(folder)
         if not is_ask and not root:
             return {"ok": False, "error": "请先打开仓库或文件夹", "hits": []}
         return ai_client.run_search(root, query, mode, self._ai_cfg())

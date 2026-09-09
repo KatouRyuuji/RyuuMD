@@ -37,6 +37,9 @@ def _norm(path: str) -> str:
 class ProjectStore:
     """仓库列表的增删改查。所有写操作立即持久化到 config。"""
 
+    # 与 Config 相同：只给 Python 用，不要被 pywebview 扫成 JS API。
+    _serializable = False
+
     def __init__(self, config: Config) -> None:
         self.config = config
 

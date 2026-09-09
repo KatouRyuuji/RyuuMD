@@ -62,9 +62,12 @@ class TestListAndSearch(unittest.TestCase):
 
     def test_list_requires_folder(self):
         self.api.config.set("last_folder", "")
+        self.api.config.set("last_file", str(self.root / "欢迎.md"))
         res = self.api.list_md_files("", "")
         self.assertFalse(res["ok"])
         self.assertIn("打开", res["error"])
+        daily = self.api.open_daily_note("", "日记")
+        self.assertFalse(daily["ok"])
 
     def test_search_name_then_content(self):
         res = self.api.search_vault(str(self.root), "WebDAV")
@@ -77,6 +80,41 @@ class TestListAndSearch(unittest.TestCase):
         res = self.api.search_vault(str(self.root), "  ")
         self.assertTrue(res["ok"])
         self.assertEqual(res["hits"], [])
+
+    def test_search_notes_file_without_vault_uses_parent_only(self):
+        self.api.config.set("last_folder", "")
+        note = self.root / "docs" / "架构.md"
+        res = self.api.search_notes(str(note), "架构", "title")
+        self.assertTrue(res["ok"], res)
+        names = {h["name"] for h in res["hits"]}
+        self.assertIn("架构.md", names)
+        self.assertNotIn("欢迎.md", names)
+
+    def test_search_notes_file_in_registered_vault(self):
+        self.api.projects.add(str(self.root), "测试库")
+        note = self.root / "docs" / "架构.md"
+        res = self.api.search_notes(str(note), "欢迎", "title")
+        self.assertTrue(res["ok"], res)
+        names = {h["name"] for h in res["hits"]}
+        self.assertIn("欢迎.md", names)
+        content = self.api.search_notes(str(note), "WebDAV", "content")
+        self.assertTrue(content["ok"], content)
+        self.assertTrue(any("架构" in h["name"] for h in content["hits"]))
+
+    def test_search_notes_file_under_last_folder(self):
+        self.api.config.set("last_folder", str(self.root))
+        note = self.root / "docs" / "架构.md"
+        res = self.api.search_notes(str(note), "欢迎", "title")
+        self.assertTrue(res["ok"], res)
+        self.assertIn("欢迎.md", {h["name"] for h in res["hits"]})
+
+    def test_search_notes_falls_back_to_last_file_parent(self):
+        self.api.config.set("last_folder", "")
+        self.api.config.set("last_file", str(self.root / "欢迎.md"))
+        res = self.api.search_notes("", "欢迎", "title")
+        self.assertTrue(res["ok"], res)
+        names = {h["name"] for h in res["hits"]}
+        self.assertIn("欢迎.md", names)
 
     def test_tree_skips_assets_dir(self):
         res = self.api.list_folder(str(self.root))

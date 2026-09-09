@@ -96,10 +96,22 @@
       },
       search: async (q, mode) => {
         const a = api();
-        if (!a) return { hits: [] };
-        if (a.search_notes) return a.search_notes(state.currentFolder || "", q || "", mode || "title");
-        if (a.search_vault) return a.search_vault(state.currentFolder || "", q || "");
-        return { hits: [] };
+        if (!a) return { ok: false, error: "后端未连接", hits: [] };
+        const folder = state.currentFolder
+          || state.currentPath
+          || (state.config && state.config.last_folder)
+          || "";
+        try {
+          if (typeof a.search_notes === "function") {
+            return await a.search_notes(folder, q || "", mode || "title");
+          }
+          if (typeof a.search_vault === "function") {
+            return await a.search_vault(folder, q || "");
+          }
+        } catch (e) {
+          return { ok: false, error: (e && e.message) || "搜索失败", hits: [] };
+        }
+        return { ok: false, error: "搜索接口不可用", hits: [] };
       },
       onPickFile: (it) => { if (it && it.path) openFileByPath(it.path); },
       onPickHit: (it) => {

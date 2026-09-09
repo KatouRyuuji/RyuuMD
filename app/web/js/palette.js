@@ -253,17 +253,35 @@
     if (isAskQuery(q)) {
       renderAskPending(q);
       if (!handlers.search) return;
-      const res = await handlers.search(q, searchMode);
+      let res;
+      try {
+        res = await handlers.search(q, searchMode);
+      } catch (e) {
+        if (my !== seq) return;
+        renderAskResult({ ok: false, error: (e && e.message) || "提问失败" });
+        return;
+      }
       if (my !== seq) return;
       renderAskResult(res);
       return;
     }
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
     if (!handlers.search) { items = []; render(); return; }
-    const res = await handlers.search(q, searchMode);
+    let res;
+    try {
+      res = await handlers.search(q, searchMode);
+    } catch (e) {
+      if (my !== seq) return;
+      renderSearchError((e && e.message) || "搜索失败");
+      return;
+    }
     if (my !== seq) return;
     if (res && res.kind === "ask") {
       renderAskResult(res);
+      return;
+    }
+    if (res && res.ok === false && res.error) {
+      renderSearchError(res.error);
       return;
     }
     const hits = (res && res.hits) || [];
@@ -297,6 +315,15 @@
     answerEl.innerHTML = '<div class="pal-ask-label">AI 回答</div>'
       + '<div class="pal-ask-q">' + esc(parsed) + "</div>"
       + '<div class="pal-ask-body pal-ask-wait">按 Enter 提问（将调用已配置的模型）</div>';
+  }
+
+  function renderSearchError(msg) {
+    items = [];
+    listEl.innerHTML = "";
+    syncSearchChrome();
+    if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
+    emptyEl.style.display = "";
+    emptyEl.textContent = msg || "搜索失败";
   }
 
   function renderSemanticHint(q) {
@@ -396,6 +423,10 @@
       e.stopPropagation();
       if (mode === "search" && (isAskQuery(input.value) || searchMode === "semantic")) {
         runPaidSearch();
+        return;
+      }
+      if (mode === "search" && !items.length && String(input.value || "").trim()) {
+        refresh();
         return;
       }
       choose();

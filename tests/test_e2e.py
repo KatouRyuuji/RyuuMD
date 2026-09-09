@@ -710,6 +710,51 @@ CASES = [
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
 
+    dict(name="T45a 标题搜索:打开仓库后输入文件名出现命中",
+         setup=("window.App.openPath(" + JV(str(REPO_DIR)) + ").then(function(){"
+                "document.getElementById('btn-search').click();"
+                "var el=document.getElementById('pal-input');"
+                "el.value='readme';el.dispatchEvent(new Event('input',{bubbles:true}));});"),
+         sleep=1.2,
+         js=("(function(){if(!document.getElementById('palette-mask').classList.contains('open'))return 'not open';"
+             "var t=document.getElementById('pal-list').textContent;"
+             "return t.toLowerCase().indexOf('readme')>=0?true:'list='+t.slice(0,100);})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T45b 内容搜索:切换内容模式命中正文",
+         setup=("window.Palette.openSearch();"
+                "var btn=document.querySelector('#pal-modes [data-mode=content]');"
+                "if(btn)btn.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "var el=document.getElementById('pal-input');"
+                "el.value=" + JV("子目录") + ";"
+                "el.dispatchEvent(new Event('input',{bubbles:true}));"),
+         sleep=1.0,
+         js=("(function(){var t=document.getElementById('pal-list').textContent;"
+             "if(t.indexOf('note.md')<0)return 'list='+t.slice(0,100);"
+             "if(t.indexOf(" + JV("内容") + ")<0)return 'no content badge';"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T45c 语义搜索:输入后提示 Enter 且不自动请求",
+         setup=("window.Palette.openSearch();"
+                "var btn=document.querySelector('#pal-modes [data-mode=semantic]');"
+                "if(btn)btn.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "var el=document.getElementById('pal-input');"
+                "el.value=" + JV("ideas about consensus") + ";"
+                "el.dispatchEvent(new Event('input',{bubbles:true}));"),
+         sleep=0.6,
+         js=("(function(){var empty=document.getElementById('pal-empty');"
+             "var t=(empty&&empty.style.display!=='none')?empty.textContent:'';"
+             "if(t.indexOf('Enter')<0&&t.indexOf(" + JV("语义") + ")<0)return 'empty='+t;"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
     dict(name="T46 本文查找 Ctrl+F:查找条打开并可关闭",
          setup="window.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}))",
          sleep=0.3,
