@@ -27,7 +27,7 @@ from .config import Config
 from .fsutil import IMAGE_EXTS, IGNORE_DIRS, MD_EXTS, atomic_write_text, recycle_file, skip_dir_name  # noqa: F401
 from .projects import ProjectStore
 from . import search as vault_search
-from .workdir import EDIT_WORKDIR, WorkdirStore, normalize_edit_mode
+from .workdir import EDIT_WORKDIR, TREE_DIRNAME, WorkdirStore, normalize_edit_mode
 
 # 文件夹树扫描上限：层级与总条目数，超出即截断并在返回数据中标注
 MAX_TREE_DEPTH = 8
@@ -80,6 +80,19 @@ class Api:
         except (OSError, ValueError):
             return False
 
+    def _orphan_rel(self, raw: str) -> str:
+        """从残骸副本路径取出 tree/ 之后的相对路径；没有则退回文件名。"""
+        try:
+            parts = Path(raw).parts
+            if TREE_DIRNAME in parts:
+                idx = len(parts) - 1 - parts[::-1].index(TREE_DIRNAME)
+                rel = Path(*parts[idx + 1 :])
+                if rel.parts:
+                    return rel.as_posix()
+        except (OSError, ValueError, IndexError):
+            pass
+        return Path(raw).name
+
     def _resolve_orphan_work_path(self, raw: str) -> tuple[str, str, Optional[dict[str, Any]]]:
         """单文件会话被整库收编后，把残骸路径改挂到 last_file / last_folder。"""
         last_file = (self.config.get("last_file") or "").strip()
@@ -89,9 +102,9 @@ class Api:
         if last_folder and not self._same_path(last_folder, raw) and not self._is_orphan_work_path(last_folder):
             _io, _logical, sess = self._resolve_io(last_folder, create=True)
             if sess:
-                name = Path(raw).name
-                work = str(Path(sess["work_root"]) / name)
-                logical = str(Path(sess["source_root"]) / name)
+                rel = self._orphan_rel(raw)
+                work = str(Path(sess["work_root"]) / rel)
+                logical = str(Path(sess["source_root"]) / rel)
                 return work, logical, sess
         return raw, raw, None
 

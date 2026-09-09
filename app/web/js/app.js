@@ -532,8 +532,8 @@
   async function save(opts) {
     const silent = opts && opts.silent;
     const a = apiOrToast();
-    if (!a) return;
-    if (!(await ensureEditor())) return;
+    if (!a) return false;
+    if (!(await ensureEditor())) return false;
     const content = window.Editor.getValue();
     state.latestContent = content; // 保存起点快照
     if (state.currentPath) {
@@ -554,26 +554,28 @@
         if (!silent) toast("已保存");
         loadRecent();
         refreshWorkdirStatus();
+        return true;
       }
-      else toast("保存失败：" + (res.error || ""));
-    } else {
-      if (silent) return; // 未保存新文档不自动弹另存对话框
-      const res = await a.save_file_dialog(content, "未命名.md");
-      if (res.ok) {
-        state.currentPath = res.path;
-        state.sourcePath = res.source_path || res.path;
-        markSaved(content);
-        if (res.mtime) state.diskMtime = res.mtime; // 与已保存分支一致，防守望误重载
-        updateDocName(basename(res.path));
-        window.Sidebar.markActive(res.path);
-        updateStatusPath();
-        toast("已保存");
-        loadRecent();
-        if (state.currentFolder) refreshFolder();
-      } else if (!res.cancelled) {
-        toast("保存失败：" + (res.error || ""));
-      }
+      toast("保存失败：" + (res.error || ""));
+      return false;
     }
+    if (silent) return false; // 未保存新文档不自动弹另存对话框
+    const res = await a.save_file_dialog(content, "未命名.md");
+    if (res.ok) {
+      state.currentPath = res.path;
+      state.sourcePath = res.source_path || res.path;
+      markSaved(content);
+      if (res.mtime) state.diskMtime = res.mtime; // 与已保存分支一致，防守望误重载
+      updateDocName(basename(res.path));
+      window.Sidebar.markActive(res.path);
+      updateStatusPath();
+      toast("已保存");
+      loadRecent();
+      if (state.currentFolder) refreshFolder();
+      return true;
+    }
+    if (!res.cancelled) toast("保存失败：" + (res.error || ""));
+    return false;
   }
 
   function markSaved(content) {
@@ -929,8 +931,29 @@
     window.Settings.open(state.config, applyConfig);
   }
 
+  async function flushEditorBeforeModeSwitch() {
+    if (!(await ensureEditor())) return false;
+    const now = window.Editor.getValue();
+    if (now == null) return true;
+    state.latestContent = now;
+    if (now === state.lastSaved) {
+      state.dirty = false;
+      return true;
+    }
+    state.dirty = true;
+    if (!state.currentPath) return true;
+    return (await save({ silent: true })) !== false;
+  }
+
   async function applyConfig(partial) {
     const prevEditMode = state.config && state.config.edit_mode;
+    if ("edit_mode" in partial && partial.edit_mode !== prevEditMode) {
+      const flushed = await flushEditorBeforeModeSwitch();
+      if (flushed === false) {
+        toast("未保存的修改未能写入当前文件，已取消切换编辑方式");
+        return false;
+      }
+    }
     Object.assign(state.config, partial);
     const a = api();
     // cloud_sync 含脱敏字段，必须走 save_cloud_settings，禁止经 update_config 把密码冲掉
@@ -952,7 +975,11 @@
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
     if ("sidebar_width" in partial) applySidebarWidth(partial.sidebar_width);
-    if ("edit_mode" in partial) await adoptEditMode(partial.edit_mode, prevEditMode);
+    if ("edit_mode" in partial) {
+      const adopted = await adoptEditMode(partial.edit_mode, prevEditMode);
+      if (adopted === false) return false;
+    }
+    return true;
   }
 
   function isWorkdirMode() {
@@ -1021,7 +1048,8 @@
 
   async function setEditMode(mode) {
     const next = mode === "workdir" ? "workdir" : "source";
-    await applyConfig({ edit_mode: next });
+    const ok = await applyConfig({ edit_mode: next });
+    if (ok === false) return;
     toast(next === "workdir" ? "已切换为工作副本：只改副本，不自动写源文件" : "已切换为直改源文件");
   }
 
@@ -1029,7 +1057,7 @@
     syncWorkdirChrome();
     if (!next || next === prev) {
       refreshWorkdirStatus();
-      return;
+      return true;
     }
     const srcFolder = state.sourceFolder;
     const srcFile = state.sourcePath;
@@ -1038,7 +1066,7 @@
       if (a && a.workdir_summary) {
         const sum = await a.workdir_summary(state.currentFolder || srcFolder);
         if (sum && sum.ok && (sum.pending || (sum.counts && sum.counts.diverged))) {
-          const choice = await choiceDialog({
+          const choice = await window.App.choice({
             title: "工作副本尚未全部回写",
             message: "切换到直改源文件后将打开原件。未回写的修改只留在副本里，除非现在保存至源。",
             choices: [
@@ -1051,7 +1079,7 @@
             state.config.edit_mode = prev;
             if (a.update_config) await a.update_config({ edit_mode: prev });
             syncWorkdirChrome();
-            return;
+            return false;
           }
           if (choice === "push") await a.workdir_push_all(state.currentFolder || srcFolder, true);
         }
@@ -1062,13 +1090,14 @@
       if (a) {
         const folder = await a.list_folder(srcFolder);
         if (folder && folder.ok) await applyFolder(folder, false);
-        if (srcFile) {
+        if (srcFile && !(state.dirty && !state.currentPath)) {
           const file = await a.read_file(srcFile);
           if (file && file.ok) await loadDoc(file);
         }
       }
     }
     refreshWorkdirStatus();
+    return true;
   }
 
   function openEditModeHelp() {
@@ -1084,7 +1113,7 @@
     const pushPath = await ensureWorkdirCurrentPath() || state.currentPath;
     let res = await a.workdir_push(pushPath, false);
     if (res && res.needs_confirm) {
-      const ok = await confirmDialog({
+      const ok = await window.App.confirm({
         title: res.reason === "source_ahead" ? "源文件较新" : "双方都有改动",
         message: (res.error || "源文件上也有改动。") + "\n覆盖源文件将丢掉源文件上尚未合并的内容。",
         okText: "覆盖源文件",
@@ -1104,7 +1133,7 @@
     const a = apiOrToast();
     if (!a || !a.workdir_merge) return;
     if (state.dirty) {
-      const keep = await confirmDialog({
+      const keep = await window.App.confirm({
         title: "编辑器有未保存修改",
         message: "合并源文件会改写工作副本。要先把当前编辑写入副本吗？",
         okText: "先保存再合并",
@@ -1115,7 +1144,7 @@
     const mergePath = await ensureWorkdirCurrentPath() || state.currentPath;
     let res = await a.workdir_merge(mergePath, "");
     if (res && res.needs_confirm) {
-      const choice = await choiceDialog({
+      const choice = await window.App.choice({
         title: res.reason === "copy_ahead" ? "工作副本有未回写修改" : "双方都有改动",
         message: res.error || "请选择如何处理源文件与工作副本的差异。",
         choices: [
@@ -1148,7 +1177,7 @@
     const folder = state.currentFolder || state.sourceFolder || "";
     let res = await a.workdir_push_all(folder, false);
     if (res && res.skipped && res.skipped.length) {
-      const ok = await confirmDialog({
+      const ok = await window.App.confirm({
         title: "部分文件双方都有改动",
         message: res.message + "。继续将覆盖这些源文件。",
         okText: "全部覆盖源文件",
@@ -1167,7 +1196,7 @@
     const a = apiOrToast();
     if (!a || !a.workdir_merge_all) return;
     const folder = state.currentFolder || state.sourceFolder || "";
-    const choice = await choiceDialog({
+    const choice = await window.App.choice({
       title: "全部合并源文件",
       message: "用源文件更新工作副本。若双方都有改动，请选择处理方式。",
       choices: [

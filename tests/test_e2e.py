@@ -82,6 +82,184 @@ OPS_RENAME_JS = str(OPS_DIR / "rename-me.md").replace("\\", "\\\\")
 OPS_RENAMED_JS = str(OPS_DIR / "renamed-e2e.md").replace("\\", "\\\\")
 OPS_DELETE_JS = str(OPS_DIR / "delete-me.md").replace("\\", "\\\\")
 
+# 工作副本夹具：与 e2e-repo 分开，避免 T24 计数/T45 搜索被副本树干扰
+WORKDIR_DIR = TMP / "e2e-workdir"
+(WORKDIR_DIR / "docs").mkdir(parents=True, exist_ok=True)
+(WORKDIR_DIR / "guide.md").write_text("# 指南\n\n源文件原文 WorkdirSourceToken\n", encoding="utf-8")
+(WORKDIR_DIR / "docs" / "note.md").write_text("# 笔记\n\n子页正文\n", encoding="utf-8")
+WORKDIR_SOLO = TMP / "e2e-workdir-solo"
+WORKDIR_SOLO.mkdir(parents=True, exist_ok=True)
+(WORKDIR_SOLO / "hello.md").write_text("# 单文件\n\nSoloSource\n", encoding="utf-8")
+(WORKDIR_SOLO / "other.md").write_text("# 其它\n\nSibling\n", encoding="utf-8")
+WORKDIR_EDGE = TMP / "e2e-workdir-edge"
+WORKDIR_EDGE.mkdir(parents=True, exist_ok=True)
+(WORKDIR_EDGE / "keep.md").write_text("# 保留\n\nKeepSrc\n", encoding="utf-8")
+WORKDIR_ORPHAN = TMP / "e2e-workdir-orphan"
+WORKDIR_ORPHAN.mkdir(parents=True, exist_ok=True)
+(WORKDIR_ORPHAN / "hello.md").write_text("# 孤儿\n\nOrphanSrc\n", encoding="utf-8")
+_W116_KEY = {"key": ""}
+
+
+def _src_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _assert_source_lacks(path: Path, token: str):
+    text = _src_text(path)
+    if token in text:
+        return f"source leaked {token}: {text[:120]}"
+    return True
+
+
+def _assert_source_has(path: Path, token: str):
+    text = _src_text(path)
+    if token not in text:
+        return f"source missing {token}: {text[:120]}"
+    return True
+
+
+def _workdir_t101(api, ev):
+    leaked = _assert_source_lacks(WORKDIR_SOLO / "hello.md", "KeepFileSession")
+    if leaked is not True:
+        return leaked
+    work = str(ev("window.__w101work||''") or "")
+    if not work or not Path(work).is_file():
+        return f"file session absorbed work={work}"
+    return True
+
+
+def _workdir_t102(api, ev):
+    leaked = _assert_source_lacks(WORKDIR_SOLO / "hello.md", "KeepFileSession")
+    if leaked is not True:
+        return leaked
+    listed = api.list_folder(str(WORKDIR_SOLO))
+    if not listed.get("ok"):
+        return listed
+    copy = Path(listed["root"]) / "hello.md"
+    if not copy.is_file():
+        return f"folder copy missing {copy}"
+    if "KeepFileSession" not in copy.read_text(encoding="utf-8"):
+        return f"folder copy lost edits: {copy.read_text(encoding='utf-8')[:80]}"
+    return True
+
+
+def _workdir_t103(api, ev):
+    src = WORKDIR_DIR / "guide.md"
+    has = _assert_source_has(src, "WorkdirSourceToken")
+    if has is not True:
+        return has
+    return _assert_source_lacks(src, "WorkdirCopyToken")
+
+
+def _workdir_t104(api, ev):
+    leaked = _assert_source_lacks(WORKDIR_DIR / "guide.md", "WorkdirCopyToken")
+    if leaked is not True:
+        return leaked
+    opened = api.read_file(str(WORKDIR_DIR / "guide.md"))
+    if not opened.get("ok"):
+        return opened
+    path = str(opened.get("path") or "")
+    if "workcopies" not in path.replace("\\", "/"):
+        return f"not copy path {path}"
+    if "WorkdirCopyToken" not in (opened.get("content") or ""):
+        return "copy missing token"
+    return True
+
+
+def _workdir_t107(api, ev):
+    src = WORKDIR_DIR / "仅副本笔记.md"
+    if src.exists():
+        return f"source has copy-only file {src}"
+    items = api.get_recent().get("items") or []
+    hit = next((it for it in items if str(it.get("path") or "").endswith("仅副本笔记.md")), None)
+    if not hit:
+        return f"recent missing {items[:4]}"
+    if not hit.get("exists"):
+        return f"recent greyed {hit}"
+    return True
+
+
+def _workdir_t112(api, ev):
+    from datetime import datetime
+
+    name = datetime.now().strftime("%Y-%m-%d") + ".md"
+    src = WORKDIR_DIR / "日记" / name
+    if src.exists():
+        return f"daily wrote source {src}"
+    listed = api.list_folder(str(WORKDIR_DIR))
+    if not listed.get("ok"):
+        return listed
+    copy = Path(listed["root"]) / "日记" / name
+    if not copy.is_file():
+        return f"daily copy missing {copy}"
+    return True
+
+
+def _workdir_t115(api, ev):
+    listed = api.list_folder(str(WORKDIR_EDGE))
+    if not listed.get("ok"):
+        return listed
+    work = Path(listed["root"])
+    if not (work / "renamed-keep.md").is_file():
+        return f"copy missing renamed-keep.md {[p.name for p in work.iterdir()]}"
+    if (work / "keep.md").exists():
+        return "old name resurrected on copy"
+    if not (WORKDIR_EDGE / "keep.md").is_file():
+        return "source keep.md missing"
+    if (WORKDIR_EDGE / "renamed-keep.md").exists():
+        return "rename leaked to source"
+    return True
+
+
+def _workdir_t116_before(api):
+    listed = api.list_folder(str(WORKDIR_EDGE))
+    key = api._knowledge_key(listed["root"])
+    api._knowledge_cache[key] = {"ok": True, "text": "旧谱系"}
+    _W116_KEY["key"] = key
+
+
+def _workdir_t116(api, ev):
+    if not _W116_KEY["key"]:
+        return "no cache key"
+    if _W116_KEY["key"] in api._knowledge_cache:
+        return "knowledge cache not invalidated"
+    return True
+
+
+def _workdir_t117(api, ev):
+    if "OrphanPushE2E" not in _src_text(WORKDIR_ORPHAN / "hello.md"):
+        return "source missing OrphanPushE2E after orphan push"
+    old = str(ev("window.__w117old||''") or "")
+    if old and Path(old).exists():
+        return f"orphan path still exists {old}"
+    listed = api.list_folder(str(WORKDIR_ORPHAN))
+    if not listed.get("ok"):
+        return listed
+    copy = Path(listed["root"]) / "hello.md"
+    if not copy.is_file() or "OrphanPushE2E" not in copy.read_text(encoding="utf-8"):
+        return "folder copy missing OrphanPushE2E"
+    return True
+
+
+def _workdir_t118(api, ev):
+    leaked = _assert_source_lacks(WORKDIR_DIR / "guide.md", "DirtySwitchToken")
+    if leaked is not True:
+        return leaked
+    prev = api.config.get("edit_mode")
+    api.config.set("edit_mode", "workdir")
+    try:
+        opened = api.read_file(str(WORKDIR_DIR / "guide.md"))
+        if not opened.get("ok"):
+            return opened
+        if "DirtySwitchToken" not in (opened.get("content") or ""):
+            return "copy missing DirtySwitchToken"
+        path = str(opened.get("path") or "").replace("\\", "/")
+        if "workcopies" not in path:
+            return f"not copy path {path}"
+    finally:
+        api.config.set("edit_mode", prev)
+    return True
+
 # T08 用 Markdown(含代码围栏,验证 sv 大纲忽略 ``` 内标题)
 T08_MD = "# 模式测试\n\n```\n# 注释不是标题\n```\n\n## 真标题\n"
 
@@ -1507,6 +1685,359 @@ CASES = [
              "if(v.indexOf('# 回车后标题DEF')>=0||v.indexOf('#回车后标题DEF')>=0)return true;"
              "return 'v='+JSON.stringify(v);})()"),
          timeout=12),
+
+    # —— 工作副本全量（T98 已切到 workdir；夹具独立于 e2e-repo）——
+    dict(name="T101 工作副本:只开一篇时搜索走副本且不收编会话",
+         setup=("window.__w101=0;window.__w101work='';window.__w101err='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_SOLO / "hello.md")) + ");"
+                "if(window.App.ensureEditor)await window.App.ensureEditor();"
+                "window.Editor.setValue(" + JV("# 单文件\n\nKeepFileSession\n") + ");"
+                "await window.App.save({silent:true});"
+                "var opened=await window.pywebview.api.read_file(" + JV(str(WORKDIR_SOLO / "hello.md")) + ");"
+                "window.__w101work=opened&&opened.path||'';"
+                "await window.pywebview.api.add_project(" + JV(str(WORKDIR_SOLO)) + "," + JV("单文件库") + ");"
+                "await window.pywebview.api.update_config({last_folder:''});"
+                "var s=await window.pywebview.api.search_notes('','KeepFileSession','content');"
+                "var blob=JSON.stringify(s||{});"
+                "window.__w101=blob.indexOf('KeepFileSession')>=0?1:2;"
+                "window.__w101err=window.__w101===1?'':blob.slice(0,160);"
+                "}catch(e){window.__w101=3;window.__w101err=String(e&&e.message||e);}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w101===0)return 'wait';"
+             "if(window.__w101!==1)return 'search='+window.__w101+' '+window.__w101err;"
+             "if(!window.App.hasSavedFile())return 'no file';"
+             "return true;})()"),
+         py=_workdir_t101),
+
+    dict(name="T102 工作副本:先开单文件再开文件夹不丢编辑",
+         setup=("window.__w102=0;window.__w102v='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_SOLO)) + ");"
+                "await window.App.openPath(" + JV(str(WORKDIR_SOLO / "hello.md")) + ");"
+                "window.__w102v=window.Editor.getValue()||'';"
+                "window.__w102=window.__w102v.indexOf('KeepFileSession')>=0?1:2;"
+                "}catch(e){window.__w102=3;window.__w102v=String(e&&e.message||e);}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w102===0)return 'wait';"
+             "if(window.__w102!==1)return 'ed='+window.__w102v.slice(0,80);"
+             "return true;})()"),
+         py=_workdir_t102),
+
+    dict(name="T103 工作副本:打开仓库后文件树是副本且源未改",
+         setup=("window.__w103=0;window.__w103t='';"
+                "window.App.openPath(" + JV(str(WORKDIR_DIR)) + ").then(function(){"
+                "window.__w103t=document.getElementById('file-tree').textContent||'';"
+                "window.__w103=1;});"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w103!==1)return 'wait';"
+             "if(window.Home&&window.Home.isOpen())return 'home open';"
+             "if(!document.body.classList.contains('is-workdir'))return 'no is-workdir';"
+             "if(window.__w103t.indexOf('guide.md')<0)return 'tree='+window.__w103t.slice(0,80);"
+             "return true;})()"),
+         py=_workdir_t103),
+
+    dict(name="T104 工作副本:保存只写副本、源文件未变",
+         setup=("window.__w104=0;"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_DIR / "guide.md")) + ");"
+                "if(window.App.ensureEditor)await window.App.ensureEditor();"
+                "window.Editor.setValue(" + JV("# 指南\n\n只改副本 WorkdirCopyToken\n") + ");"
+                "await window.App.save({silent:true});"
+                "window.__w104=window.App.hasSavedFile()?1:2;"
+                "}catch(e){window.__w104=3;}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w104===0)return 'wait';"
+             "if(window.__w104!==1)return 'saved='+window.__w104;"
+             "var v=window.Editor.getValue();"
+             "return v.indexOf('WorkdirCopyToken')>=0?true:'ed='+v.slice(0,60);})()"),
+         py=_workdir_t104),
+
+    dict(name="T105 工作副本:保存至源后源文件含副本内容",
+         setup=("window.__w105=0;"
+                "(window.App.pushToSource?window.App.pushToSource():Promise.resolve())"
+                ".then(function(){window.__w105=1;})"
+                ".catch(function(e){window.__w105=2;window.__w105e=String(e&&e.message||e);});"),
+         sleep=0.4,
+         timeout=15,
+         js=("(function(){if(window.__w105===0)return 'wait';"
+             "if(window.__w105!==1)return 'push='+window.__w105+' '+(window.__w105e||'');"
+             "return true;})()"),
+         py=lambda api, ev: _assert_source_has(WORKDIR_DIR / "guide.md", "WorkdirCopyToken")),
+
+    dict(name="T106 工作副本:改源后再合并源编辑器跟上",
+         before=lambda api: (WORKDIR_DIR / "guide.md").write_text(
+             "# 指南\n\n源又更新了 WorkdirMergedToken\n", encoding="utf-8"
+         ),
+         setup=("window.__w106=0;"
+                "(window.App.mergeFromSource?window.App.mergeFromSource():Promise.resolve())"
+                ".then(function(){window.__w106=1;})"
+                ".catch(function(e){window.__w106=2;window.__w106e=String(e&&e.message||e);});"),
+         sleep=0.4,
+         timeout=15,
+         js=("(function(){if(window.__w106===0)return 'wait';"
+             "if(window.__w106!==1)return 'merge='+window.__w106+' '+(window.__w106e||'');"
+             "var v=window.Editor.getValue();"
+             "return v.indexOf('WorkdirMergedToken')>=0?true:'ed='+v.slice(0,80);})()")),
+
+    dict(name="T107 工作副本:新建笔记只落副本且最近列表算存在",
+         setup=("window.__w107=0;window.__w107n='';"
+                "(async function(){"
+                "try{"
+                "await window.App.newNoteInFolder(null," + JV("仅副本笔记") + ");"
+                "window.__w107n=(document.getElementById('doc-name').textContent||'');"
+                "window.__w107=1;"
+                "}catch(e){window.__w107=2;window.__w107n=String(e&&e.message||e);}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w107===0)return 'wait';"
+             "if(window.__w107!==1)return 'new='+window.__w107n;"
+             "if(window.__w107n.indexOf(" + JV("仅副本笔记") + ")<0)return 'doc='+window.__w107n;"
+             "return true;})()"),
+         py=_workdir_t107),
+
+    dict(name="T108 工作副本:内容搜索命中未回写到源的字",
+         setup=("window.__w108=0;window.__w108t='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_DIR / "guide.md")) + ");"
+                "window.Editor.setValue(" + JV("# 指南\n\nSearchCopyOnlyToken\n") + ");"
+                "await window.App.save({silent:true});"
+                "window.Palette.openSearch();"
+                "var btn=document.querySelector('#pal-modes [data-mode=content]');"
+                "if(btn)btn.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "var el=document.getElementById('pal-input');"
+                "el.value='SearchCopyOnlyToken';"
+                "el.dispatchEvent(new Event('input',{bubbles:true}));"
+                "window.__w108=1;"
+                "}catch(e){window.__w108=2;window.__w108t=String(e&&e.message||e);}})();"),
+         sleep=1.0,
+         timeout=20,
+         js=("(function(){if(window.__w108===0)return 'wait';"
+             "if(window.__w108!==1)return 'setup='+window.__w108t;"
+             "if(!document.getElementById('palette-mask').classList.contains('open'))return 'not open';"
+             "var t=document.getElementById('pal-list').textContent||'';"
+             "window.__w108t=t;"
+             "return t.indexOf('SearchCopyOnlyToken')>=0?true:'list='+t.slice(0,120);})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')",
+         py=lambda api, ev: _assert_source_lacks(WORKDIR_DIR / "guide.md", "SearchCopyOnlyToken")),
+
+    dict(name="T109 工作副本:文档态显示保存至源与合并源",
+         setup="window.Home.hide()",
+         sleep=0.4,
+         js=("(function(){"
+             "if(!document.body.classList.contains('is-workdir'))return 'no is-workdir';"
+             "if(document.body.classList.contains('is-home'))return 'is-home';"
+             "var p=document.getElementById('btn-push-source');"
+             "var m=document.getElementById('btn-merge-source');"
+             "if(!p||getComputedStyle(p).display==='none')return 'push hidden';"
+             "if(!m||getComputedStyle(m).display==='none')return 'merge hidden';"
+             "return true;})()")),
+
+    dict(name="T110 工作副本:命令面板能搜到保存至源/合并源",
+         setup=("window.Palette.openCommands();"
+                "var el=document.getElementById('pal-input');"
+                "el.value=" + JV("工作副本") + ";"
+                "el.dispatchEvent(new Event('input',{bubbles:true}));"),
+         sleep=0.5,
+         js=("(function(){var t=document.getElementById('pal-list').textContent;"
+             "if(t.indexOf(" + JV("保存当前至源文件") + ")<0)return 'list='+t.slice(0,120);"
+             "if(t.indexOf(" + JV("合并当前源文件") + ")<0)return 'no merge cmd';"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T111 工作副本:欢迎页有编辑方式且记住工作副本",
+         setup="window.Welcome.show({style:'notion',edit_mode:'workdir'})",
+         sleep=0.8,
+         timeout=12,
+         js=("(function(){"
+             "var m=document.getElementById('welcome-mask');"
+             "if(!m.classList.contains('open'))return 'not open';"
+             "if(m.querySelectorAll('.mode-opt').length!==2)return 'modes';"
+             "var sel=m.querySelector('.mode-opt.selected');"
+             "if(!sel||sel.dataset.mode!=='workdir')return 'sel='+(sel&&sel.dataset.mode);"
+             "document.getElementById('welcome-start').click();"
+             "return true;})()"),
+         sleep2=0.4,
+         js2="!document.getElementById('welcome-mask').classList.contains('open')"),
+
+    dict(name="T112 工作副本:日记写到副本不写源",
+         setup=("window.__w112=0;window.__w112p='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openDailyNote();"
+                "window.__w112p=(document.getElementById('doc-name').textContent||'');"
+                "window.__w112=1;"
+                "}catch(e){window.__w112=2;window.__w112p=String(e&&e.message||e);}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w112===0)return 'wait';"
+             "if(window.__w112!==1)return 'daily='+window.__w112p;"
+             "if(!window.App.hasSavedFile())return 'no file';"
+             "return true;})()"),
+         py=_workdir_t112),
+
+    dict(name="T113 工作副本:语义模式仍标注回车才搜索",
+         setup=("window.Palette.openSearch();"
+                "var btn=document.querySelector('#pal-modes [data-mode=semantic]');"
+                "if(btn)btn.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"),
+         sleep=0.5,
+         js=("(function(){"
+             "var btn=document.querySelector('#pal-modes [data-mode=semantic]');"
+             "if(!btn)return 'no semantic';"
+             "var kbd=btn.querySelector('.pal-mode-kbd');"
+             "if(!kbd||kbd.textContent.indexOf(" + JV("回车") + ")<0)return 'no kbd';"
+             "var h=document.getElementById('pal-hint').textContent||'';"
+             "if(h.indexOf('Enter')<0&&h.indexOf(" + JV("回车") + ")<0)return 'hint='+h;"
+             "return true;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
+    dict(name="T115 工作副本:改名后全部合并不复活旧名",
+         setup=("window.__w115=0;window.__w115e='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_EDGE)) + ");"
+                "var it=[].slice.call(document.querySelectorAll('#file-tree .tree-item.file'))"
+                ".find(function(el){return (el.textContent||'').indexOf('keep.md')>=0;});"
+                "if(!it){window.__w115=2;window.__w115e='no keep.md';return;}"
+                "it.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:220,clientY:220}));"
+                "var rn=document.querySelector('#tree-menu .ctx-item[data-act=\"rename\"]');"
+                "if(!rn){window.__w115=3;window.__w115e='no rename';return;}"
+                "rn.click();"
+                "document.getElementById('pm-input').value='renamed-keep';"
+                "document.getElementById('pm-ok').click();"
+                "window.__w115=1;"
+                "}catch(e){window.__w115=4;window.__w115e=String(e&&e.message||e);}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w115===0)return 'wait';"
+             "if(window.__w115!==1)return 'rename='+window.__w115+' '+window.__w115e;"
+             "return true;})()"),
+         setup2=("window.__w115m=0;"
+                 "setTimeout(function(){"
+                 "window.Palette.openCommands();"
+                 "var el=document.getElementById('pal-input');"
+                 "el.value=" + JV("全部合并源文件") + ";"
+                 "el.dispatchEvent(new Event('input',{bubbles:true}));"
+                 "setTimeout(function(){"
+                 "var item=document.querySelector('#pal-list .pal-item');"
+                 "if(!item){window.__w115m=2;return;}"
+                 "item.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                 "window.__w115m=1;"
+                 "},250);"
+                 "},800);"),
+         sleep2=0.4,
+         timeout2=20,
+         js2=("(function(){if(window.__w115m===0)return 'wait merge';"
+              "if(window.__w115m!==1)return 'merge cmd='+window.__w115m;"
+              "var t=document.getElementById('file-tree').textContent||'';"
+              "if(t.indexOf('keep.md')>=0&&t.indexOf('renamed-keep.md')<0)return 'tree='+t.slice(0,80);"
+              "if(t.indexOf('renamed-keep.md')<0)return 'tree no renamed='+t.slice(0,80);"
+              "return true;})()"),
+         py=_workdir_t115),
+
+    dict(name="T116 工作副本:保存后谱系缓存失效",
+         before=_workdir_t116_before,
+         setup=("window.__w116=0;"
+                "(async function(){"
+                "try{"
+                "var listed=await window.pywebview.api.list_folder(" + JV(str(WORKDIR_EDGE)) + ");"
+                "var root=String(listed.root||'').replace(/\\\\/g,'/');"
+                "await window.App.openPath(root+'/renamed-keep.md');"
+                "if(window.App.ensureEditor)await window.App.ensureEditor();"
+                "window.Editor.setValue(" + JV("# 保留\n\n改谱系 KnowledgeCacheToken\n") + ");"
+                "await window.App.save({silent:true});"
+                "window.__w116=1;"
+                "}catch(e){window.__w116=2;}})();"),
+         sleep=0.4,
+         timeout=20,
+         js=("(function(){if(window.__w116===0)return 'wait';"
+             "if(window.__w116!==1)return 'save='+window.__w116;"
+             "return true;})()"),
+         py=_workdir_t116),
+
+    dict(name="T117 工作副本:收编后孤儿路径仍能保存至源",
+         setup=("window.__w117=0;window.__w117old='';window.__w117e='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_ORPHAN / "hello.md")) + ");"
+                "if(window.App.ensureEditor)await window.App.ensureEditor();"
+                "window.Editor.setValue(" + JV("# 孤儿\n\nOrphanPushE2E\n") + ");"
+                "await window.App.save({silent:true});"
+                "var opened=await window.pywebview.api.read_file(" + JV(str(WORKDIR_ORPHAN / "hello.md")) + ");"
+                "window.__w117old=opened&&opened.path||'';"
+                "await window.App.openPath(" + JV(str(WORKDIR_ORPHAN)) + ");"
+                "var pushed=await window.pywebview.api.workdir_push(window.__w117old);"
+                "window.__w117=(pushed&&pushed.ok)?1:2;"
+                "window.__w117e=JSON.stringify(pushed||{});"
+                "}catch(e){window.__w117=3;window.__w117e=String(e&&e.message||e);}})();"),
+         sleep=0.4,
+         timeout=25,
+         js=("(function(){if(window.__w117===0)return 'wait';"
+             "if(window.__w117!==1)return 'push='+window.__w117+' '+window.__w117e;"
+             "return true;})()"),
+         py=_workdir_t117),
+
+    dict(name="T118 工作副本:切直改前先把未保存缓冲写入副本",
+         setup=("window.__w118=0;window.__w118e='';"
+                "(async function(){"
+                "try{"
+                "await window.App.openPath(" + JV(str(WORKDIR_DIR / "guide.md")) + ");"
+                "if(window.App.ensureEditor)await window.App.ensureEditor();"
+                "window.Editor.setValue(" + JV("# 指南\n\nDirtySwitchToken\n") + ");"
+                "document.getElementById('btn-settings').click();"
+                "window.__w118=1;"
+                "}catch(e){window.__w118=2;window.__w118e=String(e&&e.message||e);}})();"),
+         sleep=0.6,
+         timeout=20,
+         js=("(function(){if(window.__w118===0)return 'wait';"
+             "if(window.__w118!==1)return 'open='+window.__w118e;"
+             "if(!document.getElementById('set-edit-mode'))return 'no edit mode';"
+             "document.querySelector('#set-edit-mode [data-v=source]').click();"
+             "return true;})()"),
+         setup2="document.getElementById('set-close').click()",
+         sleep2=1.2,
+         timeout2=20,
+         js2=("(function(){"
+              "if(document.getElementById('settings-mask').classList.contains('open'))return 'settings open';"
+              "if(document.body.classList.contains('is-workdir'))return 'still workdir';"
+              "var v=window.Editor.getValue()||'';"
+              "if(v.indexOf('DirtySwitchToken')>=0)return 'editor still dirty token';"
+              "return true;})()"),
+         py=_workdir_t118),
+
+    dict(name="T114 工作副本:切回直改后状态栏恢复且不再显示保存至源",
+         setup=("window.__w114=0;"
+                "document.getElementById('btn-settings').click();"),
+         sleep=0.5,
+         js=("(function(){if(!document.getElementById('set-edit-mode'))return 'no edit mode';"
+             "document.querySelector('#set-edit-mode [data-v=source]').click();"
+             "return true;})()"),
+         setup2="document.getElementById('set-close').click()",
+         sleep2=0.8,
+         timeout2=12,
+         js2=("(function(){"
+              "if(document.getElementById('settings-mask').classList.contains('open'))return 'settings open';"
+              "if(document.body.classList.contains('is-workdir'))return 'still workdir';"
+              "var sb=document.getElementById('sb-workdir');"
+              "if(sb&&!sb.hidden&&sb.textContent.indexOf(" + JV("直改") + ")<0)return 'badge='+sb.textContent;"
+              "var p=document.getElementById('btn-push-source');"
+              "if(p&&getComputedStyle(p).display!=='none'&&!document.body.classList.contains('is-home'))"
+              "return 'push still visible';"
+              "return true;})()")),
 ]
 
 
@@ -1537,13 +2068,15 @@ def _check(ev, js: str, timeout: float) -> tuple[bool, str]:
     return False, str(last)[:300]
 
 
-def _run(window):
+def _run(window, api):
     ev = _make_ev(window)
     time.sleep(4.5)  # 等 boot 完成(含会话恢复/首启欢迎流程)
-    # 防阻塞:未保存确认框恒「确认」;并关闭可能弹出的首启欢迎窗
+    # 防阻塞:未保存确认框恒「确认」;合并/切编辑方式的 choice 取 keep_source（合并用源 / 切直改则等同直接切换）
     ev("window.confirm=function(){return true;};window.alert=function(){};"
        "if(window.App&&window.App.confirm){window.__ryuuConfirm=window.App.confirm;"
        "window.App.confirm=function(){return Promise.resolve(true);};}"
+       "if(window.App&&window.App.choice){"
+       "window.App.choice=function(){return Promise.resolve('keep_source');};}"
        "(function(){var w=document.getElementById('welcome-mask');"
        "if(w.classList.contains('open')){var b=document.getElementById('welcome-start');if(b)b.click();}})()")
     time.sleep(0.5)
@@ -1554,6 +2087,8 @@ def _run(window):
             # 连发)会撞上 Vditor 内部异步任务未 settle 的竞态;真实用户操作间隔天然 >100ms。
             # 每个用例前后各留 0.5s,让 Vditor 内部任务落定,消除测试驱动的竞态。
             time.sleep(0.5)
+            if c.get("before"):
+                c["before"](api)
             if c.get("setup"):
                 ev(c["setup"])
             time.sleep(c.get("sleep", 0.6))
@@ -1564,6 +2099,15 @@ def _run(window):
                     ev(c["setup2"])
                 time.sleep(c.get("sleep2", 0.4))
                 ok, last = _check(ev, c["js2"], c.get("timeout2", c.get("timeout", 8)))
+            if ok and c.get("js3"):
+                if c.get("setup3"):
+                    ev(c["setup3"])
+                time.sleep(c.get("sleep3", 0.4))
+                ok, last = _check(ev, c["js3"], c.get("timeout3", c.get("timeout", 8)))
+            if ok and c.get("py"):
+                py_res = c["py"](api, ev)
+                if py_res is not True:
+                    ok, last = False, str(py_res)
             results.append((c["name"], ok, "" if ok else last))
             print(("PASS" if ok else "FAIL"), A(c["name"]), flush=True)
         except Exception as e:  # noqa: BLE001
@@ -1598,7 +2142,7 @@ def main() -> int:
         title="RyuuMD E2E", url=index, js_api=api, width=1200, height=800
     )
     api.bind_window(window)
-    start_webview(lambda: threading.Thread(target=_run, args=(window,), daemon=True).start(),
+    start_webview(lambda: threading.Thread(target=_run, args=(window, api), daemon=True).start(),
                   debug=False)
     return 1 if any(not ok for _, ok, _ in results) else 0
 

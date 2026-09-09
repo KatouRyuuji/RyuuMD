@@ -301,6 +301,20 @@ class TestWorkdirCopyAndPush(unittest.TestCase):
         self.assertIn("edit2", (Path(listed["root"]) / "hello.md").read_text(encoding="utf-8"))
         self.assertEqual((self.root / "hello.md").read_text(encoding="utf-8"), "# 源\n\n原文\n")
 
+    def test_orphan_rel_keeps_nested_tree_suffix(self):
+        raw = str(self.api.workdir.base / "sid" / "tree" / "docs" / "note.md")
+        self.assertEqual(self.api._orphan_rel(raw).replace("\\", "/"), "docs/note.md")
+
+    def test_orphan_nested_without_last_file_uses_tree_rel(self):
+        listed = self.api.list_folder(str(self.root))
+        work = Path(listed["root"]) / "docs" / "note.md"
+        ghost = str(self.api.workdir.base / "dead" / "tree" / "docs" / "note.md")
+        self.api.config.set("last_file", "")
+        saved = self.api.save_file(ghost, "# 笔记\n\nnested-folder-orphan\n")
+        self.assertTrue(saved["ok"], saved)
+        self.assertIn("nested-folder-orphan", work.read_text(encoding="utf-8"))
+        self.assertNotIn("nested-folder-orphan", (self.root / "docs" / "note.md").read_text(encoding="utf-8"))
+
     def test_orphan_nested_file_save_follows_last_file(self):
         opened = self.api.read_file(str(self.root / "docs" / "note.md"))
         old_work = opened["path"]

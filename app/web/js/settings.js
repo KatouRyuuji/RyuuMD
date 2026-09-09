@@ -550,9 +550,15 @@
     document.getElementById(id).querySelectorAll("button").forEach((btn) => {
       btn.addEventListener("click", () => {
         const v = numeric ? parseInt(btn.dataset.v, 10) : btn.dataset.v;
+        const prev = cfg[key];
         cfg[key] = v;
         syncActive();
-        if (onApply) onApply({ [key]: v });
+        Promise.resolve(onApply && onApply({ [key]: v })).then((ok) => {
+          if (ok === false) {
+            cfg[key] = prev;
+            syncActive();
+          }
+        });
       });
     });
   }
