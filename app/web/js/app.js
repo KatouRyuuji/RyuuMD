@@ -4,8 +4,10 @@
 
   const state = {
     config: null,
-    currentPath: null,   // 当前文件本地路径（null = 未保存的新文档）
-    currentFolder: null, // 当前工作文件夹
+    currentPath: null,   // 当前文件本地路径（null = 未保存的新文档；工作副本模式下为副本路径）
+    currentFolder: null, // 当前工作文件夹（工作副本模式下为副本根）
+    sourcePath: null,    // 对用户展示 / 回写用的源文件路径
+    sourceFolder: null,  // 源仓库根
     dirty: false,
     lastSaved: "",
     latestContent: "", // 编辑器最近一次已知内容（onEditorChange/装载/保存快照），保存竞态下重算脏标记用
@@ -138,6 +140,7 @@
     loadRecent();
     refreshCloudBadge();
     maybeStartCloudSync();
+    syncWorkdirChrome();
 
     decideStartup();
   }
@@ -150,7 +153,7 @@
       operation_style: "notion", display_mode: "ir",
       welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
       readable_width: false, sidebar_width: 256,
-      startup_page: "home",
+      startup_page: "home", edit_mode: "source",
     };
   }
 
@@ -357,8 +360,15 @@
   // 欢迎窗口：展示 → 持久化所选操作风格与 welcome_shown。
   // 首次启动（decideStartup）与「设置 → 欢迎页」共用同一入口。
   async function runWelcome() {
-    const res = await window.Welcome.show(state.config.operation_style);
-    await applyConfig({ operation_style: res.style, welcome_shown: res.dontShow });
+    const res = await window.Welcome.show({
+      style: state.config.operation_style,
+      edit_mode: state.config.edit_mode || "source",
+    });
+    await applyConfig({
+      operation_style: res.style,
+      welcome_shown: res.dontShow,
+      edit_mode: res.edit_mode || state.config.edit_mode || "source",
+    });
   }
 
   async function restoreSession() {
@@ -368,7 +378,7 @@
     const pair = await Promise.all([a.restore_session(), ensureEditor()]);
     const res = pair[0];
     let restored = false;
-    if (res && res.folder && res.folder.ok) { applyFolder(res.folder, false); restored = true; }
+    if (res && res.folder && res.folder.ok) { await applyFolder(res.folder, false); restored = true; }
     if (res && res.file && res.file.ok) { await loadDoc(res.file); restored = true; }
     return restored;
   }
@@ -384,6 +394,7 @@
     }
     if (window.Home && window.Home.isOpen()) window.Home.hide(); // 打开文档即回编辑器
     state.currentPath = fileRes.path;
+    state.sourcePath = fileRes.source_path || fileRes.path;
     state.lastSaved = fileRes.content;
     state.latestContent = fileRes.content;
     state.dirty = false;
@@ -411,6 +422,7 @@
     if (fileRes.mtime) state.diskMtime = fileRes.mtime;
     else rememberDiskMtime(fileRes.path);
     state.diskGone = false;
+    refreshWorkdirStatus();
     const jump = opts || {};
     const restore = (!jump.heading && !jump.line && !jump.snippet) ? scrollMem[fileRes.path] : null;
     setTimeout(() => {
@@ -443,16 +455,73 @@
     const pair = await Promise.all([a.open_path(path), ensureEditor()]);
     const res = pair[0];
     if (!res.ok) { toast("无法打开：" + (res.error || "")); return; }
-    if (res.tree !== undefined) applyFolder(res, true);
+    if (res.tree !== undefined) await applyFolder(res, true);
     else await loadDoc(res);
   }
 
   // 文件夹打开/刷新的统一处理；后端超限截断时明确提示（隐藏/巨型目录已被后端过滤）
-  function applyFolder(res, announce) {
+  function pathUnder(child, parent) {
+    const c = String(child || "").replace(/\\/g, "/").toLowerCase();
+    const p = String(parent || "").replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "");
+    return !!c && !!p && (c === p || c.indexOf(p + "/") === 0);
+  }
+
+  async function remapWorkdirOpenFile(folderRes) {
+    if ((folderRes.edit_mode || (state.config && state.config.edit_mode)) !== "workdir") return;
+    if (!state.sourcePath || !folderRes.root) return;
+    if (pathUnder(state.currentPath, folderRes.root)) {
+      if (state.currentPath) window.Sidebar.markActive(state.currentPath);
+      return;
+    }
+    const a = api();
+    if (!a || !a.read_file) return;
+    try {
+      const file = await a.read_file(state.sourcePath);
+      if (!file || !file.ok || !file.path) return;
+      if (file.path === state.currentPath) return;
+      state.currentPath = file.path;
+      if (file.source_path) state.sourcePath = file.source_path;
+      if (window.Sidebar && window.Sidebar.markActive) window.Sidebar.markActive(file.path);
+      updateStatusPath();
+    } catch (e) { /* 改挂失败时由保存路径兜底 */ }
+  }
+
+  async function ensureWorkdirCurrentPath() {
+    if (!isWorkdirMode()) return state.currentPath;
+    const src = state.sourcePath;
+    const cur = state.currentPath;
+    const folder = state.currentFolder;
+    if (cur && folder && pathUnder(cur, folder)) return cur;
+    if (!src) return cur;
+    const a = api();
+    if (!a || !a.read_file) return cur;
+    try {
+      const file = await a.read_file(src);
+      if (file && file.ok && file.path) {
+        if (file.path !== cur) {
+          state.currentPath = file.path;
+          if (file.source_path) state.sourcePath = file.source_path;
+          if (window.Sidebar && window.Sidebar.markActive) window.Sidebar.markActive(file.path);
+          updateStatusPath();
+        }
+        return file.path;
+      }
+    } catch (e) { /* 保持原路径，后端孤儿回退再兜 */ }
+    return cur;
+  }
+
+  async function applyFolder(res, announce) {
     if (announce && window.Home && window.Home.isOpen()) window.Home.hide();
     if (state.currentFolder !== res.root && window.AiPanel) window.AiPanel.resetKnowledge();
     state.currentFolder = res.root;
+    state.sourceFolder = res.source_root || res.root;
+    if (res.edit_mode === "workdir" && res.workdir_new_files > 0 && announce) {
+      toast("已为「" + (res.name || "") + "」准备工作副本（新增 " + res.workdir_new_files + " 个文件）");
+    }
+    syncWorkdirChrome();
+    refreshWorkdirStatus();
     window.Sidebar.renderTree(res.tree, res.name);
+    await remapWorkdirOpenFile(res);
     if (state.currentPath) window.Sidebar.markActive(state.currentPath);
     if (res.truncated) toast("「" + res.name + "」条目过多或层级过深，文件树已截断显示");
     else if (announce) toast("已打开：" + res.name);
@@ -468,12 +537,13 @@
     const content = window.Editor.getValue();
     state.latestContent = content; // 保存起点快照
     if (state.currentPath) {
+      const savePath = await ensureWorkdirCurrentPath() || state.currentPath;
       // _saving 门闩：磁盘守望在自己写盘的往返窗口内不得把 mtime 变化
       // 误判为外部修改而重载（会把阅读位置刷回顶部）
       state._saving = true;
       let res;
       try {
-        res = await a.save_file(state.currentPath, content);
+        res = await a.save_file(savePath, content);
       } finally {
         state._saving = false;
       }
@@ -483,6 +553,7 @@
         else rememberDiskMtime();
         if (!silent) toast("已保存");
         loadRecent();
+        refreshWorkdirStatus();
       }
       else toast("保存失败：" + (res.error || ""));
     } else {
@@ -490,6 +561,7 @@
       const res = await a.save_file_dialog(content, "未命名.md");
       if (res.ok) {
         state.currentPath = res.path;
+        state.sourcePath = res.source_path || res.path;
         markSaved(content);
         if (res.mtime) state.diskMtime = res.mtime; // 与已保存分支一致，防守望误重载
         updateDocName(basename(res.path));
@@ -518,7 +590,7 @@
     const a = api();
     if (!a) return;
     const res = await a.list_folder(state.currentFolder);
-    if (res.ok) applyFolder(res, false);
+    if (res.ok) await applyFolder(res, false);
     refreshTemplates();
   }
 
@@ -544,7 +616,7 @@
       a.remove_recent(path).then(loadRecent);
       return;
     }
-    if (res.tree !== undefined) applyFolder(res, true);
+    if (res.tree !== undefined) await applyFolder(res, true);
     else await loadDoc(res);
   }
 
@@ -601,7 +673,12 @@
 
   function updateStatusPath() {
     const el = document.getElementById("sb-path");
-    if (el) el.textContent = state.currentPath || "未保存文档";
+    if (!el) return;
+    const shown = state.sourcePath || state.currentPath;
+    el.textContent = shown || "未保存文档";
+    el.title = state.sourcePath && state.currentPath && state.sourcePath !== state.currentPath
+      ? ("源文件：" + state.sourcePath + "\n工作副本：" + state.currentPath)
+      : (shown || "在目录中定位");
   }
 
   // ---------------------------------------------------------------
@@ -730,6 +807,9 @@
     on("btn-open-file", openFile);
     on("btn-new", newDoc);
     on("btn-save", save);
+    on("btn-push-source", () => pushCurrentToSource());
+    on("btn-merge-source", () => mergeCurrentFromSource());
+    on("sb-workdir", openEditModeHelp);
     on("btn-search", () => window.Palette.openSearch());
     on("btn-ai", () => window.AiPanel.toggle());
     on("btn-new-window", openNewWindow);
@@ -781,7 +861,7 @@
     const a = apiOrToast();
     if (!a) return;
     const res = await a.open_folder_dialog();
-    if (res && res.ok) applyFolder(res, true);
+    if (res && res.ok) await applyFolder(res, true);
   }
 
   async function openFile() {
@@ -798,6 +878,7 @@
     if (!(await ensureEditor())) return;
     if (window.Home && window.Home.isOpen()) window.Home.hide();
     state.currentPath = null;
+    state.sourcePath = null;
     state.lastSaved = "";
     state.latestContent = "";
     state.dirty = false;
@@ -849,6 +930,7 @@
   }
 
   async function applyConfig(partial) {
+    const prevEditMode = state.config && state.config.edit_mode;
     Object.assign(state.config, partial);
     const a = api();
     // cloud_sync 含脱敏字段，必须走 save_cloud_settings，禁止经 update_config 把密码冲掉
@@ -870,6 +952,258 @@
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
     if ("sidebar_width" in partial) applySidebarWidth(partial.sidebar_width);
+    if ("edit_mode" in partial) await adoptEditMode(partial.edit_mode, prevEditMode);
+  }
+
+  function isWorkdirMode() {
+    return (state.config && state.config.edit_mode) === "workdir";
+  }
+
+  function syncWorkdirChrome() {
+    document.body.classList.toggle("is-workdir", isWorkdirMode());
+    const el = document.getElementById("sb-workdir");
+    if (!el) return;
+    el.hidden = false;
+    if (!isWorkdirMode()) {
+      el.textContent = "直改源文件";
+      el.classList.remove("is-pending", "is-conflict");
+      el.title = "当前直接读写源文件。点此可在设置中改为工作副本";
+    }
+  }
+
+  async function refreshWorkdirStatus() {
+    syncWorkdirChrome();
+    const el = document.getElementById("sb-workdir");
+    if (!el || !isWorkdirMode()) return;
+    const a = api();
+    if (!a || !a.workdir_status) {
+      el.textContent = "工作副本";
+      return;
+    }
+    try {
+      const st = state.currentPath
+        ? await a.workdir_status(state.currentPath)
+        : await a.workdir_summary(state.currentFolder || state.sourceFolder || "");
+      if (!st || !st.ok) {
+        el.textContent = "工作副本";
+        el.classList.remove("is-pending", "is-conflict");
+        return;
+      }
+      const labels = {
+        in_sync: "工作副本 · 已同步",
+        copy_ahead: "工作副本 · 未回写",
+        source_ahead: "工作副本 · 源有更新",
+        diverged: "工作副本 · 双方都有改动",
+        copy_only: "工作副本 · 仅副本有此文件",
+        source_only: "工作副本 · 源有新文件",
+        missing: "工作副本",
+      };
+      if (st.status && st.status !== "idle") {
+        el.textContent = labels[st.status] || "工作副本";
+        el.classList.toggle("is-pending", st.status === "copy_ahead" || st.status === "source_ahead");
+        el.classList.toggle("is-conflict", st.status === "diverged");
+        el.title = (st.source_path || state.sourcePath || "") + "\n点「保存至源」写回，点「合并源」拉取";
+        return;
+      }
+      const c = st.counts || {};
+      const pending = st.pending || 0;
+      const incoming = st.incoming || 0;
+      if (c.diverged) el.textContent = "工作副本 · " + c.diverged + " 处冲突";
+      else if (pending) el.textContent = "工作副本 · " + pending + " 个未回写";
+      else if (incoming) el.textContent = "工作副本 · " + incoming + " 个源更新";
+      else el.textContent = "工作副本 · 已同步";
+      el.classList.toggle("is-pending", !!(pending || incoming));
+      el.classList.toggle("is-conflict", !!c.diverged);
+    } catch (e) {
+      el.textContent = "工作副本";
+    }
+  }
+
+  async function setEditMode(mode) {
+    const next = mode === "workdir" ? "workdir" : "source";
+    await applyConfig({ edit_mode: next });
+    toast(next === "workdir" ? "已切换为工作副本：只改副本，不自动写源文件" : "已切换为直改源文件");
+  }
+
+  async function adoptEditMode(next, prev) {
+    syncWorkdirChrome();
+    if (!next || next === prev) {
+      refreshWorkdirStatus();
+      return;
+    }
+    const srcFolder = state.sourceFolder;
+    const srcFile = state.sourcePath;
+    if (prev === "workdir" && next === "source" && srcFolder) {
+      const a = api();
+      if (a && a.workdir_summary) {
+        const sum = await a.workdir_summary(state.currentFolder || srcFolder);
+        if (sum && sum.ok && (sum.pending || (sum.counts && sum.counts.diverged))) {
+          const choice = await choiceDialog({
+            title: "工作副本尚未全部回写",
+            message: "切换到直改源文件后将打开原件。未回写的修改只留在副本里，除非现在保存至源。",
+            choices: [
+              { id: "push", label: "全部保存至源再切换", primary: true },
+              { id: "switch", label: "直接切换" },
+              { id: "cancel", label: "取消" },
+            ],
+          });
+          if (!choice || choice === "cancel") {
+            state.config.edit_mode = prev;
+            if (a.update_config) await a.update_config({ edit_mode: prev });
+            syncWorkdirChrome();
+            return;
+          }
+          if (choice === "push") await a.workdir_push_all(state.currentFolder || srcFolder, true);
+        }
+      }
+    }
+    if (srcFolder) {
+      const a = api();
+      if (a) {
+        const folder = await a.list_folder(srcFolder);
+        if (folder && folder.ok) await applyFolder(folder, false);
+        if (srcFile) {
+          const file = await a.read_file(srcFile);
+          if (file && file.ok) await loadDoc(file);
+        }
+      }
+    }
+    refreshWorkdirStatus();
+  }
+
+  function openEditModeHelp() {
+    if (window.Settings && window.Settings.open) openSettings();
+  }
+
+  async function pushCurrentToSource() {
+    if (!isWorkdirMode()) { toast("当前为直改源文件，Ctrl+S 即写入源文件"); return; }
+    if (!state.currentPath) { toast("请先打开已保存的笔记"); return; }
+    const a = apiOrToast();
+    if (!a || !a.workdir_push) return;
+    if (state.dirty) await save({ silent: true });
+    const pushPath = await ensureWorkdirCurrentPath() || state.currentPath;
+    let res = await a.workdir_push(pushPath, false);
+    if (res && res.needs_confirm) {
+      const ok = await confirmDialog({
+        title: res.reason === "source_ahead" ? "源文件较新" : "双方都有改动",
+        message: (res.error || "源文件上也有改动。") + "\n覆盖源文件将丢掉源文件上尚未合并的内容。",
+        okText: "覆盖源文件",
+        cancelText: "取消",
+      });
+      if (!ok) return;
+      res = await a.workdir_push(pushPath, true);
+    }
+    if (!res || !res.ok) { toast((res && res.error) || "保存至源失败", { type: "error" }); return; }
+    toast(res.message || "已保存至源文件");
+    refreshWorkdirStatus();
+  }
+
+  async function mergeCurrentFromSource() {
+    if (!isWorkdirMode()) { toast("当前为直改源文件，无需合并"); return; }
+    if (!state.currentPath) { toast("请先打开已保存的笔记"); return; }
+    const a = apiOrToast();
+    if (!a || !a.workdir_merge) return;
+    if (state.dirty) {
+      const keep = await confirmDialog({
+        title: "编辑器有未保存修改",
+        message: "合并源文件会改写工作副本。要先把当前编辑写入副本吗？",
+        okText: "先保存再合并",
+        cancelText: "丢弃未保存并合并",
+      });
+      if (keep) await save({ silent: true });
+    }
+    const mergePath = await ensureWorkdirCurrentPath() || state.currentPath;
+    let res = await a.workdir_merge(mergePath, "");
+    if (res && res.needs_confirm) {
+      const choice = await choiceDialog({
+        title: res.reason === "copy_ahead" ? "工作副本有未回写修改" : "双方都有改动",
+        message: res.error || "请选择如何处理源文件与工作副本的差异。",
+        choices: [
+          { id: "keep_source", label: "使用源文件", primary: true },
+          { id: "markers", label: "插入冲突标记" },
+          { id: "keep_copy", label: "保留副本" },
+        ],
+      });
+      if (!choice || choice === "keep_copy") {
+        if (choice === "keep_copy") toast("已保留工作副本");
+        return;
+      }
+      res = await a.workdir_merge(mergePath, choice);
+    }
+    if (!res || !res.ok) { toast((res && res.error) || "合并失败", { type: "error" }); return; }
+    if (res.merged && res.content != null) {
+      window.Editor.setValue(res.content);
+      state.latestContent = res.content;
+      markSaved(res.content);
+    }
+    toast(res.message || "已合并源文件");
+    refreshWorkdirStatus();
+  }
+
+  async function pushAllToSource() {
+    if (!isWorkdirMode()) { toast("当前为直改源文件"); return; }
+    const a = apiOrToast();
+    if (!a || !a.workdir_push_all) return;
+    if (state.dirty) await save({ silent: true });
+    const folder = state.currentFolder || state.sourceFolder || "";
+    let res = await a.workdir_push_all(folder, false);
+    if (res && res.skipped && res.skipped.length) {
+      const ok = await confirmDialog({
+        title: "部分文件双方都有改动",
+        message: res.message + "。继续将覆盖这些源文件。",
+        okText: "全部覆盖源文件",
+        cancelText: "取消",
+      });
+      if (!ok) return;
+      res = await a.workdir_push_all(folder, true);
+    }
+    if (!res || !res.ok) { toast((res && res.error) || "全部保存至源失败", { type: "error" }); return; }
+    toast(res.message || "已全部保存至源");
+    refreshWorkdirStatus();
+  }
+
+  async function mergeAllFromSource() {
+    if (!isWorkdirMode()) { toast("当前为直改源文件"); return; }
+    const a = apiOrToast();
+    if (!a || !a.workdir_merge_all) return;
+    const folder = state.currentFolder || state.sourceFolder || "";
+    const choice = await choiceDialog({
+      title: "全部合并源文件",
+      message: "用源文件更新工作副本。若双方都有改动，请选择处理方式。",
+      choices: [
+        { id: "keep_source", label: "冲突时用源文件", primary: true },
+        { id: "markers", label: "冲突时插入标记" },
+        { id: "cancel", label: "取消" },
+      ],
+    });
+    if (!choice || choice === "cancel") return;
+    const res = await a.workdir_merge_all(folder, choice);
+    if (!res || !res.ok) { toast((res && res.error) || "全部合并失败", { type: "error" }); return; }
+    if (state.currentPath) {
+      const file = await a.read_file(state.currentPath);
+      if (file && file.ok) await loadDoc(file);
+    }
+    toast(res.message || "已全部合并源文件");
+    refreshWorkdirStatus();
+  }
+
+  async function revealSourceFile() {
+    const p = state.sourcePath || state.sourceFolder;
+    if (!p) { toast("没有源文件路径"); return; }
+    const a = apiOrToast();
+    if (!a || !a.reveal_in_explorer) return;
+    const res = await a.reveal_in_explorer(p);
+    if (res && !res.ok) toast(res.error || "无法打开资源管理器");
+  }
+
+  async function revealWorkFolder() {
+    if (!isWorkdirMode()) { toast("当前为直改源文件，没有工作副本"); return; }
+    const p = state.currentFolder || state.currentPath;
+    if (!p) { toast("尚未建立工作副本"); return; }
+    const a = apiOrToast();
+    if (!a || !a.reveal_in_explorer) return;
+    const res = await a.reveal_in_explorer(p);
+    if (res && !res.ok) toast(res.error || "无法打开资源管理器");
   }
 
   function refreshCloudBadge() {
@@ -937,7 +1271,7 @@
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
-      if (k === "s") { e.preventDefault(); save(); }
+      if (k === "s") { e.preventDefault(); if (e.shiftKey) pushCurrentToSource(); else save(); }
       else if (k === "o") { e.preventDefault(); openFile(); }
       else if (k === "n") { e.preventDefault(); newDoc(); }
       else if (k === "p") {
@@ -1271,6 +1605,14 @@
   function appCommands() {
     return [
       { id: "save", title: "保存", keys: "Ctrl+S", group: "文件", run: save },
+      { id: "edit-mode-source", title: "使用直改源文件", keys: "", group: "工作副本", run: () => setEditMode("source") },
+      { id: "edit-mode-workdir", title: "使用工作副本", keys: "", group: "工作副本", run: () => setEditMode("workdir") },
+      { id: "push-source", title: "保存当前至源文件", keys: "Ctrl+Shift+S", group: "工作副本", run: () => pushCurrentToSource() },
+      { id: "merge-source", title: "合并当前源文件", keys: "", group: "工作副本", run: () => mergeCurrentFromSource() },
+      { id: "push-all-source", title: "全部保存至源文件", keys: "", group: "工作副本", run: () => pushAllToSource() },
+      { id: "merge-all-source", title: "全部合并源文件", keys: "", group: "工作副本", run: () => mergeAllFromSource() },
+      { id: "reveal-source", title: "在资源管理器中打开源文件", keys: "", group: "工作副本", run: revealSourceFile },
+      { id: "reveal-work", title: "打开工作副本目录", keys: "", group: "工作副本", run: revealWorkFolder },
       { id: "new", title: "新建文档", keys: "Ctrl+N", group: "文件", run: newDoc },
       { id: "open", title: "打开文件", keys: "Ctrl+O", group: "文件", run: openFile },
       { id: "open-folder", title: "打开文件夹", keys: "", group: "文件", run: openFolder },
@@ -1540,8 +1882,9 @@
   }
 
   function copyCurrentPath() {
-    if (!state.currentPath) { toast("未打开已保存的文件"); return; }
-    copyText(state.currentPath, "已复制路径");
+    const p = state.sourcePath || state.currentPath;
+    if (!p) { toast("未打开已保存的文件"); return; }
+    copyText(p, "已复制路径");
   }
 
   function copyCurrentWiki() {
@@ -1640,7 +1983,8 @@
     const a = api();
     if (!a || !a.file_stat) return;
     let res;
-    try { res = await a.file_stat(state.currentPath); } catch (e) { return; }
+    const watchPath = await ensureWorkdirCurrentPath() || state.currentPath;
+    try { res = await a.file_stat(watchPath); } catch (e) { return; }
     if (!res || !res.exists) {
       if (!state.diskGone) {
         state.diskGone = true;
@@ -1650,7 +1994,7 @@
     }
     state.diskGone = false;
     if (state.diskMtime && res.mtime > state.diskMtime + 0.4) {
-      const file = await a.read_file(state.currentPath);
+      const file = await a.read_file(watchPath);
       if (file && file.ok && !state.dirty) {
         await loadDoc(file);
         toast("文件已从磁盘重新载入");
@@ -1790,9 +2134,11 @@
   }
 
   // 重命名/移动后，若动的是当前打开的文件，同步编辑器侧的路径与标题
-  function syncCurrentPath(oldPath, newPath, newName) {
+  function syncCurrentPath(oldPath, newPath, newName, sourcePath) {
     if (state.currentPath !== oldPath) return;
     state.currentPath = newPath;
+    if (sourcePath) state.sourcePath = sourcePath;
+    else if (!state.sourcePath || state.sourcePath === oldPath) state.sourcePath = newPath;
     if (newName) updateDocName(newName);
     updateStatusPath();
   }
@@ -1804,7 +2150,7 @@
     if (name == null) return;
     const res = await a.rename_file(path, name);
     if (!res.ok) { toast("重命名失败：" + (res.error || "")); return; }
-    syncCurrentPath(path, res.path, res.name);
+    syncCurrentPath(path, res.path, res.name, res.source_path);
     refreshFolder();
     loadRecent();
     toast("已重命名为：" + res.name);
@@ -1816,7 +2162,7 @@
     const res = await a.move_file_dialog(path);
     if (!res || res.cancelled) return;
     if (!res.ok) { toast("移动失败：" + (res.error || "")); return; }
-    syncCurrentPath(path, res.path, null);
+    syncCurrentPath(path, res.path, null, res.source_path);
     refreshFolder();
     loadRecent();
     toast("已移动到：" + res.path);
@@ -1841,9 +2187,10 @@
     }))) return;
     const res = await a.delete_file(path);
     if (!res.ok) { toast("删除失败：" + (res.error || "")); return; }
-    if (state.currentPath === path) {
+    if (state.currentPath === path || state.sourcePath === path || state.sourcePath === res.source_path) {
       // 当前打开的文件被删：内容保留为未保存草稿，编辑成果不丢
       state.currentPath = null;
+      state.sourcePath = null;
       state.dirty = true;
       updateDocName(basename(path));
       updateStatusPath();
@@ -1971,6 +2318,59 @@
     });
   }
 
+  function choiceDialog(opts) {
+    opts = opts || {};
+    const title = opts.title || "请选择";
+    const message = opts.message || "";
+    const choices = opts.choices || [];
+    const mask = document.getElementById("confirm-mask");
+    if (!mask || !choices.length) return Promise.resolve(null);
+    if (confirmPending) confirmPending(false);
+    return new Promise((resolve) => {
+      const returnFocus = document.activeElement;
+      const buttons = choices.map((c, i) => {
+        const cls = c.primary ? "btn btn--primary" : "btn btn--text";
+        return `<button class="${cls}" data-choice="${esc(c.id)}" id="ch-${i}">${esc(c.label)}</button>`;
+      }).join("");
+      mask.innerHTML = `
+        <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+          <div class="modal-head">
+            <span class="badge">${window.ICONS.gitMerge || window.ICONS.gear}</span>
+            <div><h2>${esc(title)}</h2></div>
+          </div>
+          <div class="modal-body">
+            <p class="confirm-msg">${esc(message)}</p>
+          </div>
+          <div class="modal-foot">${buttons}</div>
+        </div>`;
+      mask.classList.add("open");
+      let settled = false;
+      function done(id) {
+        if (settled) return;
+        settled = true;
+        if (confirmPending === done) confirmPending = null;
+        unregisterEscape(onEsc);
+        mask.removeEventListener("click", onMask);
+        mask.classList.remove("open");
+        mask.innerHTML = "";
+        if (returnFocus && typeof returnFocus.focus === "function") {
+          try { returnFocus.focus(); } catch (e) { /* 触发节点可能已被重绘 */ }
+        }
+        resolve(id || null);
+      }
+      function onEsc() { done(null); }
+      function onMask(e) { if (e.target === mask) done(null); }
+      confirmPending = done;
+      registerEscape(onEsc);
+      mask.addEventListener("click", onMask);
+      mask.querySelectorAll("[data-choice]").forEach((btn) => {
+        btn.addEventListener("click", () => done(btn.getAttribute("data-choice")));
+      });
+      const first = mask.querySelector(".btn--primary") || mask.querySelector("button");
+      if (first) first.focus();
+    });
+  }
+
   const TOAST_MAX = 3;
   const toastItems = [];
   function toast(msg, opts) {
@@ -2009,6 +2409,7 @@
     save,
     toast,
     confirm: confirmDialog,
+    choice: choiceDialog,
     registerEscape,
     unregisterEscape,
     showWelcome: runWelcome,
@@ -2023,6 +2424,8 @@
     openTutorial,
     revealCurrentDir,
     hasSavedFile: () => !!state.currentPath,
+    pushToSource: pushCurrentToSource,
+    mergeFromSource: mergeCurrentFromSource,
     adjustZoom,
     applyZoom,
     applyReadable,

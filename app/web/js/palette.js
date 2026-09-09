@@ -10,6 +10,10 @@
   const modesEl = document.getElementById("pal-modes");
   const answerEl = document.getElementById("pal-answer");
   const palBox = document.getElementById("palette");
+  const footEl = document.getElementById("pal-foot");
+  const FOOT_PICK = "↑↓ 选择 · Enter 打开 · Esc 关闭";
+  const FOOT_ENTER_SEARCH = "Enter 搜索 · Esc 关闭";
+  const FOOT_ENTER_ASK = "Enter 提问 · Esc 关闭";
 
   const HINTS = {
     file: "快速打开笔记",
@@ -48,12 +52,33 @@
     if (modesEl) modesEl.hidden = !searching;
     if (searching && modesEl) {
       modesEl.querySelectorAll(".pal-mode").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.mode === searchMode);
+        const on = btn.dataset.mode === searchMode;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
       });
     }
     const asking = searching && isAskQuery(input.value);
-    if (palBox) palBox.classList.toggle("is-ask", asking);
+    const enterOnly = searching && !searchFiresOnInput(input.value, searchMode);
+    if (palBox) {
+      palBox.classList.toggle("is-ask", asking);
+      palBox.classList.toggle("is-enter-search", enterOnly);
+    }
     if (iconEl && searching) iconEl.setAttribute("data-kind", asking ? "ask" : "search");
+    if (hintEl && searching) {
+      hintEl.textContent = asking ? "Enter 提问" : (searchMode === "semantic" ? "Enter 搜索" : "即时搜索");
+    }
+    if (searching) {
+      input.placeholder = asking
+        ? "输入问题后按 Enter 提问…"
+        : (searchMode === "semantic"
+          ? "输入问题后按 Enter 进行语义搜索…"
+          : "搜索笔记，或输入 ask 加空格后按 Enter 提问…");
+    }
+    if (footEl) {
+      if (asking) footEl.textContent = FOOT_ENTER_ASK;
+      else if (enterOnly) footEl.textContent = FOOT_ENTER_SEARCH;
+      else footEl.textContent = FOOT_PICK;
+    }
   }
 
   function isOpen() {
@@ -68,12 +93,10 @@
     mode = HINTS[nextMode] ? nextMode : "file";
     if (mode === "search") searchMode = "title";
     mask.classList.add("open");
-    hintEl.textContent = mode === "search"
-      ? "标题 / 内容即时搜；语义与 ask 按 Enter"
-      : HINTS[mode];
+    hintEl.textContent = HINTS[mode] || "";
     iconEl.setAttribute("data-kind", mode === "command" || mode === "search" || INDEX_MODES[mode] ? (INDEX_MODES[mode] ? "search" : mode) : "file");
     input.value = "";
-    input.placeholder = mode === "search" ? "搜索笔记，或输入 ask 加空格后按 Enter 提问…" : HINTS[mode] + "…";
+    input.placeholder = HINTS[mode] + "…";
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
     syncSearchChrome();
     input.focus();
@@ -86,7 +109,10 @@
     items = [];
     input.value = "";
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
-    if (palBox) palBox.classList.remove("is-ask");
+    if (palBox) {
+      palBox.classList.remove("is-ask");
+      palBox.classList.remove("is-enter-search");
+    }
     if (modesEl) modesEl.hidden = true;
   }
 

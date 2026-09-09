@@ -30,7 +30,9 @@ from app.core.config import Config  # noqa: E402
 
 
 def make_api() -> Api:
-    return Api(Config())
+    cfg = Config()
+    cfg.set("edit_mode", "source")
+    return Api(cfg)
 
 
 def touch(path: Path, text: str = "x") -> Path:
@@ -527,14 +529,24 @@ class TestUiSurface(unittest.TestCase):
         self.assertIn('data-mode="title"', html)
         self.assertIn('data-mode="content"', html)
         self.assertIn('data-mode="semantic"', html)
+        self.assertIn("pal-mode-kbd", html)
+        self.assertIn("回车", html)
         self.assertIn('id="pal-answer"', html)
         self.assertIn("isAskQuery", palette)
         self.assertIn("function searchFiresOnInput", palette)
         self.assertIn("按 Enter 提问", palette)
+        self.assertIn("Enter 搜索", palette)
+        self.assertIn("FOOT_ENTER_SEARCH", palette)
         self.assertIn("search_notes", appjs)
         self.assertIn("typeof a.search_notes", appjs)
         self.assertIn("state.config.last_folder", appjs)
         self.assertIn("renderSearchError", palette)
+        self.assertIn("btn-push-source", html)
+        self.assertIn("btn-merge-source", html)
+        self.assertIn("set-edit-mode", (web / "js" / "settings.js").read_text(encoding="utf-8"))
+        self.assertIn("welcome-edit-mode", (web / "js" / "welcome.js").read_text(encoding="utf-8"))
+        self.assertIn("workdir_push", appjs)
+        self.assertIn("pushCurrentToSource", appjs)
         self.assertIn("AiPanel", appjs)
         self.assertIn("window.AiPanel.knowledge()", appjs)
         self.assertNotIn("knowledge(false)", appjs)
@@ -545,6 +557,7 @@ class TestUiSurface(unittest.TestCase):
         css = (web / "css" / "palette.css").read_text(encoding="utf-8")
         self.assertIn("--primary", css)
         self.assertIn(".pal-mode", css)
+        self.assertIn(".pal-mode-kbd", css)
 
 
 if __name__ == "__main__":

@@ -23,7 +23,9 @@ from app.core.search import parse_wikilink  # noqa: E402
 
 
 def make_api() -> Api:
-    return Api(Config())
+    cfg = Config()
+    cfg.set("edit_mode", "source")
+    return Api(cfg)
 
 
 def touch(path: Path, text: str = "x") -> Path:

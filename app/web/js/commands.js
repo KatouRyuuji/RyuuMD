@@ -144,6 +144,11 @@
     if (cmd.id === "date") text = stamp(false);
     else if (cmd.id === "time") text = stamp(true);
     if (text) ed.insertValue(text, true);
+    // 行级前缀（标题/列表/引用）插进空行后，把光标放到标记后的可写位置
+    if (/^(h[1-6]|ul|ol|todo|quote)$/.test(cmd.id)
+        && window.Convert && window.Convert.settleEmptyFormat) {
+      window.Convert.settleEmptyFormat();
+    }
   }
 
   /* 按操作风格返回该命令的「展示触发词」：

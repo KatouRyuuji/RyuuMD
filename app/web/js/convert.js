@@ -70,10 +70,18 @@
       .replace(/`([^`]*)`/g, "$1");
   }
 
-  /* 把若干源行变换为目标格式的 md 文本；null = 未知目标 */
+  /* 把若干源行变换为目标格式的 md 文本；null = 未知目标。
+     空块只给行级前缀（标题/列表/引用）产出可写壳；正文/代码保持跳过。 */
   function transform(lines, target) {
     const items = lines.map(stripLine).map((s) => s.trimEnd()).filter((s) => s !== "");
-    if (!items.length) return "";
+    if (!items.length) {
+      if (/^h[1-6]$/.test(target)) return "#".repeat(parseInt(target[1], 10)) + " \n";
+      if (target === "ul") return "- \n";
+      if (target === "ol") return "1. \n";
+      if (target === "todo") return "- [ ] \n";
+      if (target === "quote") return "> \n";
+      return "";
+    }
     if (target === "code") {
       return "```\n" + items.map(stripInline).join("\n") + "\n```\n";
     }
@@ -301,10 +309,108 @@
   function apply(target, editor) {
     if (!editor || !window.Editor) return 0;
     try {
-      return window.Editor.getMode() === "sv" ? applySV(target, editor) : applyIR(target, editor);
+      const n = window.Editor.getMode() === "sv" ? applySV(target, editor) : applyIR(target, editor);
+      if (n && target !== "paragraph" && target !== "code") settleEmptyFormat();
+      return n;
     } catch (e) {
       return 0;
     }
+  }
+
+  // ---------------------------------------------------------------
+  // 空格式壳：光标落到标记之后，避免再输入掉回正文
+  // ---------------------------------------------------------------
+
+  let holdingEmptyFormat = false;
+
+  function prefixKind(k) {
+    return !!(k && k !== "paragraph" && k !== "code");
+  }
+
+  function caretPrefixBlock() {
+    const panel = irPanel();
+    const sel = window.getSelection();
+    if (!panel || !sel || !sel.rangeCount) return null;
+    const block = closestBlock(panel, sel.anchorNode);
+    const k = block && kindOf(block);
+    if (!block || !prefixKind(k)) return null;
+    return block;
+  }
+
+  function isVisuallyEmpty(el) {
+    const raw = (el.textContent || "").replace(/\u200b/g, "");
+    if (/^H[1-6]$/.test(el.tagName)) return raw.replace(/^#{1,6}\s*/, "").trim() === "";
+    if (el.tagName === "BLOCKQUOTE") return raw.replace(/^>\s*/gm, "").trim() === "";
+    if (el.tagName === "UL" || el.tagName === "OL") {
+      return raw.replace(/^(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/gm, "").trim() === "";
+    }
+    return raw.trim() === "";
+  }
+
+  function placeCaretAfterMarker(block) {
+    if (!block) return false;
+    const sel = window.getSelection();
+    if (!sel) return false;
+    const headingMarker = /^H[1-6]$/.test(block.tagName)
+      ? block.querySelector(":scope > .vditor-ir__marker--heading")
+      : null;
+    if (headingMarker) {
+      let node = headingMarker.nextSibling;
+      while (node && node.nodeType === Node.ELEMENT_NODE && node.tagName === "WBR") {
+        node = node.nextSibling;
+      }
+      if (!node || node.nodeType !== Node.TEXT_NODE) {
+        node = document.createTextNode("\u200b");
+        headingMarker.after(node);
+      } else if (node.textContent === "") {
+        node.textContent = "\u200b";
+      }
+      const r = document.createRange();
+      r.setStart(node, node.textContent.length);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      return true;
+    }
+    const inner = block.tagName === "UL" || block.tagName === "OL"
+      ? (block.querySelector("li") || block)
+      : (block.tagName === "BLOCKQUOTE" ? (block.querySelector("p") || block) : block);
+    const r = document.createRange();
+    r.selectNodeContents(inner);
+    r.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return true;
+  }
+
+  /* 斜杠/转换刚造出空标题、列表、引用后调用：光标放到标记后。
+     按住回车用「当前选区所在空前缀块」判断，不捏 DOM 节点——IR spin 会换掉元素。
+     有内容或光标离开前缀块后自动解除。 */
+  function settleEmptyFormat() {
+    const now = caretPrefixBlock();
+    if (!now || !isVisuallyEmpty(now)) {
+      holdingEmptyFormat = false;
+      return;
+    }
+    const go = () => {
+      const block = caretPrefixBlock();
+      if (!block || !isVisuallyEmpty(block)) { holdingEmptyFormat = false; return; }
+      placeCaretAfterMarker(block);
+      holdingEmptyFormat = true;
+    };
+    requestAnimationFrame(() => setTimeout(go, 0));
+  }
+
+  function holdEmptyEnter(e) {
+    if (!e || e.key !== "Enter" || e.isComposing) return false;
+    if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return false;
+    if (!holdingEmptyFormat) return false;
+    const block = caretPrefixBlock();
+    if (!block || !isVisuallyEmpty(block)) { holdingEmptyFormat = false; return false; }
+    e.preventDefault();
+    e.stopPropagation();
+    placeCaretAfterMarker(block);
+    return true;
   }
 
   // ---------------------------------------------------------------
@@ -668,5 +774,8 @@
     }));
   }
 
-  window.Convert = { apply, itemsForContext, blockItemsForContext, applyBlockOp };
+  window.Convert = {
+    apply, itemsForContext, blockItemsForContext, applyBlockOp,
+    settleEmptyFormat, holdEmptyEnter,
+  };
 })();

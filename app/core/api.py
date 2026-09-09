@@ -27,6 +27,7 @@ from .config import Config
 from .fsutil import IMAGE_EXTS, IGNORE_DIRS, MD_EXTS, atomic_write_text, recycle_file, skip_dir_name  # noqa: F401
 from .projects import ProjectStore
 from . import search as vault_search
+from .workdir import EDIT_WORKDIR, WorkdirStore, normalize_edit_mode
 
 # 文件夹树扫描上限：层级与总条目数，超出即截断并在返回数据中标注
 MAX_TREE_DEPTH = 8
@@ -44,6 +45,7 @@ class Api:
     ) -> None:
         self.config = config
         self.projects = ProjectStore(config)
+        self.workdir = WorkdirStore(config.data_dir)
         self._cloud = get_engine(config, self.projects)
         self._window: Optional["webview.Window"] = None
         # 多窗口管理器（main.WindowManager）；测试/单窗口环境可为 None
@@ -55,6 +57,113 @@ class Api:
 
     def bind_window(self, window: "webview.Window") -> None:
         self._window = window
+
+    def _edit_mode(self) -> str:
+        return normalize_edit_mode(self.config.get("edit_mode"))
+
+    def _workdir_on(self) -> bool:
+        return self._edit_mode() == EDIT_WORKDIR
+
+    @staticmethod
+    def _same_path(a: str, b: str) -> bool:
+        if not a or not b:
+            return False
+        return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+    @staticmethod
+    def _path_under(child: str, parent: str) -> bool:
+        if not child or not parent:
+            return False
+        try:
+            Path(child).resolve().relative_to(Path(parent).resolve())
+            return True
+        except (OSError, ValueError):
+            return False
+
+    def _resolve_orphan_work_path(self, raw: str) -> tuple[str, str, Optional[dict[str, Any]]]:
+        """单文件会话被整库收编后，把残骸路径改挂到 last_file / last_folder。"""
+        last_file = (self.config.get("last_file") or "").strip()
+        last_folder = (self.config.get("last_folder") or "").strip()
+        if last_file and not self._same_path(last_file, raw) and not self._is_orphan_work_path(last_file):
+            return self._resolve_io(last_file, create=True)
+        if last_folder and not self._same_path(last_folder, raw) and not self._is_orphan_work_path(last_folder):
+            _io, _logical, sess = self._resolve_io(last_folder, create=True)
+            if sess:
+                name = Path(raw).name
+                work = str(Path(sess["work_root"]) / name)
+                logical = str(Path(sess["source_root"]) / name)
+                return work, logical, sess
+        return raw, raw, None
+
+    def _resolve_io(self, path: str, *, create: bool = False) -> tuple[str, str, Optional[dict[str, Any]]]:
+        """工作副本模式下把源路径映射到副本；直改模式原样返回。"""
+        raw = (path or "").strip()
+        if not raw or not self._workdir_on():
+            return raw, raw, None
+        sess = self.workdir.find_session_for_path(raw)
+        if not sess and self._is_orphan_work_path(raw):
+            return self._resolve_orphan_work_path(raw)
+        if not sess and create:
+            hint = ""
+            try:
+                proj = self.projects.find_by_containing_path(raw)
+                if proj:
+                    hint = str(proj.get("path") or "")
+            except Exception:  # noqa: BLE001
+                hint = ""
+            if not hint:
+                hint = self.config.get("last_folder", "") or ""
+            try:
+                sess = self.workdir.ensure_for_path(raw, hint)
+            except FileNotFoundError:
+                sess = None
+        if not sess:
+            return raw, raw, None
+        work = self.workdir.map_to_work(sess, raw)
+        logical = self.workdir.map_to_source(sess, raw)
+        return work, logical, sess
+
+    def _is_orphan_work_path(self, path: str) -> bool:
+        """副本目录里已无会话的路径（单文件会话被整库收编后）。"""
+        if not path or not self._workdir_on():
+            return False
+        try:
+            base = str(self.workdir.base)
+            child = os.path.normcase(str(Path(path).resolve()))
+            parent = os.path.normcase(str(Path(base).resolve()))
+        except OSError:
+            return False
+        if child != parent and not child.startswith(parent + os.sep):
+            return False
+        return self.workdir.find_session_for_path(path) is None
+
+    def _workdir_mapped(self, path: str) -> str:
+        """已有会话才映射，不创建、不收编。"""
+        io_path, _logical, sess = self._resolve_io(path, create=False)
+        if sess and io_path:
+            return io_path
+        return ""
+
+    def _search_root_from_file_session(self, hint: str = "") -> str:
+        """只用当前打开文件的副本当搜索根，避免搜索升级整库。"""
+        last_file = (self.config.get("last_file") or "").strip()
+        if not last_file:
+            return ""
+        if hint and not self._path_under(last_file, hint):
+            return ""
+        io_path, _logical, sess = self._resolve_io(last_file, create=False)
+        if not sess or not io_path:
+            return ""
+        wp = Path(io_path)
+        return str(wp.parent if wp.is_file() else wp)
+
+    def _attach_workdir_meta(self, payload: dict[str, Any], sess: Optional[dict[str, Any]]) -> dict[str, Any]:
+        payload["edit_mode"] = self._edit_mode()
+        if sess:
+            payload["source_root"] = sess.get("source_root") or ""
+            payload["work_root"] = sess.get("work_root") or ""
+            payload["workdir_new_files"] = int(sess.get("last_added") or 0)
+        return payload
 
     # ------------------------------------------------------------------
     # 窗口启动参数
@@ -108,13 +217,18 @@ class Api:
             if not raw:
                 continue
             p = Path(raw)
+            exists = p.exists()
+            if not exists and self._workdir_on():
+                io_path = self._workdir_mapped(raw)
+                if io_path:
+                    exists = Path(io_path).exists()
             out.append(
                 {
                     "path": raw,
                     "name": p.name or raw,
                     "kind": it.get("kind", "file"),
                     # 失效（已移动/删除）项保留展示但前端灰显，点击打开失败时自动移除
-                    "exists": p.exists(),
+                    "exists": exists,
                 }
             )
         return {"ok": True, "items": out}
@@ -136,35 +250,46 @@ class Api:
     # ------------------------------------------------------------------
     def read_file(self, path: str) -> dict[str, Any]:
         try:
-            p = Path(path)
+            io_path, logical, sess = self._resolve_io(path, create=True)
+            p = Path(io_path)
             if not p.exists() or not p.is_file():
                 return {"ok": False, "error": "文件不存在"}
             content = p.read_text(encoding="utf-8")
-            self.config.set("last_file", str(p))
-            self._add_recent(str(p), "file")
+            self.config.set("last_file", logical)
+            self._add_recent(logical, "file")
             st = p.stat()
-            return {
-                "ok": True,
-                "path": str(p),
-                "name": p.name,
-                "content": content,
-                "size": st.st_size,
-                "mtime": st.st_mtime,
-            }
+            return self._attach_workdir_meta(
+                {
+                    "ok": True,
+                    "path": str(p),
+                    "source_path": logical,
+                    "name": p.name,
+                    "content": content,
+                    "size": st.st_size,
+                    "mtime": st.st_mtime,
+                },
+                sess,
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
     def save_file(self, path: str, content: str) -> dict[str, Any]:
         try:
-            p = Path(path)
+            io_path, logical, sess = self._resolve_io(path, create=True)
+            p = Path(io_path)
             # 原子写：自动保存高频触发，崩溃/断电不得留下半截笔记
             atomic_write_text(p, content)
-            self.config.set("last_file", str(p))
-            self._add_recent(str(p), "file")
-            self._invalidate_knowledge(str(p))
-            self._maybe_cloud_push(str(p))
+            self.config.set("last_file", logical)
+            self._add_recent(logical, "file")
+            self._invalidate_knowledge(logical)
+            # 工作副本只写副本；云同步跟源文件走，等「保存至源」再推
+            if not sess:
+                self._maybe_cloud_push(str(p))
             st = p.stat()
-            return {"ok": True, "path": str(p), "mtime": st.st_mtime, "size": st.st_size}
+            return self._attach_workdir_meta(
+                {"ok": True, "path": str(p), "source_path": logical, "mtime": st.st_mtime, "size": st.st_size},
+                sess,
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -174,21 +299,31 @@ class Api:
                 name += ".md"
             if any(sep in name for sep in ("/", "\\", ":")):
                 return {"ok": False, "error": "名称不能包含路径分隔符"}
-            target = Path(folder) / name if folder else Path(name)
+            raw_folder = (folder or "").strip()
+            io_folder, logical_folder, sess = (
+                self._resolve_io(raw_folder, create=True) if raw_folder else ("", "", None)
+            )
+            target = Path(io_folder) / name if io_folder else Path(name)
+            logical_path = str(Path(logical_folder) / name) if logical_folder else str(target)
             if target.exists():
                 return {"ok": False, "error": "同名文件已存在"}
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("", encoding="utf-8")
-            self._add_recent(str(target), "file")
-            self._invalidate_knowledge(str(target))
-            return {"ok": True, "path": str(target), "name": target.name}
+            self._add_recent(logical_path, "file")
+            self._invalidate_knowledge(logical_path)
+            return self._attach_workdir_meta(
+                {"ok": True, "path": str(target), "name": target.name, "source_path": logical_path},
+                sess,
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
     def new_folder(self, parent: str, name: str) -> dict[str, Any]:
         """在已打开的仓库目录下新建子文件夹。"""
         try:
-            folder = Path(parent)
+            raw_parent = (parent or "").strip()
+            io_parent, logical_parent, sess = self._resolve_io(raw_parent, create=True)
+            folder = Path(io_parent)
             if not folder.is_dir():
                 return {"ok": False, "error": "父文件夹不存在"}
             raw = (name or "").strip()
@@ -200,7 +335,11 @@ class Api:
             if target.exists():
                 return {"ok": False, "error": "同名文件夹已存在"}
             target.mkdir()
-            return {"ok": True, "path": str(target), "name": target.name}
+            logical_path = str(Path(logical_parent) / raw) if logical_parent else str(target)
+            return self._attach_workdir_meta(
+                {"ok": True, "path": str(target), "name": target.name, "source_path": logical_path},
+                sess,
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -227,10 +366,36 @@ class Api:
     def _is_md_file(p: Path) -> bool:
         return p.is_file() and p.suffix.lower() in MD_EXTS
 
+    def _finish_path_change(
+        self,
+        old_io: str,
+        old_logical: str,
+        new_io: str,
+        sess: Optional[dict[str, Any]],
+        *,
+        name: str = "",
+    ) -> dict[str, Any]:
+        new_logical = self.workdir.map_to_source(sess, new_io) if sess else new_io
+        self._sync_path_refs(old_logical, new_logical)
+        if old_io != old_logical:
+            self._sync_path_refs(old_io, new_io)
+        self._invalidate_knowledge(old_logical)
+        self._invalidate_knowledge(new_logical)
+        return self._attach_workdir_meta(
+            {
+                "ok": True,
+                "path": new_io,
+                "name": name or Path(new_io).name,
+                "source_path": new_logical,
+            },
+            sess,
+        )
+
     def rename_file(self, path: str, new_name: str) -> dict[str, Any]:
         """重命名真实 md 文件（仅同目录改名，不接受带路径的名字）。"""
         try:
-            p = Path(path)
+            io_path, logical, sess = self._resolve_io(path, create=False)
+            p = Path(io_path)
             if not self._is_md_file(p):
                 return {"ok": False, "error": "不是已存在的 Markdown 文件"}
             name = (new_name or "").strip()
@@ -245,7 +410,10 @@ class Api:
             # 不能靠它识别 note.md → NOTE.md。
             if p.name.lower() == target.name.lower():
                 if p.name == target.name:
-                    return {"ok": True, "path": str(p), "name": p.name}
+                    return self._attach_workdir_meta(
+                        {"ok": True, "path": str(p), "name": p.name, "source_path": logical},
+                        sess,
+                    )
                 # 仅大小写变化：大小写不敏感文件系统上 target.exists() 恒真，
                 # 不能被「同名已存在」拦截。Linux 上 NOTE.md 可能是另一文件。
                 if target.exists():
@@ -255,25 +423,23 @@ class Api:
                     except OSError:
                         return {"ok": False, "error": "同名文件已存在"}
                 os.rename(p, target)
-                self._sync_path_refs(str(p), str(target))
-                self._invalidate_knowledge(str(target))
-                return {"ok": True, "path": str(target), "name": target.name}
+                return self._finish_path_change(str(p), logical, str(target), sess, name=target.name)
             if target.exists():
                 return {"ok": False, "error": "同名文件已存在"}
             os.rename(p, target)
-            self._sync_path_refs(str(p), str(target))
-            self._invalidate_knowledge(str(target))
-            return {"ok": True, "path": str(target), "name": target.name}
+            return self._finish_path_change(str(p), logical, str(target), sess, name=target.name)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
     def move_file(self, path: str, target_folder: str) -> dict[str, Any]:
         """把真实 md 文件移动到目标目录（shutil.move 跨盘安全）。"""
         try:
-            p = Path(path)
+            io_path, logical, sess = self._resolve_io(path, create=False)
+            io_folder, _logical_folder, sess_folder = self._resolve_io(target_folder, create=True)
+            p = Path(io_path)
             if not self._is_md_file(p):
                 return {"ok": False, "error": "不是已存在的 Markdown 文件"}
-            folder = Path(target_folder)
+            folder = Path(io_folder)
             if not folder.is_dir():
                 return {"ok": False, "error": "目标文件夹不存在"}
             same = os.path.normcase(os.path.normpath(str(folder)))
@@ -283,10 +449,9 @@ class Api:
             if target.exists():
                 return {"ok": False, "error": "目标位置已存在同名文件"}
             shutil.move(str(p), str(target))
-            self._sync_path_refs(str(p), str(target))
-            self._invalidate_knowledge(str(p))
-            self._invalidate_knowledge(str(target))
-            return {"ok": True, "path": str(target)}
+            return self._finish_path_change(
+                str(p), logical, str(target), sess or sess_folder, name=target.name
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -302,22 +467,28 @@ class Api:
     def delete_file(self, path: str) -> dict[str, Any]:
         """把真实 md 文件移入系统回收站（风险确认弹窗由前端负责）。"""
         try:
-            p = Path(path)
+            io_path, logical, sess = self._resolve_io(path, create=False)
+            p = Path(io_path)
             if not self._is_md_file(p):
                 return {"ok": False, "error": "不是已存在的 Markdown 文件"}
             recycle_file(str(p))
             self.remove_recent(str(p))
-            self._invalidate_knowledge(str(p))
-            if self.config.get("last_file", "") == str(p):
+            self.remove_recent(logical)
+            if path and path not in (str(p), logical):
+                self.remove_recent(path)
+            self._invalidate_knowledge(logical)
+            last = self.config.get("last_file", "")
+            if last in (str(p), logical, path):
                 self.config.set("last_file", "")
-            return {"ok": True}
+            return self._attach_workdir_meta({"ok": True, "source_path": logical}, sess)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
     def duplicate_file(self, path: str) -> dict[str, Any]:
         """在同目录复制一份 md（`名 副本.md` / `名 副本 2.md`）。"""
         try:
-            p = Path(path)
+            io_path, _logical, sess = self._resolve_io(path, create=False)
+            p = Path(io_path)
             if not self._is_md_file(p):
                 return {"ok": False, "error": "不是已存在的 Markdown 文件"}
             dest = None
@@ -330,9 +501,13 @@ class Api:
             if dest is None:
                 return {"ok": False, "error": "副本过多"}
             shutil.copy2(str(p), str(dest))
-            self._add_recent(str(dest), "file")
-            self._invalidate_knowledge(str(dest))
-            return {"ok": True, "path": str(dest), "name": dest.name}
+            dest_logical = self.workdir.map_to_source(sess, str(dest)) if sess else str(dest)
+            self._add_recent(dest_logical, "file")
+            self._invalidate_knowledge(dest_logical)
+            return self._attach_workdir_meta(
+                {"ok": True, "path": str(dest), "name": dest.name, "source_path": dest_logical},
+                sess,
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -341,21 +516,26 @@ class Api:
     # ------------------------------------------------------------------
     def list_folder(self, path: str) -> dict[str, Any]:
         try:
-            root = Path(path)
+            io_path, logical, sess = self._resolve_io(path, create=True)
+            root = Path(io_path)
             if not root.exists() or not root.is_dir():
                 return {"ok": False, "error": "文件夹不存在"}
-            self.config.set("last_folder", str(root))
-            self._add_recent(str(root), "folder")
+            self.config.set("last_folder", logical)
+            self._add_recent(logical, "folder")
             # 条目预算贯穿整棵树；truncated 让前端明确提示「已截断」
             budget: dict[str, Any] = {"left": MAX_TREE_ENTRIES, "truncated": False}
             tree = self._scan_dir(root, 0, budget)
-            return {
-                "ok": True,
-                "root": str(root),
-                "name": root.name,
-                "tree": tree,
-                "truncated": budget["truncated"],
-            }
+            display = Path(logical)
+            return self._attach_workdir_meta(
+                {
+                    "ok": True,
+                    "root": str(root),
+                    "name": display.name or root.name,
+                    "tree": tree,
+                    "truncated": budget["truncated"],
+                },
+                sess,
+            )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -407,6 +587,94 @@ class Api:
     # ------------------------------------------------------------------
     # 原生对话框
     # ------------------------------------------------------------------
+    def _workdir_session(
+        self, path: str = "", *, create: bool = False
+    ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], str]:
+        if not self._workdir_on():
+            return None, {"ok": False, "error": "当前为直改源文件", "edit_mode": "source"}, path or ""
+        raw = (path or "").strip() or (self.config.get("last_folder", "") or "")
+        if not raw:
+            raw = self.config.get("last_file", "") or ""
+        if not raw:
+            return None, {"ok": False, "error": "请先打开仓库或文件", "edit_mode": EDIT_WORKDIR}, ""
+        io_path, _logical, sess = self._resolve_io(raw, create=create)
+        if not sess:
+            sess = self.workdir.find_session_for_path(raw)
+        if not sess:
+            return None, {"ok": False, "error": "尚未建立工作副本", "edit_mode": EDIT_WORKDIR}, raw
+        return sess, None, io_path or raw
+
+    def workdir_status(self, path: str = "") -> dict[str, Any]:
+        """当前文件相对源文件的同步状态（未回写 / 源有更新 / 冲突）。"""
+        raw = (path or "").strip() or (self.config.get("last_file", "") or "")
+        sess, err, resolved = self._workdir_session(raw)
+        if err:
+            return err
+        assert sess is not None
+        if not raw:
+            return {"ok": True, "status": "idle", **self.workdir.summary(sess), "edit_mode": EDIT_WORKDIR}
+        out = self.workdir.file_status(sess, resolved)
+        out["edit_mode"] = EDIT_WORKDIR
+        return out
+
+    def workdir_summary(self, folder: str = "") -> dict[str, Any]:
+        sess, err, _resolved = self._workdir_session(folder, create=False)
+        if err:
+            return err
+        assert sess is not None
+        out = self.workdir.summary(sess)
+        out["edit_mode"] = EDIT_WORKDIR
+        return out
+
+    def workdir_push(self, path: str = "", force: bool = False) -> dict[str, Any]:
+        """把当前工作副本写回源文件。"""
+        raw = (path or "").strip() or (self.config.get("last_file", "") or "")
+        sess, err, resolved = self._workdir_session(raw)
+        if err:
+            return err
+        assert sess is not None
+        out = self.workdir.push_file(sess, resolved, force=bool(force))
+        out["edit_mode"] = EDIT_WORKDIR
+        if out.get("ok") and out.get("pushed"):
+            src = out.get("source_path") or ""
+            if src:
+                self._invalidate_knowledge(src)
+                self._maybe_cloud_push(src)
+        return out
+
+    def workdir_merge(self, path: str = "", strategy: str = "") -> dict[str, Any]:
+        """把源文件合并进工作副本。strategy: keep_source | keep_copy | markers。"""
+        raw = (path or "").strip() or (self.config.get("last_file", "") or "")
+        sess, err, resolved = self._workdir_session(raw)
+        if err:
+            return err
+        assert sess is not None
+        out = self.workdir.merge_file(sess, resolved, strategy=str(strategy or ""))
+        out["edit_mode"] = EDIT_WORKDIR
+        return out
+
+    def workdir_push_all(self, folder: str = "", force: bool = False) -> dict[str, Any]:
+        sess, err, _resolved = self._workdir_session(folder, create=False)
+        if err:
+            return err
+        assert sess is not None
+        out = self.workdir.push_all(sess, force=bool(force))
+        out["edit_mode"] = EDIT_WORKDIR
+        if out.get("ok") and out.get("pushed"):
+            self._invalidate_knowledge(sess["source_root"])
+            for rel in out.get("pushed_rels") or []:
+                self._maybe_cloud_push(str(Path(sess["source_root"]) / rel))
+        return out
+
+    def workdir_merge_all(self, folder: str = "", strategy: str = "") -> dict[str, Any]:
+        sess, err, _resolved = self._workdir_session(folder, create=False)
+        if err:
+            return err
+        assert sess is not None
+        out = self.workdir.merge_all(sess, strategy=str(strategy or ""))
+        out["edit_mode"] = EDIT_WORKDIR
+        return out
+
     def open_file_dialog(self) -> dict[str, Any]:
         if not self._window:
             return {"ok": False, "error": "窗口未就绪"}
@@ -692,11 +960,20 @@ class Api:
         return ""
 
     def _vault_root(self, folder: str = "") -> str:
-        """当前仓库根：入参目录优先，否则 last_folder。单文件父目录不当仓库。"""
+        """当前仓库根：入参目录优先，否则 last_folder。单文件父目录不当仓库。
+
+        工作副本模式下映射到副本根，避免日记 / 收集箱 / 模板写穿源文件。
+        """
         hit = self._as_existing_dir(folder)
-        if hit:
-            return hit
-        return self._as_existing_dir(self.config.get("last_folder", "") or "")
+        if not hit:
+            hit = self._as_existing_dir(self.config.get("last_folder", "") or "")
+        if not hit:
+            return ""
+        if self._workdir_on():
+            io_path, _logical, sess = self._resolve_io(hit, create=True)
+            if sess and io_path:
+                return io_path
+        return hit
 
     def _vault_for_path(self, path: str) -> str:
         """已注册仓库或 last_folder 若包含该路径，返回仓库根。"""
@@ -717,34 +994,71 @@ class Api:
             return ""
 
     def _search_root(self, folder: str = "") -> str:
-        """搜索根：目录 → 文件所属仓库 → last_folder → last_file 父目录。"""
+        """搜索根：目录 → 文件所属仓库 → last_folder → last_file 父目录。
+
+        工作副本下只映射已有会话，不为搜索创建整库副本（否则会收编并拆掉单文件会话）。
+        """
         raw = (folder or "").strip()
         if raw:
             try:
                 p = Path(raw)
                 if p.is_dir():
+                    mapped = self._workdir_mapped(str(p))
+                    if mapped:
+                        return mapped
+                    scoped = self._search_root_from_file_session(str(p))
+                    if scoped:
+                        return scoped
                     return str(p)
                 if p.is_file():
-                    return self._vault_for_path(str(p)) or str(p.parent)
+                    vault = self._vault_for_path(str(p)) or str(p.parent)
+                    mapped = self._workdir_mapped(vault) if vault else ""
+                    if mapped:
+                        return mapped
+                    scoped = self._search_root_from_file_session(vault or str(p.parent))
+                    if scoped:
+                        return scoped
+                    mapped_file = self._workdir_mapped(str(p))
+                    if mapped_file:
+                        wp = Path(mapped_file)
+                        return str(wp.parent if wp.is_file() else wp)
+                    return vault
             except OSError:
                 pass
         last = self._as_existing_dir(self.config.get("last_folder", "") or "")
         if last:
+            mapped = self._workdir_mapped(last)
+            if mapped:
+                return mapped
+            scoped = self._search_root_from_file_session(last)
+            if scoped:
+                return scoped
             return last
         last_file = (self.config.get("last_file", "") or "").strip()
         if not last_file:
-            return ""
+            return last if last else ""
         try:
             fp = Path(last_file)
             hint = str(fp if fp.exists() else fp.parent)
             vault = self._vault_for_path(hint)
             if vault:
+                mapped = self._workdir_mapped(vault)
+                if mapped:
+                    return mapped
+                scoped = self._search_root_from_file_session(vault)
+                if scoped:
+                    return scoped
                 return vault
             if fp.parent.is_dir():
-                return str(fp.parent)
+                parent = str(fp.parent)
+                mapped = self._workdir_mapped(str(fp))
+                if mapped:
+                    wp = Path(mapped)
+                    return str(wp.parent if wp.is_file() else wp)
+                return parent
         except OSError:
-            return ""
-        return ""
+            return last if last else ""
+        return last if last else ""
 
     def _md_in_vault(self, folder: str, path: str) -> Path | None:
         """path 必须是仓库内已存在的 markdown，防止模板接口读出仓库外文件。"""
@@ -862,16 +1176,32 @@ class Api:
         if not raw:
             self._knowledge_cache.clear()
             return
-        try:
-            target = Path(raw).resolve()
-        except OSError:
-            target = Path(raw)
+        targets: set[str] = set()
+
+        def _add(path: str) -> None:
+            text = (path or "").strip()
+            if not text:
+                return
+            try:
+                targets.add(os.path.normcase(str(Path(text).resolve())))
+            except OSError:
+                targets.add(os.path.normcase(text))
+
+        _add(raw)
+        if self._workdir_on():
+            io_path, logical, sess = self._resolve_io(raw, create=False)
+            _add(io_path)
+            _add(logical)
+            if sess:
+                _add(str(sess.get("work_root") or ""))
+                _add(str(sess.get("source_root") or ""))
         drop: list[str] = []
-        tgt = os.path.normcase(str(target))
         for key in self._knowledge_cache:
             root = os.path.normcase(str(key))
-            if tgt == root or tgt.startswith(root + os.sep):
-                drop.append(key)
+            for tgt in targets:
+                if tgt == root or tgt.startswith(root + os.sep) or root.startswith(tgt + os.sep):
+                    drop.append(key)
+                    break
         for key in drop:
             self._knowledge_cache.pop(key, None)
 
@@ -939,11 +1269,19 @@ class Api:
 
     def file_stat(self, path: str) -> dict[str, Any]:
         try:
-            p = Path(path)
+            io_path, logical, _sess = self._resolve_io(path, create=False)
+            p = Path(io_path)
             if not p.is_file():
-                return {"ok": False, "exists": False}
+                return {"ok": False, "exists": False, "source_path": logical}
             st = p.stat()
-            return {"ok": True, "exists": True, "mtime": st.st_mtime, "size": st.st_size, "path": str(p)}
+            return {
+                "ok": True,
+                "exists": True,
+                "mtime": st.st_mtime,
+                "size": st.st_size,
+                "path": str(p),
+                "source_path": logical,
+            }
         except OSError as e:
             return {"ok": False, "exists": False, "error": str(e)}
 
@@ -1014,7 +1352,8 @@ class Api:
             else:
                 atomic_write_text(dest, "# " + dest.stem + "\n" + block)
             self._invalidate_knowledge(str(dest))
-            self._maybe_cloud_push(str(dest))
+            if not self._workdir_on():
+                self._maybe_cloud_push(str(dest))
             st = dest.stat()
             return {
                 "ok": True,
@@ -1043,13 +1382,23 @@ class Api:
         if len(raw) > 12 * 1024 * 1024:
             return {"ok": False, "error": "图片超过 12MB"}
         ext = _image_ext(filename, mime)
-        md = Path(md_path) if md_path else None
+        io_md, _logical_md, _sess = self._resolve_io(md_path, create=False) if md_path else ("", "", None)
+        md = Path(io_md) if io_md else None
         if md and md.is_file():
             dest_dir = md.parent / f"{md.stem}.assets"
             base = md.parent
-        elif folder and Path(folder).is_dir():
-            dest_dir = Path(folder) / "assets"
-            base = Path(folder)
+        elif folder:
+            io_folder, _logical_folder, _fsess = self._resolve_io(folder, create=True)
+            if io_folder and Path(io_folder).is_dir():
+                dest_dir = Path(io_folder) / "assets"
+                base = Path(io_folder)
+            else:
+                last = self._vault_root("")
+                if last:
+                    dest_dir = Path(last) / "assets"
+                    base = Path(last)
+                else:
+                    return {"ok": False, "error": "请先保存文档或打开仓库，再插入图片"}
         else:
             last = self._vault_root("")
             if last:

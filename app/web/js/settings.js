@@ -131,6 +131,16 @@
               </div>
               <button type="button" class="toggle" id="set-autosave" title="自动保存"></button>
             </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">编辑方式</div>
+                <div class="desc">直改源文件：打开即改磁盘原件。工作副本：进入仓库时生成副本，只在副本上读写，用「保存至源 / 合并源」与原件同步</div>
+              </div>
+              <div class="segmented" id="set-edit-mode">
+                <button type="button" data-v="source">直改源文件</button>
+                <button type="button" data-v="workdir">工作副本</button>
+              </div>
+            </div>
             <div class="write-panel">
               <div class="label">日记目录</div>
               <div class="desc">相对当前仓库，每日笔记保存为 YYYY-MM-DD.md</div>
@@ -228,6 +238,7 @@
     bindSeg("set-startup", "startup_page");
     bindSeg("set-second-launch", "second_launch");
     bindSeg("set-math-engine", "math_engine");
+    bindSeg("set-edit-mode", "edit_mode");
     bindSwatches("swatch-palette", "palette");
     bindFontSimple("set-font-ui", "font_ui", FONT_UI_PRESETS);
     bindFont("set-font-mono", "set-font-mono-custom", "font_mono", FONT_MONO_PRESETS);
@@ -552,6 +563,7 @@
     setSeg("set-startup", String(cfg.startup_page || "home"));
     setSeg("set-second-launch", String(cfg.second_launch || "new"));
     setSeg("set-math-engine", String(cfg.math_engine || "katex"));
+    setSeg("set-edit-mode", String(cfg.edit_mode || "source"));
     syncSwatches();
   }
 

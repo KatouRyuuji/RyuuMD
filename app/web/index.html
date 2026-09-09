@@ -44,6 +44,8 @@
       <button class="icon-btn" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
       <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
       <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
+      <button class="icon-btn workdir-only" id="btn-push-source" title="保存至源文件 (Ctrl+Shift+S)" aria-label="保存至源文件"><span class="ib-icon" data-icon="upload"></span><span class="ib-label">保存至源</span></button>
+      <button class="icon-btn workdir-only" id="btn-merge-source" title="合并源文件" aria-label="合并源文件"><span class="ib-icon" data-icon="gitMerge"></span><span class="ib-label">合并源</span></button>
       <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
       <button class="icon-btn" id="btn-ai" title="AI 侧栏" aria-label="AI 侧栏" aria-expanded="false"><span class="ib-icon" data-icon="sparkles"></span><span class="ib-label">AI</span></button>
       <button class="icon-btn" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
@@ -110,6 +112,7 @@
         <div id="statusbar">
           <div class="sb-left">
             <span id="sb-path" class="sb-item" title="在目录中定位">未打开文件</span>
+            <button type="button" class="sb-item sb-workdir" id="sb-workdir" title="编辑方式" hidden>直改源文件</button>
           </div>
           <div class="sb-right">
             <span id="sb-count" class="sb-item">0 字</span>
@@ -223,9 +226,9 @@
         <span id="pal-hint"></span>
       </div>
       <div id="pal-modes" hidden>
-        <button type="button" class="pal-mode active" data-mode="title">标题</button>
-        <button type="button" class="pal-mode" data-mode="content">内容</button>
-        <button type="button" class="pal-mode" data-mode="semantic">语义</button>
+        <button type="button" class="pal-mode active" data-mode="title" title="输入即搜标题" aria-pressed="true">标题</button>
+        <button type="button" class="pal-mode" data-mode="content" title="输入即搜正文" aria-pressed="false">内容</button>
+        <button type="button" class="pal-mode" data-mode="semantic" title="按 Enter 搜索，将调用已配置的模型" aria-pressed="false">语义 <kbd class="pal-mode-kbd">回车</kbd></button>
       </div>
       <div id="pal-answer" hidden></div>
       <div id="pal-list"></div>

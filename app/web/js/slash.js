@@ -331,6 +331,13 @@
     return host && target && host.contains(target);
   }
 
+  /* 正在编辑器正文里打字（contenteditable），不是日后塞进 #editor 的输入框 */
+  function inEditorTyping(target) {
+    if (!inEditor(target)) return false;
+    if (target.isContentEditable) return true;
+    return !!(target.closest && target.closest("#editor [contenteditable='true']"));
+  }
+
   /* 绑定一次到 document（事件委托），Vditor 重建可编辑元素后仍有效。 */
   function attach() {
     if (document.__menuBound) return;
@@ -339,8 +346,12 @@
     document.addEventListener("input", (e) => {
       if (inEditor(e.target)) onInput();
     });
-    // 捕获阶段，菜单打开时优先于 Vditor 处理导航键（尤其 Tab/Enter）
-    document.addEventListener("keydown", (e) => { if (open) onKeydown(e); }, true);
+    // 捕获阶段，菜单打开时优先于 Vditor 处理导航键（尤其 Tab/Enter）。
+    // 空格式壳回车只拦编辑器内的 Enter，查找条/面板不受影响。
+    document.addEventListener("keydown", (e) => {
+      if (open) onKeydown(e);
+      else if (inEditorTyping(e.target) && window.Convert && window.Convert.holdEmptyEnter(e)) return;
+    }, true);
     document.addEventListener("contextmenu", (e) => {
       if (inEditor(e.target)) {
         e.preventDefault();

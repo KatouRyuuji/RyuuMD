@@ -286,7 +286,7 @@
       return;
     }
     hide();
-    handlers.openFolderResult && handlers.openFolderResult(res);
+    if (handlers.openFolderResult) await handlers.openFolderResult(res);
   }
 
   async function addRepo() {

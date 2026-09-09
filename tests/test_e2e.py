@@ -143,7 +143,7 @@ CASES = [
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
          js=("(function(){var ids=['btn-home','btn-sidebar','btn-open-folder','btn-open-file',"
-             "'btn-new','btn-save','btn-search','btn-ai','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
+             "'btn-new','btn-save','btn-push-source','btn-merge-source','btn-search','btn-ai','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
              "var bs=document.querySelectorAll('#toolbar .icon-btn');"
              "if(bs.length!==ids.length)return 'count='+bs.length;"
              "for(var i=0;i<ids.length;i++){"
@@ -240,6 +240,7 @@ CASES = [
              "if(!m.classList.contains('open'))return 'not open';"
              "if(m.querySelectorAll('.settings-tab').length!==4)return 'tabs='+m.querySelectorAll('.settings-tab').length;"
              "if(!document.getElementById('set-autosave')||!document.getElementById('set-daily-folder'))return 'missing general';"
+             "if(!document.getElementById('set-edit-mode'))return 'missing edit mode';"
              "if(!document.getElementById('set-math-engine'))return 'missing math engine';"
              "if(!document.getElementById('set-tutorial'))return 'missing tutorial';"
              "var sw=m.querySelectorAll('#swatch-palette .palette-swatch').length;"
@@ -267,6 +268,8 @@ CASES = [
          js=("(function(){var m=document.getElementById('welcome-mask');"
              "return m.classList.contains('open')&&m.querySelectorAll('.feature-card').length===6"
              "&&m.querySelectorAll('.style-opt').length===2"
+             "&&m.querySelectorAll('.mode-opt').length===2"
+             "&&document.getElementById('welcome-edit-mode')"
              "&&document.getElementById('welcome-qr').classList.contains('has-img');})()"),
          setup2="document.getElementById('welcome-start').click()", sleep2=0.5,
          js2="!document.getElementById('welcome-mask').classList.contains('open')"),
@@ -1416,7 +1419,7 @@ CASES = [
          setup="window.Home.show()",
          sleep=0.4,
          js=("(function(){"
-             "var hid=['btn-sidebar','btn-save','btn-ai','btn-reveal'];"
+             "var hid=['btn-sidebar','btn-save','btn-push-source','btn-merge-source','btn-ai','btn-reveal'];"
              "for(var i=0;i<hid.length;i++){"
              "var b=document.getElementById(hid[i]);"
              "if(getComputedStyle(b).display!=='none')return 'shown on home:'+hid[i];}"
@@ -1430,6 +1433,80 @@ CASES = [
               "var b=document.getElementById(ids[i]);"
               "if(getComputedStyle(b).display==='none')return 'hidden on editor:'+ids[i];}"
               "return !document.body.classList.contains('is-home');})()")),
+
+    dict(name="T98 编辑方式开关:设置切到工作副本后状态栏与 body 同步",
+         setup="document.getElementById('btn-settings').click()",
+         sleep=0.5,
+         js=("(function(){if(!document.getElementById('set-edit-mode'))return 'no edit mode';"
+             "var p=document.getElementById('btn-push-source');"
+             "if(!p)return 'no push btn';"
+             "if(getComputedStyle(p).display!=='none')return 'push visible in source';"
+             "document.querySelector('#set-edit-mode [data-v=workdir]').click();"
+             "return true;})()"),
+         setup2="document.getElementById('set-close').click()",
+         sleep2=0.4,
+         js2=("(function(){if(document.getElementById('settings-mask').classList.contains('open'))return 'settings open';"
+              "if(!document.body.classList.contains('is-workdir'))return 'no is-workdir';"
+              "var sb=document.getElementById('sb-workdir');"
+              "if(!sb||sb.hidden)return 'no badge';"
+              "if(sb.textContent.indexOf(" + JV("工作副本") + ")<0)return 'badge='+sb.textContent;"
+              "return true;})()")),
+
+    # 空行 / 选格式再输入：标题标记曾被 display:none，光标落到 # 前，
+    # 键入变成「正文# 」并掉回段落；空标题回车会另起正文。
+    dict(name="T99 斜杠:空行选一级标题后键入仍是标题",
+         setup=("window.Home.hide();window.Editor.setMode('ir');window.Editor.setValue('');"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var p=document.querySelector('#editor .vditor-ir .vditor-reset > p')"
+                "||document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "if(p){var r=document.createRange();r.selectNodeContents(p);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);}"
+                "document.execCommand('insertText',false,'/');"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("一级标题") + ";});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "setTimeout(function(){document.execCommand('insertText',false,"
+                + JV("空行标题ABC") + ");},400);"
+                "},300);},400);"),
+         sleep=2.2,
+         js=("(function(){var v=window.Editor.getValue();"
+             "var h=document.querySelector('#editor .vditor-ir .vditor-reset > h1');"
+             "if(!h||h.textContent.indexOf(" + JV("空行标题ABC") + ")<0)"
+             "return 'dom='+(h?h.innerHTML.slice(0,80):'none')+' v='+JSON.stringify(v);"
+             "if(v.indexOf('# 空行标题ABC')<0&&v.indexOf('#空行标题ABC')<0)"
+             "return 'src='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T100 斜杠:空行选标题后回车再输入仍在标题",
+         setup=("window.Editor.setValue('');"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var p=document.querySelector('#editor .vditor-ir .vditor-reset > p')"
+                "||document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "if(p){var r=document.createRange();r.selectNodeContents(p);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);}"
+                "document.execCommand('insertText',false,'/');"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("一级标题") + ";});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                "keyCode:13,which:13,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){document.execCommand('insertText',false,"
+                + JV("回车后标题DEF") + ");},200);"
+                "},400);"
+                "},300);},400);"),
+         sleep=2.4,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf('# 回车后标题DEF')>=0||v.indexOf('#回车后标题DEF')>=0)return true;"
+             "return 'v='+JSON.stringify(v);})()"),
+         timeout=12),
 ]
 
 

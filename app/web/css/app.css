@@ -104,9 +104,15 @@ body {
 /* 工具栏按钮显隐与界面状态强相关：首页只留全局动作；无文档不给「所在目录」 */
 body.is-home #btn-sidebar,
 body.is-home #btn-save,
+body.is-home #btn-push-source,
+body.is-home #btn-merge-source,
 body.is-home #btn-ai,
 body.is-home #btn-reveal,
-body.no-doc #btn-reveal {
+body.no-doc #btn-reveal,
+body.no-doc #btn-push-source,
+body.no-doc #btn-merge-source,
+body:not(.is-workdir) #btn-push-source,
+body:not(.is-workdir) #btn-merge-source {
   display: none;
 }
 
@@ -973,6 +979,19 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 }
 .sb-cloud:hover { color: var(--primary); }
 .sb-cloud.busy { color: var(--primary); }
+.sb-workdir {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  max-width: 28vw;
+}
+.sb-workdir:hover { color: var(--primary); }
+.sb-workdir.is-pending { color: var(--warning, #c48a2a); }
+.sb-workdir.is-conflict { color: var(--danger, #c23b3b); }
 
 /* 分段选择器 */
 .segmented {
@@ -1121,13 +1140,44 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   color: var(--text-secondary);
   line-height: 1.55;
 }
-.style-opt code {
+.style-opt code,
+.mode-opt code {
   font-family: var(--font-mono);
   background: var(--primary-bg);
   color: var(--primary-deep);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 11px;
+}
+.mode-picker {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+.mode-opt {
+  flex: 1;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--bg);
+}
+.mode-opt:hover { border-color: var(--primary-shallow); }
+.mode-opt.selected {
+  border-color: var(--primary);
+  background: var(--primary-bg-soft);
+}
+.mode-opt h4 {
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  color: var(--primary);
+}
+.mode-opt p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
 }
 
 /* 赞助侧栏（右列卡片：扫码支持 + B 站主页） */

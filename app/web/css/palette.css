@@ -69,6 +69,23 @@
   border-color: var(--primary);
   font-weight: 600;
 }
+.pal-mode-kbd {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  opacity: 0.72;
+  vertical-align: 1px;
+}
+.pal-mode.active .pal-mode-kbd {
+  opacity: 0.92;
+}
 
 #pal-answer {
   margin: 8px 12px 4px;

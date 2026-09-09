@@ -71,6 +71,9 @@ DEFAULTS: dict[str, Any] = {
     "second_launch": "new",
     # 已保存文档在停止输入后自动写盘（Typora / Joplin 同款；未保存的新文档不弹框）
     "auto_save": True,
+    # 编辑方式：source = 直接读写源文件（默认）；workdir = 进入仓库时生成工作副本，
+    # 只在副本上读写，用「保存至源文件 / 合并源文件」与源同步。
+    "edit_mode": "source",
     # 每日笔记子目录（相对当前仓库根），默认「日记」
     "daily_note_folder": "日记",
     # 编辑区缩放百分比（Ctrl+= / Ctrl+- / Ctrl+0）

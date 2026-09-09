@@ -6,6 +6,7 @@
 (function () {
   const mask = document.getElementById("welcome-mask");
   let chosenStyle = "notion";
+  let chosenEdit = "source";
   let resolveFn = null;
 
   const FEATURES = [
@@ -44,6 +45,20 @@
       </div>`;
   }
 
+  function buildEditModePicker() {
+    return `
+      <div class="mode-picker" id="welcome-edit-mode">
+        <div class="mode-opt selected" data-mode="source">
+          <h4>直改源文件</h4>
+          <p>打开即读写磁盘上的原文件。适合自己的仓库、即时保存。</p>
+        </div>
+        <div class="mode-opt" data-mode="workdir">
+          <h4>工作副本</h4>
+          <p>进入仓库时生成副本，只改副本；用「保存至源 / 合并源」再与原件同步。</p>
+        </div>
+      </div>`;
+  }
+
   function render() {
     mask.innerHTML = `
       <div class="modal welcome" role="dialog" aria-modal="true" aria-label="欢迎使用 RyuuMD">
@@ -69,6 +84,11 @@
                 <div class="desc">决定斜杠命令的触发词，随时可在「设置」中更改</div>
                 ${buildStylePicker()}
               </div>
+              <div class="style-sec">
+                <div class="label">选择编辑方式</div>
+                <div class="desc">直改源文件立即落盘；工作副本先改副本，再决定是否写回源文件。随时可在「设置」中更改</div>
+                ${buildEditModePicker()}
+              </div>
             </div>
             <aside class="sponsor">
               <h4>${window.ICONS.coffee}<span>扫码支持作者</span></h4>
@@ -91,6 +111,13 @@
         mask.querySelectorAll(".style-opt").forEach((o) => o.classList.remove("selected"));
         el.classList.add("selected");
         chosenStyle = el.dataset.style;
+      });
+    });
+    mask.querySelectorAll(".mode-opt").forEach((el) => {
+      el.addEventListener("click", () => {
+        mask.querySelectorAll(".mode-opt").forEach((o) => o.classList.remove("selected"));
+        el.classList.add("selected");
+        chosenEdit = el.dataset.mode || "source";
       });
     });
     tryLoadQR();
@@ -116,7 +143,7 @@
     const box = document.getElementById("welcome-dontshow");
     const dontShow = box ? box.checked : true;
     mask.classList.remove("open");
-    const result = { style: chosenStyle, dontShow };
+    const result = { style: chosenStyle, dontShow, edit_mode: chosenEdit };
     if (resolveFn) resolveFn(result);
     resolveFn = null;
   }
@@ -127,14 +154,21 @@
   }
 
   /* 返回 Promise<{style, dontShow}> */
-  function show(defaultStyle) {
-    chosenStyle = defaultStyle || "notion";
-    render();
-    if (chosenStyle === "wolai") {
-      mask.querySelectorAll(".style-opt").forEach((o) =>
-        o.classList.toggle("selected", o.dataset.style === "wolai")
-      );
+  function show(defaults) {
+    if (typeof defaults === "string" || defaults == null) {
+      chosenStyle = defaults || "notion";
+      chosenEdit = "source";
+    } else {
+      chosenStyle = defaults.operation_style || defaults.style || "notion";
+      chosenEdit = defaults.edit_mode || "source";
     }
+    render();
+    mask.querySelectorAll(".style-opt").forEach((o) =>
+      o.classList.toggle("selected", o.dataset.style === chosenStyle)
+    );
+    mask.querySelectorAll(".mode-opt").forEach((o) =>
+      o.classList.toggle("selected", o.dataset.mode === chosenEdit)
+    );
     mask.classList.add("open");
     if (window.App && window.App.registerEscape) window.App.registerEscape(close);
     const start = document.getElementById("welcome-start");

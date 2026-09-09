@@ -26,7 +26,9 @@ from app.core.config import Config  # noqa: E402
 
 
 def make_api() -> Api:
-    return Api(Config())
+    cfg = Config()
+    cfg.set("edit_mode", "source")
+    return Api(cfg)
 
 
 def touch(path: Path, text: str = "x") -> Path:
@@ -821,6 +823,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(DEFAULTS["font_ui"], "")
         self.assertEqual(DEFAULTS["font_mono"], "")
         self.assertEqual(DEFAULTS["sidebar_width"], 256)
+        self.assertEqual(DEFAULTS["edit_mode"], "source")
         self.assertNotIn("focus_mode", DEFAULTS)  # 专注模式已移除
         self.assertNotIn("typewriter_mode", DEFAULTS)  # 打字机模式已移除
         from app.core.config import DEFAULT_AI

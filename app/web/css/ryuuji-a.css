@@ -162,14 +162,16 @@ html[data-theme="dark"] .tb-title .logo {
   flex: 0 0 16px;
 }
 
-#btn-save {
+#btn-save,
+#btn-push-source {
   border-color: color-mix(in srgb, var(--primary), transparent 68%);
   background: var(--primary-bg);
   color: var(--interactive-fg);
 }
 
 #btn-home.active,
-#btn-save:hover {
+#btn-save:hover,
+#btn-push-source:hover {
   border-color: color-mix(in srgb, var(--primary), transparent 48%);
   background: color-mix(in srgb, var(--primary), var(--bg-elevated) 86%);
   color: var(--interactive-fg);
@@ -675,6 +677,7 @@ select:focus {
 }
 
 .feature-card,
+.mode-opt,
 .style-opt,
 .sponsor {
   border: 1px solid var(--edge-soft);
@@ -683,6 +686,8 @@ select:focus {
   box-shadow: none;
 }
 
+.mode-opt:hover,
+.mode-opt.selected,
 .style-opt:hover,
 .style-opt.selected {
   border-color: color-mix(in srgb, var(--primary), transparent 54%);
@@ -1105,6 +1110,17 @@ select:focus {
   background: var(--primary);
   color: var(--active-fg);
   box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
+}
+
+.pal-mode-kbd {
+  border-color: color-mix(in srgb, currentColor, transparent 35%);
+  background: color-mix(in srgb, currentColor, transparent 88%);
+}
+
+.pal-mode.active .pal-mode-kbd {
+  border-color: color-mix(in srgb, var(--active-fg), transparent 55%);
+  background: color-mix(in srgb, var(--active-fg), transparent 84%);
+  color: var(--active-fg);
 }
 
 #pal-answer {

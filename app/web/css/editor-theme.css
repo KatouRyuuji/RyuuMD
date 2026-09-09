@@ -355,10 +355,11 @@
   color: var(--text-muted) !important;
 }
 
-/* 标题里的 # / ## / ### 不显示：左侧只保留 H1–H6 侧标。
-   展开时也不拉到槽里，避免和侧标对换、transition 造成跳动。 */
+/* 标题里的 # / ## / ### 视觉隐藏：左侧只保留 H1–H6 侧标。
+   必须留在盒模型里——display:none 会让空标题的光标掉到标记前，
+   再输入变成「正文# 」，源码掉回段落。展开时也不拉到槽里。 */
 .vditor-ir .vditor-reset > :is(h1, h2, h3, h4, h5, h6) > .vditor-ir__marker--heading {
-  display: none !important;
+  display: inline-block !important;
   width: 0 !important;
   height: 0 !important;
   overflow: hidden !important;
