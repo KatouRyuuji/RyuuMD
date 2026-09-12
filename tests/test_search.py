@@ -146,7 +146,7 @@ class TestWikilink(unittest.TestCase):
         cur = str(self.root / "sub" / "详情.md")
         same = self.api.resolve_wikilink(str(self.root), "首页", cur)
         self.assertTrue(same["ok"] and same["exists"])
-        self.assertEqual(Path(same["path"]).parent, self.root / "sub")
+        self.assertEqual(Path(same["path"]).resolve().parent, (self.root / "sub").resolve())
 
         rel = self.api.resolve_wikilink(str(self.root), "详情", str(self.root / "首页.md"))
         self.assertTrue(rel["exists"])
