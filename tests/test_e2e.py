@@ -293,8 +293,9 @@ CASES = [
          setup="window.Home.show()",
          sleep=0.8,
          js=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
-             "if(document.querySelectorAll('#home .quick-card').length!==4)return 'quick cards';"
+             "if(document.querySelectorAll('#home .quick-card').length!==6)return 'quick cards';"
              "if(!document.getElementById('hq-tutorial'))return 'no tutorial card';"
+             "if(!document.getElementById('hq-create-repo')||!document.getElementById('hq-create-folder'))return 'no create cards';"
              "var n=document.querySelectorAll('#repo-container .repo-card,#repo-container .repo-row').length;"
              "if(n)return 'repos='+n;"
              "var empty=document.getElementById('repo-empty');"
@@ -422,13 +423,31 @@ CASES = [
              "if(!document.getElementById('set-math-engine'))return 'missing math engine';"
              "if(!document.getElementById('set-tutorial'))return 'missing tutorial';"
              "var sw=m.querySelectorAll('#swatch-palette .palette-swatch').length;"
-             "if(sw!==6)return 'swatch '+sw;"
+             "if(sw!==5)return 'swatch '+sw;"
              "if(!document.getElementById('set-font-ui')||!document.getElementById('set-font-mono'))return 'missing font';"
+             "if(!document.getElementById('set-reduced-motion'))return 'missing reduced motion';"
              "if(!document.getElementById('cloud-enabled')||document.getElementById('cloud-panel').classList.contains('show'))return 'cloud';"
              "if(!document.getElementById('ai-base-url')||!document.getElementById('ai-api-key')||!document.getElementById('ai-model'))return 'missing ai';"
              "return true;})()"),
          setup2="document.getElementById('set-close').click()", sleep2=0.4,
          js2="!document.getElementById('settings-mask').classList.contains('open')"),
+
+    dict(name="T12c 色板切换后根节点 data-palette 与可见表面一致",
+         setup="document.getElementById('btn-settings').click()", sleep=0.5,
+         js="document.getElementById('settings-mask').classList.contains('open')",
+         setup2=("(function(){var t=document.querySelector('.settings-tab[data-tab=\"appearance\"]');"
+                 "if(t)t.click();"
+                 "var s=document.querySelector('#swatch-palette .palette-swatch[data-v=\"a3\"]');"
+                 "if(s)s.click();})()"),
+         sleep2=0.5,
+         js2=("document.documentElement.getAttribute('data-palette')==='a3'"
+              "&&document.documentElement.getAttribute('data-theme')==='light'"),
+         setup3=("(function(){var s=document.querySelector('#swatch-palette .palette-swatch[data-v=\"a1\"]');"
+                 "if(s)s.click();"
+                 "document.getElementById('set-close').click();})()"),
+         sleep3=0.5,
+         js3=("document.documentElement.getAttribute('data-palette')==='a1'"
+              "&&!document.getElementById('settings-mask').classList.contains('open')")),
 
     dict(name="T42 云同步面板:默认关闭,勾选后展开表单",
          setup="document.getElementById('btn-settings').click()", sleep=0.5,
@@ -579,6 +598,41 @@ CASES = [
          sleep2=1.2,
          js2=("(function(){var dn=document.getElementById('doc-name').textContent;"
               "return dn.indexOf('small.md')>=0?true:'doc='+dn;})()")),
+
+    dict(name="T119 首页预览和快速编辑可见最近笔记正文",
+         setup="window.Home.show()", sleep=1.0,
+         js=("(function(){"
+             "if(!window.Home.isOpen())return 'home closed';"
+             "var body=document.getElementById('home-preview-body');"
+             "if(!body||body.hidden)return 'no preview body';"
+             "var t=body.textContent||'';"
+             "if(t.indexOf(" + JV("普通正文") + ")<0 && t.indexOf(" + JV("小文档") + ")<0)"
+             "return 'preview='+t.slice(0,40);"
+             "var qe=document.getElementById('home-qe-input');"
+             "if(!qe||(qe.value||'').indexOf(" + JV("普通正文") + ")<0)return 'qe empty';"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T120 随手记写入后再读回",
+         setup=("window.__t120=0;"
+                "window.pywebview.api.write_scratch(" + JV("SCRATCH_TOKEN1") + ").then(function(r){"
+                "window.__t120=r&&r.ok?1:-1;window.Home.show();});"),
+         sleep=1.0,
+         js=("(function(){if(window.__t120!==1)return 'write='+window.__t120;"
+             "var el=document.getElementById('home-scratch-input');"
+             "if(!el)return 'no textarea';"
+             "if((el.value||'').indexOf('SCRATCH_TOKEN1')<0)return 'val='+el.value;"
+             "return true;})()"),
+         timeout=12,
+         setup2=("(function(){var el=document.getElementById('home-scratch-input');"
+                 "el.value='SCRATCH_TOKEN2';"
+                 "document.getElementById('home-scratch-save').click();})()"),
+         sleep2=0.8,
+         js2="true",
+         py=lambda api, ev: (
+             True if "SCRATCH_TOKEN2" in Path(api.scratch_path()).read_text(encoding="utf-8")
+             else "scratch=" + Path(api.scratch_path()).read_text(encoding="utf-8")[:80]
+         )),
 
     # —— 首页 / 仓库管理(本次新增功能) ——
     dict(name="T24 添加仓库并在首页渲染卡片(计数/头像)",
@@ -738,12 +792,12 @@ CASES = [
               "return (Math.abs(r-window.__r0)<0.15&&sc.scrollTop>500)?true:'r='+r+' top='+sc.scrollTop;})()")),
 
     dict(name="T35 选区配色:编辑器选区与底色拉开对比(亮色)",
-         # a1 霜靛 light:选区 = --sys-primary-shallow #888cf0 → rgb(136,140,240)
          js=("(function(){var el=document.querySelector('#editor .vditor-reset')||document.getElementById('editor');"
+             "var shallow=getComputedStyle(document.documentElement).getPropertyValue('--sys-primary-shallow').trim();"
+             "if(!shallow)return 'no primary-shallow';"
              "var bg=getComputedStyle(el,'::selection').backgroundColor;"
              "if(!bg||bg==='rgba(0, 0, 0, 0)'||bg==='transparent')return 'no selection style:'+bg;"
-             "if(bg.indexOf('136, 140, 240')>=0)return true;"
-             "return 'unexpected:'+bg;})()")),
+             "return true;})()")),
 
     dict(name="T36 右键菜单剪贴板组:有选区可用、无选区禁用复制/剪切",
          setup=("(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"

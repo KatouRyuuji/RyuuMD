@@ -6,15 +6,13 @@
   let cfg = null;
   let onApply = null; // (partialConfig) => void
 
-  /* RyuujiDesign v6.1 A 语言色板：每板自带明暗双态（palettes.css），
-     色板选择不再分亮暗两组；色值为各板亮色命名主色（供色块展示）。 */
+  /* 色板：每板自带明暗双态；色值为各板亮色主色（供色块展示）。 */
   const PALETTES = [
-    { id: "a1", name: "A-1 霜纸靛蓝", color: "#4a51e8" },
-    { id: "a2", name: "A-2 和红", color: "#e3253f" },
-    { id: "a3", name: "A-3 藤色", color: "#9550e0" },
-    { id: "a4", name: "A-4 柳染", color: "#85c91e" },
-    { id: "a5", name: "A-5 水浅葱", color: "#17bec8" },
-    { id: "a6", name: "A-6 樱花", color: "#f04572" },
+    { id: "a1", name: "霜靛", color: "#5064d8" },
+    { id: "a3", name: "藤色", color: "#8f5fc5" },
+    { id: "a4", name: "柳染", color: "#578129" },
+    { id: "a5", name: "水浅葱", color: "#12828a" },
+    { id: "a6", name: "樱花", color: "#d63865" },
   ];
   const FONT_UI_PRESETS = [
     { value: "", label: "默认（霞鹜文楷）" },
@@ -183,6 +181,13 @@
                 <input class="field-input" id="set-font-mono-custom" placeholder="本机字体名" spellcheck="false" hidden />
               </div>
             </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">减少动态效果</div>
+                <div class="desc">取消悬停上浮与按下位移，开合可瞬时</div>
+              </div>
+              <button type="button" class="toggle" id="set-reduced-motion" title="减少动态效果"></button>
+            </div>
           </div>
           <div class="settings-pane" data-pane="cloud">
             <div class="setting-row">
@@ -216,7 +221,7 @@
             </div>
           </div>
           <div class="settings-pane" data-pane="ai">
-            <p class="cloud-hint">使用 Anthropic Messages 协议（官方或兼容中转）。笔记摘录与提问会发往你填写的 Base URL；API Key 保存在本机配置且不回显。语义搜索与 <code>ask</code> 提问需按 Enter 才会请求。</p>
+            <p class="cloud-hint">使用 Anthropic Messages 协议（官方或兼容中转）。笔记摘录与提问会发往你填写的 Base URL；API Key 保存在本机配置且不回显。语义搜索与 <code>ask</code> 提问需按 Enter 才会请求。提问时可调用本应用内的 MCP / AISkill 工具（读笔记、写笔记、搜索、仓库列表、随手记、即时通讯发送）。飞书 / 网易 POPO / 钉钉 / 企业微信 / 微信 / QQ 走同一套 <code>im_send</code> / <code>im_receive</code>，无需另开程序。</p>
             <div class="field-grid ai-fields">
               <label for="ai-base-url">Base URL</label>
               <input class="field-input" id="ai-base-url" placeholder="https://api.anthropic.com" spellcheck="false" />
@@ -224,6 +229,21 @@
               <input class="field-input" id="ai-api-key" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off" />
               <label for="ai-model">模型</label>
               <input class="field-input" id="ai-model" placeholder="claude-sonnet-4-20250514" spellcheck="false" />
+            </div>
+            <p class="cloud-hint">即时通讯 webhook（可空：空则写入本机发件箱）。命令面板可把当前笔记发到对应通道。</p>
+            <div class="field-grid ai-fields" id="im-webhooks">
+              <label for="im-feishu">飞书</label>
+              <input class="field-input" id="im-feishu" data-im="feishu" placeholder="webhook URL" spellcheck="false" />
+              <label for="im-popo">网易 POPO</label>
+              <input class="field-input" id="im-popo" data-im="popo" placeholder="webhook URL" spellcheck="false" />
+              <label for="im-dingtalk">钉钉</label>
+              <input class="field-input" id="im-dingtalk" data-im="dingtalk" placeholder="webhook URL" spellcheck="false" />
+              <label for="im-wecom">企业微信</label>
+              <input class="field-input" id="im-wecom" data-im="wecom" placeholder="webhook URL" spellcheck="false" />
+              <label for="im-wechat">微信</label>
+              <input class="field-input" id="im-wechat" data-im="wechat" placeholder="webhook URL" spellcheck="false" />
+              <label for="im-qq">QQ</label>
+              <input class="field-input" id="im-qq" data-im="qq" placeholder="webhook URL" spellcheck="false" />
             </div>
           </div>
         </div>
@@ -255,8 +275,10 @@
     });
     bindDefaultApp();
     bindAutoSave();
+    bindReducedMotion();
     bindCloud();
     bindAi();
+    bindIm();
     syncActive();
   }
 
@@ -372,6 +394,22 @@
     });
 
     refreshState();
+  }
+
+  function bindReducedMotion() {
+    const tog = document.getElementById("set-reduced-motion");
+    if (!tog) return;
+    function setOn(on) {
+      tog.classList.toggle("on", on);
+      tog.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    setOn(!!cfg.reduced_motion);
+    tog.addEventListener("click", () => {
+      const next = !tog.classList.contains("on");
+      setOn(next);
+      cfg.reduced_motion = next;
+      if (onApply) onApply({ reduced_motion: next });
+    });
   }
 
   function bindAutoSave() {
@@ -543,6 +581,26 @@
 
     [urlEl, keyEl, modelEl].forEach((el) => {
       el.addEventListener("change", () => persist());
+    });
+  }
+
+  function bindIm() {
+    const im = cfg.im && typeof cfg.im === "object" ? cfg.im : {};
+    const ids = ["feishu", "popo", "dingtalk", "wecom", "wechat", "qq"];
+    ids.forEach((pid) => {
+      const el = document.getElementById("im-" + pid);
+      if (!el) return;
+      const cur = im[pid] && im[pid].webhook ? im[pid].webhook : "";
+      el.value = cur;
+      el.addEventListener("change", () => {
+        const next = Object.assign({}, cfg.im || {});
+        ids.forEach((p) => {
+          const inp = document.getElementById("im-" + p);
+          next[p] = { webhook: inp ? inp.value.trim() : "" };
+        });
+        cfg.im = next;
+        if (onApply) onApply({ im: next });
+      });
     });
   }
 

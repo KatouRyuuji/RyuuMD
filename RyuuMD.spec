@@ -3,6 +3,8 @@
    构建： pyinstaller RyuuMD.spec
 """
 
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
 
 a = Analysis(
@@ -13,7 +15,7 @@ a = Analysis(
         ('app/web', 'app/web'),   # 前端资源（含 vendor/vditor 全量）
         ('assets', 'assets'),     # 应用图标
     ],
-    hiddenimports=['webview.platforms.edgechromium'],
+    hiddenimports=['webview.platforms.edgechromium'] + collect_submodules('app.core'),
     hookspath=[],
     runtime_hooks=[],
     excludes=[],

@@ -220,9 +220,11 @@ class TestSaveImageAndDaily(unittest.TestCase):
         self.assertIn("&lt;脚本&gt;", doc)
         self.assertIn("<p>正文</p>", doc)
         self.assertTrue(doc.startswith("<!DOCTYPE html>"))
-        # 未传 config 时回退 a1 亮色（v6.1 霜靛），避免老调用方丢默认配色
-        self.assertIn("#4a51e8", doc)
-        self.assertIn("#29313d", doc)
+        from app.core.palette_css import load_export_palettes
+
+        a1 = load_export_palettes()["a1"]["light"]
+        self.assertIn(a1["primary"], doc)
+        self.assertIn(a1["text"], doc)
 
     def test_wrap_html_export_follows_palette_and_font(self):
         doc = wrap_html_export(
@@ -235,12 +237,16 @@ class TestSaveImageAndDaily(unittest.TestCase):
                 "font_mono": "Consolas",
             },
         )
-        # 旧 phycat id abyss 经映射表迁到 a5（水浅葱）暗色
-        self.assertIn("#21827e", doc)
-        self.assertIn("#0f1516", doc)
+        from app.core.palette_css import load_export_palettes
+
+        tables = load_export_palettes()
+        a5 = tables["a5"]["dark"]
+        a1 = tables["a1"]["light"]
+        self.assertIn(a5["primary"], doc)
+        self.assertIn(a5["bg"], doc)
         self.assertIn("KaiTi", doc)
         self.assertIn("Consolas", doc)
-        self.assertNotIn("#4a51e8", doc)
+        self.assertNotIn(a1["primary"], doc)
 
 
 class TestTemplates(unittest.TestCase):

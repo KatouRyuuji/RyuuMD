@@ -10,7 +10,8 @@
   <link rel="stylesheet" href="css/noto-sans-sc.css" />
   <!-- 本仓库令牌原语（空间/字号/字体/动效/z 阶） -->
   <link rel="stylesheet" href="css/sys-tokens.css" />
-  <!-- RyuujiDesign v6.1 体系层：色板 → 明暗主题件 -->
+  <link rel="stylesheet" href="vendor/ryuuji/styles/tokens.css" />
+  <!-- 色板 → 语言皮肤 → 明暗主题件 -->
   <link rel="stylesheet" href="vendor/ryuuji/styles/palettes.css" />
   <link rel="stylesheet" href="vendor/ryuuji/styles/lang/a.css" />
   <link rel="stylesheet" href="vendor/ryuuji/styles/themes/light.css" />
@@ -26,7 +27,7 @@
   <link rel="stylesheet" href="css/ryuuji-a.css" />
   <!-- 动效工具类（hover-lift/press 等，reduced-motion 自带静态化） -->
   <link rel="stylesheet" href="vendor/ryuuji/styles/motion.css" />
-  <link rel="stylesheet" href="vendor/ryuuji/styles/patterns.css" />
+  <!-- patterns.css 首屏后由 app.js 注入，避免挡住首页绘制 -->
 </head>
 <body>
   <a class="skip-link" href="#editor-wrap">跳到编辑区</a>
@@ -99,7 +100,7 @@
             <span id="find-count"></span>
             <button type="button" class="btn" id="find-prev">上一个</button>
             <button type="button" class="btn" id="find-next">下一个</button>
-            <button type="button" class="btn" id="find-toggle-replace" title="替换 (Ctrl+H)">替换</button>
+            <button type="button" class="btn" id="find-toggle-replace" title="替换 (Ctrl+H)" aria-pressed="false">替换</button>
             <button type="button" class="btn" id="find-close">关闭</button>
           </div>
           <div class="find-row" id="replace-row">
@@ -141,7 +142,7 @@
           <button type="button" class="btn" id="ai-knowledge">生成知识谱系</button>
         </div>
         <div class="ai-side-log" id="ai-side-log">
-          <div class="ai-side-empty" id="ai-side-empty">问点什么，或让 AI 概括文档、梳理仓库知识谱系。<br />先在设置 → AI 填好 Base URL / API Key / 模型。</div>
+          <div class="ai-side-empty" id="ai-side-empty">问点什么，或概括文档、梳理知识谱系。<br />先在设置 → AI 填好接口。</div>
         </div>
         <div class="ai-side-ask">
           <input id="ai-ask-input" aria-label="向 AI 提问" placeholder="向 AI 提问…" spellcheck="false" autocomplete="off" />
@@ -156,19 +157,27 @@
             <h1 id="home-greet">你好</h1>
             <p class="home-sub">RyuuMD · 轻量、全本地、极速的 Markdown 笔记</p>
             <div class="home-quick">
-              <button class="quick-card" id="hq-new">
+              <button class="quick-card hover-lift press" id="hq-new">
                 <span class="qc-icon" data-icon="plus"></span>
                 <span>新建文档<span class="qc-desc">开始记录新想法</span></span>
               </button>
-              <button class="quick-card" id="hq-open-file">
+              <button class="quick-card hover-lift press" id="hq-open-file">
                 <span class="qc-icon" data-icon="file"></span>
                 <span>打开文件<span class="qc-desc">浏览单个 Markdown</span></span>
               </button>
-              <button class="quick-card" id="hq-add-repo">
+              <button class="quick-card hover-lift press" id="hq-add-repo">
                 <span class="qc-icon" data-icon="folder"></span>
-                <span>添加仓库<span class="qc-desc">把目录作为笔记仓库</span></span>
+                <span>添加仓库<span class="qc-desc">把已有目录登记为仓库</span></span>
               </button>
-              <button class="quick-card" id="hq-tutorial">
+              <button class="quick-card hover-lift press" id="hq-create-repo">
+                <span class="qc-icon" data-icon="folder"></span>
+                <span>新建仓库<span class="qc-desc">创建目录并登记</span></span>
+              </button>
+              <button class="quick-card hover-lift press" id="hq-create-folder">
+                <span class="qc-icon" data-icon="folder"></span>
+                <span>新建文件夹<span class="qc-desc">在指定位置创建目录</span></span>
+              </button>
+              <button class="quick-card hover-lift press" id="hq-tutorial">
                 <span class="qc-icon" data-icon="books"></span>
                 <span>学习仓库<span class="qc-desc">交互式教程，边玩边学</span></span>
               </button>
@@ -199,6 +208,39 @@
             </div>
             <div id="home-recent" class="home-recent"></div>
             <div class="home-empty" id="home-recent-empty" style="display:none">最近打开的文件和文件夹会显示在这里</div>
+          </section>
+
+          <section class="home-section" id="home-glance-sec">
+            <div class="home-sec-head">
+              <h2><span data-icon="fileText"></span>预览和速览</h2>
+              <div class="home-sec-spacer"></div>
+              <button class="btn btn--text" id="home-preview-open">打开这篇</button>
+            </div>
+            <div id="home-preview" class="home-preview">
+              <div class="home-empty" id="home-preview-empty">打开过的笔记会出现在这里</div>
+              <article id="home-preview-card" hidden>
+                <h3 id="home-preview-title"></h3>
+                <pre id="home-preview-body"></pre>
+              </article>
+            </div>
+          </section>
+
+          <section class="home-section" id="home-qe-sec">
+            <div class="home-sec-head">
+              <h2><span data-icon="edit"></span>快速编辑</h2>
+              <div class="home-sec-spacer"></div>
+              <button class="btn btn--primary press" id="home-qe-save">保存</button>
+            </div>
+            <textarea id="home-qe-input" class="home-pad" aria-label="快速编辑最近一篇笔记" spellcheck="false" placeholder="最近一篇笔记的正文会出现在这里，改完点保存。"></textarea>
+          </section>
+
+          <section class="home-section" id="home-scratch-sec">
+            <div class="home-sec-head">
+              <h2><span data-icon="clipboard"></span>随手记</h2>
+              <div class="home-sec-spacer"></div>
+              <button class="btn btn--primary press" id="home-scratch-save">保存</button>
+            </div>
+            <textarea id="home-scratch-input" class="home-pad" aria-label="随手记" spellcheck="false" placeholder="写一点马上要记下的内容，保存在本机随手记文件里。"></textarea>
           </section>
         </div>
       </div>

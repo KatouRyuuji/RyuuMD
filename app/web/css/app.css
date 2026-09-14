@@ -157,13 +157,18 @@ body:not(.is-workdir) #btn-merge-source {
 .ai-side-x:hover { color: var(--primary); background: var(--primary-bg); }
 .ai-side-x svg { width: 14px; height: 14px; }
 .ai-side-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 6px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
-.ai-side-actions .btn { font-size: 12px; padding: 5px 10px; }
+.ai-side-actions .btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 12px;
+  padding: 5px 10px;
+}
 .ai-side-actions .btn:disabled { opacity: 0.55; cursor: default; }
 .ai-know-icon svg { width: 12px; height: 12px; vertical-align: -2px; margin-right: 4px; }
 .ai-side-log {
@@ -175,8 +180,12 @@ body:not(.is-workdir) #btn-merge-source {
   flex-direction: column;
   gap: 10px;
 }
+.ai-side-log:has(> .ai-side-empty:only-child) {
+  justify-content: center;
+}
 .ai-side-empty {
-  margin: auto;
+  margin: 0;
+  padding: 12px 8px;
   text-align: center;
   font-size: 12.5px;
   line-height: 1.8;
@@ -334,6 +343,10 @@ body:not(.is-workdir) #btn-merge-source {
   line-height: 1;
   white-space: nowrap;
 }
+@media (max-width: 1180px) {
+  .icon-btn .ib-label { display: none; }
+  .icon-btn { padding: 0 8px; }
+}
 
 /* —— 主体：侧栏 + 编辑器（#home 覆盖层锚定于此，勿漏 position） —— */
 #body {
@@ -351,7 +364,7 @@ body:not(.is-workdir) #btn-merge-source {
   border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
-  transition: width 0.18s ease, margin-left 0.18s ease;
+  transition: width var(--sys-dur-2) var(--sys-ease-smooth), margin-left var(--sys-dur-2) var(--sys-ease-smooth);
   overflow: hidden;
 }
 #sidebar.collapsed {
@@ -570,13 +583,22 @@ body:not(.is-workdir) #btn-merge-source {
   align-items: center;
   gap: 12px;
 }
+#statusbar .sb-left {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+#statusbar .sb-right {
+  flex-shrink: 0;
+}
 .sb-item {
-  max-width: 46vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 #sb-path {
+  min-width: 0;
+  flex: 1;
   cursor: pointer;
 }
 #sb-path:hover { color: var(--primary); }
@@ -699,7 +721,7 @@ body:not(.is-workdir) #btn-merge-source {
   max-width: 92vw;
   max-height: 88vh;
   overflow: auto;
-  animation: pop 0.18s ease;
+  animation: pop var(--sys-dur-2) var(--sys-ease-smooth);
 }
 @keyframes pop {
   from { transform: scale(0.96) translateY(8px); opacity: 0; }
@@ -785,6 +807,10 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   overflow: auto;
   flex: 1;
   min-height: 0;
+  padding-bottom: 28px;
+}
+.setting-row:last-child {
+  border-bottom: none;
 }
 .settings-tabs {
   display: flex;
@@ -831,7 +857,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text), transparent 82%);
   transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
-.palette-swatch:hover { transform: scale(1.08); }
+.palette-swatch:hover { transform: translateY(-1px); }
 .palette-swatch.selected {
   border-color: var(--text);
   box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--primary);
@@ -1022,7 +1048,22 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 /* ============================================================
    欢迎窗口（布局参考 WeekRepo：字标 / 问候 / 功能卡 / 提示条 / 赞助卡）
    ============================================================ */
-.modal.welcome { width: 840px; }
+.modal.welcome {
+  width: min(840px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: min(88vh, calc(100vh - 32px));
+}
+.modal.welcome .modal-head,
+.modal.welcome .modal-foot {
+  flex-shrink: 0;
+}
+.modal.welcome .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
 
 /* 头部右侧 WELCOME 字标 */
 .welcome-word {
@@ -1052,6 +1093,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+  min-height: 72px;
   padding: 10px 12px;
   border-radius: var(--radius);
   background: var(--primary-bg-soft);
@@ -1075,7 +1117,8 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   margin: 0;
   font-size: 11.5px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
 
 /* 灯泡提示条 */
@@ -1121,7 +1164,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   border-radius: var(--radius);
   padding: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color var(--sys-dur-2) var(--sys-ease-smooth), background var(--sys-dur-2) var(--sys-ease-smooth);
   background: var(--bg);
 }
 .style-opt:hover { border-color: var(--primary-shallow); }
@@ -1160,7 +1203,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   border-radius: var(--radius);
   padding: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color var(--sys-dur-2) var(--sys-ease-smooth), background var(--sys-dur-2) var(--sys-ease-smooth);
   background: var(--bg);
 }
 .mode-opt:hover { border-color: var(--primary-shallow); }
@@ -1337,7 +1380,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   box-shadow: var(--shadow);
   padding: 6px;
   display: none;
-  animation: pop 0.12s ease;
+  animation: pop var(--sys-dur-2) var(--sys-ease-smooth);
 }
 #tree-menu.open { display: block; }
 .ctx-item {

@@ -812,9 +812,9 @@ class TestConfig(unittest.TestCase):
             json.dumps({"theme": "dark", "palette_dark": "vampire"}),
             encoding="utf-8",
         )
-        self.assertEqual(Config().get("palette"), "a2")
+        self.assertEqual(Config().get("palette"), "a6")
         path.write_text(json.dumps({"palette": "cherry"}), encoding="utf-8")
-        self.assertEqual(Config().get("palette"), "a2")
+        self.assertEqual(Config().get("palette"), "a6")
         Config().update({"palette": "a1", "theme": "light"})
 
     def test_palette_and_font_defaults(self):
@@ -857,15 +857,20 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(data2["sidebar_width"], 320)
 
     def test_export_palette_follows_palette_and_theme(self):
-        # 导出配色跟随新色板：a2 暗色命中 a2 dark 组；旧 phycat id 映射迁移；缺省回退 a1
         from app.core.api import wrap_html_export
+        from app.core.palette_css import load_export_palettes
+
+        tables = load_export_palettes()
+        a6_dark = tables["a6"]["dark"]
+        a6_light = tables["a6"]["light"]
+        a1_light = tables["a1"]["light"]
         h = wrap_html_export("t", "<p>x</p>", {"palette": "a2", "theme": "dark"})
-        self.assertIn("#e42435", h)  # a2 dark --sys-primary
-        self.assertIn("#151114", h)  # a2 dark --sys-bg
+        self.assertIn(a6_dark["primary"], h)
+        self.assertIn(a6_dark["bg"], h)
         h = wrap_html_export("t", "<p>x</p>", {"palette_light": "sakura", "theme": "light"})
-        self.assertIn("#e7134b", h)  # sakura → a6 light --sys-primary
+        self.assertIn(a6_light["primary"], h)
         h = wrap_html_export("t", "<p>x</p>", None)
-        self.assertIn("#4a51e8", h)  # 默认 a1 light
+        self.assertIn(a1_light["primary"], h)
 
     def test_webview_gui_windows_is_edgechromium(self):
         from main import webview_gui
@@ -1005,7 +1010,77 @@ class TestJsApiSurface(unittest.TestCase):
         walk(api)
         self.assertIn("search_notes", names)
         self.assertFalse(any(n.startswith("config.") or n.startswith("projects.") for n in names))
-        self.assertLess(len(names), 100)
+        self.assertLess(len(names), 120)
+
+
+class TestWorkbenchApi(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-wb-")
+        self.root = Path(self.dir.name)
+        self.api = make_api()
+
+    def tearDown(self) -> None:
+        self.dir.cleanup()
+
+    def test_create_project_makes_dir_and_lists(self):
+        parent = self.root / "parents"
+        parent.mkdir()
+        res = self.api.create_project(str(parent), "新仓库")
+        self.assertTrue(res.get("ok"), res)
+        dest = parent / "新仓库"
+        self.assertTrue(dest.is_dir())
+        listed = self.api.list_projects()
+        self.assertTrue(listed["ok"])
+        paths = [Path(it["path"]).resolve() for it in listed["items"]]
+        self.assertIn(dest.resolve(), paths)
+
+    def test_create_directory_exists(self):
+        parent = self.root / "base"
+        parent.mkdir()
+        res = self.api.create_directory(str(parent), "子文件夹")
+        self.assertTrue(res.get("ok"), res)
+        self.assertTrue((parent / "子文件夹").is_dir())
+
+    def test_scratch_write_read_roundtrip(self):
+        body = "随手记正文 ABC\n第二行"
+        w = self.api.write_scratch(body)
+        self.assertTrue(w.get("ok"), w)
+        r = self.api.read_scratch()
+        self.assertTrue(r.get("ok"), r)
+        self.assertEqual(r.get("content"), body)
+
+    def test_preview_file_does_not_touch_last_file(self):
+        note = touch(self.root / "doc.md", "笔记正文")
+        other = touch(self.root / "other.md", "另一篇")
+        self.api.read_file(str(note))
+        last = self.api.get_config().get("last_file")
+        prev = self.api.preview_file(str(other), 80)
+        self.assertTrue(prev.get("ok"), prev)
+        self.assertIn("另一篇", prev.get("preview") or "")
+        self.assertEqual(self.api.get_config().get("last_file"), last)
+
+    def test_preview_file_bounds_large_doc(self):
+        big = self.root / "huge.md"
+        big.write_text("HEAD_TOKEN\n" + ("x" * 50000), encoding="utf-8")
+        prev = self.api.preview_file(str(big), 200)
+        self.assertTrue(prev.get("ok"), prev)
+        self.assertTrue(prev.get("truncated"))
+        self.assertLessEqual(len(prev.get("preview") or ""), 200)
+        self.assertTrue((prev.get("preview") or "").startswith("HEAD_TOKEN"))
+
+    def test_scratch_does_not_touch_last_file_or_recent(self):
+        note = touch(self.root / "doc.md", "笔记正文")
+        opened = self.api.read_file(str(note))
+        self.assertTrue(opened.get("ok"), opened)
+        last = self.api.get_config().get("last_file")
+        recent_before = [it.get("path") for it in self.api.get_recent().get("items") or []]
+        self.api.write_scratch("随手记不进会话")
+        self.api.read_scratch()
+        self.assertEqual(self.api.get_config().get("last_file"), last)
+        recent_after = [it.get("path") for it in self.api.get_recent().get("items") or []]
+        self.assertEqual(recent_after, recent_before)
+        scratch = self.api.scratch_path()
+        self.assertFalse(any(p == scratch for p in recent_after))
 
 
 if __name__ == "__main__":

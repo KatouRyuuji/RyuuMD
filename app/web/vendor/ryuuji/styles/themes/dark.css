@@ -16,8 +16,8 @@ html[data-theme="dark"] {
 }
 
 /* ---- 焦点环(primary-ink 2px outline,offset 2px;全组件可见) ----
-   v6.1 评审 P1-2: 暗色焦点环比主填充更亮(主流做法: VSCode 钮 #0e639c vs 焦点 #007fd4);
-   primary-ink 为亮粉彩,叠纸底 ≥4.55 已由 gen-palettes resolveInk 机检保证 */
+   暗色焦点环比主填充更亮;primary-ink 为亮粉彩,
+   叠纸底 ≥4.55 由 gen-palettes resolveInk 机检保证 */
 html[data-theme="dark"] :focus-visible {
   outline: 2px solid var(--sys-primary-ink);
   outline-offset: 2px;
@@ -57,7 +57,7 @@ html[data-theme="dark"] ::-webkit-scrollbar-corner {
 }
 
 /* ---- disabled 态 ----
-   pointer-events:none(v4.1 复核): 根除禁用态 hover 皮肤泄漏,同 light 块 */
+   pointer-events:none: 根除禁用态 hover 皮肤泄漏,同 light 块 */
 html[data-theme="dark"] [disabled],
 html[data-theme="dark"] [aria-disabled="true"],
 html[data-theme="dark"] .is-disabled {

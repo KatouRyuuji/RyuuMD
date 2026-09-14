@@ -9,13 +9,14 @@
   z-index: 30;
   display: none;
   overflow-y: auto;
+  contain: layout style;
   background:
     radial-gradient(1200px 500px at 85% -10%, var(--primary-bg) 0%, transparent 60%),
     var(--bg);
 }
 #home.show {
   display: block;
-  animation: home-in 0.22s ease;
+  animation: home-in var(--sys-dur-3) var(--sys-ease-smooth);
 }
 @keyframes home-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -25,23 +26,25 @@
 .home-inner {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 40px 40px 64px;
+  padding: var(--sys-space-6) var(--sys-space-6) var(--sys-space-8);
 }
 
 /* —— Hero：问候 + 快速操作 —— */
 .home-hero {
-  margin-bottom: 30px;
+  margin-bottom: var(--sys-space-5);
 }
 #home-greet {
   margin: 0 0 6px;
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: var(--sys-text-4xl);
+  font-weight: 600;
+  letter-spacing: var(--sys-tracking-display, -0.02em);
+  line-height: var(--sys-leading-display, 1.08);
+  font-family: var(--sys-font-display), var(--sys-font-ui), sans-serif;
 }
 .home-sub {
-  margin: 0 0 22px;
+  margin: 0 0 var(--sys-space-5);
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--sys-text-md);
 }
 .home-quick {
   display: grid;
@@ -53,21 +56,26 @@
   align-items: center;
   gap: 12px;
   padding: 16px 18px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sys-edge-a, var(--border));
   border-radius: var(--radius);
   background: var(--bg-elevated);
   color: var(--text);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--sys-text-md);
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+  transition: transform var(--sys-dur-2) var(--sys-ease-smooth), border-color var(--sys-dur-2) var(--sys-ease-smooth);
   text-align: left;
 }
-.quick-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  border-color: var(--primary-shallow);
+.quick-card:hover,
+.quick-card.is-hover {
+  transform: translateY(-1px);
+  border-color: var(--sys-edge-a-strong, var(--primary-shallow));
+}
+.quick-card:active,
+.quick-card.is-active {
+  transform: translateY(1px);
 }
 .quick-card .qc-icon {
   flex: none;
@@ -98,8 +106,8 @@
 }
 .home-sec-head h2 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--sys-text-xl);
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -111,6 +119,13 @@
   font-weight: 400;
 }
 .home-sec-spacer { flex: 1; }
+#home-clear-recent {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  min-height: 28px;
+  padding: 0 8px;
+}
 
 /* 视图切换（卡片/列表） */
 .view-toggle {
@@ -131,13 +146,13 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--sys-dur-1) var(--sys-ease-smooth), color var(--sys-dur-1) var(--sys-ease-smooth);
 }
 .view-toggle button svg { width: 15px; height: 15px; }
 .view-toggle button:hover { color: var(--text); }
 .view-toggle button.active {
   background: var(--primary);
-  color: #fff;
+  color: var(--sys-on-primary, #fff);
 }
 
 /* —— 仓库卡片视图 —— */
@@ -152,16 +167,16 @@
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sys-edge-a, var(--border));
   border-radius: var(--radius);
   background: var(--bg-elevated);
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+  transition: transform var(--sys-dur-2) var(--sys-ease-smooth), border-color var(--sys-dur-2) var(--sys-ease-smooth);
 }
 .repo-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  border-color: var(--primary-shallow);
+  transform: translateY(-1px);
+  border-color: var(--sys-edge-a-strong, var(--primary-shallow));
 }
 .repo-card.missing { opacity: 0.55; }
 .repo-card-top {
@@ -176,9 +191,9 @@
   place-items: center;
   border-radius: var(--radius-sm);
   background: hsl(var(--repo-hue, 205) 62% 52%);
-  color: #fff;
+  color: var(--sys-on-primary, #fff);
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 600;
   user-select: none;
 }
 :root[data-theme="dark"] .repo-avatar {
@@ -186,7 +201,7 @@
 }
 .repo-name {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -217,7 +232,7 @@
 }
 .repo-meta .dot { color: var(--text-muted); }
 .repo-missing-tag {
-  color: #e67e22;
+  color: var(--sys-warning, var(--warning));
   font-size: 12px;
 }
 
@@ -229,12 +244,11 @@
   display: flex;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.14s ease;
-  background: var(--glass-bg);
-  border: 1px solid var(--border);
+  transition: opacity var(--sys-dur-2) var(--sys-ease-smooth);
+  background: var(--bg-elevated);
+  border: 1px solid var(--sys-edge-a, var(--border));
   border-radius: var(--radius-sm);
   padding: 2px;
-  backdrop-filter: blur(4px);
 }
 .repo-card:hover .repo-actions,
 .repo-row:hover .repo-actions { opacity: 1; }
@@ -253,7 +267,7 @@
   background: var(--hover-bg);
   color: var(--primary);
 }
-.repo-actions button.danger:hover { color: #e74c3c; }
+.repo-actions button.danger:hover { color: var(--sys-danger, var(--danger)); }
 .repo-actions button svg { width: 14px; height: 14px; }
 .repo-actions button.pinned { color: var(--primary); }
 
@@ -269,11 +283,10 @@
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   cursor: pointer;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  transition: border-color var(--sys-dur-2) var(--sys-ease-smooth);
 }
 .repo-row:hover {
-  border-color: var(--primary-shallow);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--sys-edge-a-strong, var(--primary-shallow));
 }
 .repo-row.missing { opacity: 0.55; }
 .repo-row .repo-avatar {
@@ -291,7 +304,6 @@
   flex: none;
   border: none;
   background: transparent;
-  backdrop-filter: none;
   padding: 0;
 }
 
@@ -306,6 +318,63 @@
   line-height: 2;
 }
 .home-empty .btn { margin-top: 8px; }
+
+.home-preview {
+  min-height: 80px;
+}
+#home-preview-card {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+}
+#home-preview-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+#home-preview-body {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--sys-font-reading), var(--sys-font-ui), sans-serif;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.home-pad {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-control, var(--bg-elevated));
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.home-pad:focus {
+  border-color: var(--primary);
+  background: var(--sys-surface-ctl-hover, var(--hover-bg));
+  box-shadow: 0 0 0 4px var(--focus-soft);
+  outline: none;
+}
+html[data-reduced-motion] .quick-card:hover,
+html[data-reduced-motion] .quick-card:active,
+html[data-reduced-motion] .repo-card:hover,
+html[data-reduced-motion] .recent-file-card:hover {
+  transform: none;
+}
+html[data-reduced-motion] #home.show {
+  animation: none;
+}
 
 /* —— 最近打开 —— */
 .home-recent {
@@ -394,12 +463,12 @@
   border-radius: var(--radius);
   cursor: pointer;
   min-width: 0;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+  transition: transform var(--sys-dur-2) var(--sys-ease-smooth), border-color var(--sys-dur-2) var(--sys-ease-smooth);
 }
 .recent-file-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  border-color: var(--primary-shallow);
+  transform: translateY(-1px);
+  border-color: var(--sys-edge-a-strong, var(--primary-shallow));
 }
 .recent-file-card.missing { opacity: 0.45; }
 .recent-file-card .rf-icon {
@@ -444,6 +513,13 @@
   outline: none;
 }
 .mini-modal .mm-input:focus { border-color: var(--primary); }
+.mm-path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.mm-path-row .mm-input { flex: 1; min-width: 0; }
+.mm-path-row .btn { flex: none; white-space: nowrap; }
 
 /* 工具栏首页按钮激活态 */
 #btn-home.active {

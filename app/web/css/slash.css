@@ -14,7 +14,7 @@
   box-shadow: var(--shadow);
   padding: 6px;
   display: none;
-  animation: pop 0.12s ease;
+  animation: pop var(--sys-dur-2) var(--sys-ease-smooth);
 }
 #slash-menu.open { display: block; }
 
@@ -37,7 +37,8 @@
   user-select: none;
 }
 .slash-item.active {
-  background: var(--primary-bg);
+  background: var(--primary);
+  color: var(--sys-on-primary, #fff);
 }
 .slash-item .si-icon {
   width: 34px;
@@ -51,9 +52,9 @@
   color: var(--primary);
 }
 .slash-item.active .si-icon {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
+  background: var(--sys-on-primary, #fff);
+  color: var(--primary);
+  border-color: var(--sys-on-primary, #fff);
 }
 .slash-item .si-icon svg { width: 17px; height: 17px; }
 .slash-item .si-body { flex: 1; min-width: 0; }
@@ -62,12 +63,18 @@
   font-weight: 600;
   color: var(--text);
 }
+.slash-item.active .si-title {
+  color: var(--sys-on-primary, #fff);
+}
 .slash-item .si-desc {
   font-size: 11px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.slash-item.active .si-desc {
+  color: color-mix(in srgb, var(--sys-on-primary, #fff) 72%, transparent);
 }
 .slash-item .si-keys {
   font-family: var(--font-mono);

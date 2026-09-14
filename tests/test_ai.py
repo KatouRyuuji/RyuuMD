@@ -22,6 +22,8 @@ os.environ["APPDATA"] = _TMP_APPDATA.name
 from app.core.api import Api  # noqa: E402
 from app.core.anthropic import (  # noqa: E402
     ANTHROPIC_VERSION,
+    build_messages_body,
+    extract_tool_use,
     messages_url,
     parse_ask_prefix,
 )
@@ -89,6 +91,39 @@ def assistant_payload(text: str) -> dict[str, Any]:
         "model": "claude-test",
         "stop_reason": "end_turn",
     }
+
+
+def tool_use_payload(name: str, inp: dict[str, Any], text: str = "") -> dict[str, Any]:
+    return {
+        "id": "msg_tool",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": text},
+            {"type": "tool_use", "id": "toolu_1", "name": name, "input": inp},
+        ],
+        "model": "claude-test",
+        "stop_reason": "tool_use",
+    }
+
+
+class TestMessagesTools(unittest.TestCase):
+    def test_build_body_includes_tools(self):
+        from app.core.adv import to_anthropic_tools
+
+        tools = to_anthropic_tools()
+        body = build_messages_body("m", "hello", tools=tools)
+        self.assertEqual(body["model"], "m")
+        names = [t["name"] for t in body["tools"]]
+        self.assertIn("echo", names)
+        self.assertIn("read_file", names)
+
+    def test_extract_tool_use(self):
+        payload = tool_use_payload("echo", {"text": "x"})
+        use = extract_tool_use(payload)
+        self.assertEqual(use["name"], "echo")
+        self.assertEqual(use["input"]["text"], "x")
+        self.assertIsNone(extract_tool_use(assistant_payload("plain")))
 
 
 class TestAskPrefix(unittest.TestCase):
@@ -189,6 +224,7 @@ class TestAnthropicHttp(unittest.TestCase):
             body = json.loads(rec["body"])
             self.assertEqual(body["model"], "claude-http-model")
             self.assertIn("HelloBody", rec["body"])
+            self.assertNotIn("tools", body)
         finally:
             stop_mock(server)
 
@@ -455,6 +491,29 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             self.assertTrue(res["ok"], res)
             self.assertEqual(res["answer"], "MOCK_ANSWER")
             self.assertIn("什么是共识", server.requests[0]["body"])  # type: ignore[attr-defined]
+            body = json.loads(server.requests[0]["body"])  # type: ignore[attr-defined]
+            names = [t.get("name") for t in (body.get("tools") or [])]
+            self.assertIn("echo", names)
+            self.assertIn("read_file", names)
+        finally:
+            stop_mock(server)
+
+    def test_ask_ai_dispatches_tool_use_from_messages(self):
+        server, _t = start_mock(tool_use_payload("echo", {"text": "NET_TOOL_PONG"}))
+        try:
+            self._point_at(server)
+            res = self.api.ask_ai(str(self.root), "调用 echo")
+            self.assertTrue(res.get("ok"), res)
+            self.assertEqual(res.get("tool"), "echo")
+            self.assertEqual((res.get("tool_result") or {}).get("text"), "NET_TOOL_PONG")
+            rec = server.requests[0]  # type: ignore[attr-defined]
+            body = json.loads(rec["body"])
+            self.assertTrue(rec["url"].endswith("/v1/messages"))
+            names = [t.get("name") for t in (body.get("tools") or [])]
+            self.assertIn("echo", names)
+            self.assertIn("write_scratch", names)
+            schema = next(t["input_schema"] for t in body["tools"] if t["name"] == "echo")
+            self.assertEqual(schema["properties"]["text"]["type"], "string")
         finally:
             stop_mock(server)
 

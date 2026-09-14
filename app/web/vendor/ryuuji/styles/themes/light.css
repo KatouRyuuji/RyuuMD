@@ -55,7 +55,7 @@ html[data-theme="light"] ::-webkit-scrollbar-corner {
 }
 
 /* ---- disabled 态(统一降不透明度 + 禁止交互指针) ----
-   pointer-events:none(v4.1 复核): 根除禁用态 hover 皮肤泄漏(语言层 hover
+   pointer-events:none: 根除禁用态 hover 皮肤泄漏(语言层 hover
    规则特异性高于结构层冻结);aria-disabled 全库零使用,无焦点可达性损失 */
 html[data-theme="light"] [disabled],
 html[data-theme="light"] [aria-disabled="true"],

@@ -1,5 +1,5 @@
 /* =============================================================================
-   motion.css — Ryuuji UI v2 动效库(需求矩阵 §2.5 / §6.9,设计方案-v2 §4)
+   motion.css — 动效库(§2.5 / §6.9,DESIGN-v4 §D2)
    -----------------------------------------------------------------------------
    职责: 全部可复用动效类与 @keyframes;组件自身的状态过渡内嵌于 components.css,
         本文件提供"编排级"动效(入场/滚显/循环反馈)与共享关键帧。
@@ -14,9 +14,10 @@
 /* -----------------------------------------------------------------------------
    文件私域时基(DESIGN-v3 §2.4: 全文件禁字面 ms/s)
    --sys-dur-* 五档约束交互过渡/入场时长;stagger 交错间隔与无限循环周期
-   属编排节奏,不属五档语义,集中定义于此统一收编,禁散落字面量。
+   属编排节奏,不属五档语义,集中定义于此统一管理,禁散落字面量。
    ----------------------------------------------------------------------------- */
 :root {
+  --ryu-studio-enter: 600ms;
   --ryu-stagger: 70ms;        /* reveal 阶梯交错间隔基准 */
   --ryu-cycle-spin: 0.9s;     /* spinner 平滑旋转周期(A 外半环) */
   --ryu-cycle-spin-steps: 1s; /* 步进旋转周期(B 整体 90° 卡位) */
@@ -25,6 +26,29 @@
   --ryu-cycle-float: 3.6s;    /* 空态呼吸浮动周期(低频) */
   --ryu-cycle-blink: 1.05s;   /* caret 步进闪标周期 */
   --ryu-settle-scale: 0.985;  /* settle 入场起始缩放(scale 无单位,可字面) */
+}
+
+/* 状态变更保持空间连续；A 柔和落位，B 短距停靠。 */
+@keyframes ryu-dialog-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ryu-toast-enter {
+  from { opacity:0; transform:translate(-50%,10px); }
+  to { opacity:1; transform:translate(-50%,0); }
+}
+@keyframes ryu-studio-enter {
+  from { opacity: .6; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.studio-enter { animation: ryu-studio-enter var(--ryu-studio-enter) var(--sys-ease-smooth) both; }
+html[data-lang="b"] .studio-enter { animation-duration: var(--sys-dur-3); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--sys-dur-3); animation-timing-function: var(--sys-ease-smooth); }
+html[data-reduced-motion] *, html[data-reduced-motion] *::before, html[data-reduced-motion] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+html[data-reduced-motion] :is(.btn,.f-btn,.icon-btn,.f-icon-btn,.card--interactive,.tile,.hover-lift,.press):is(:hover,:active,.is-hover,.is-active) { transform:none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .studio-enter, .studio-dialog[open], .studio-toast:not(:empty) { animation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
 
 /* =============================================================================
@@ -118,7 +142,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* B 加载(v5.3): 双三角沿对角线分开→复合,steps(2) 跳档持留呈机械卡位感;
+/* B 加载: 双三角沿对角线分开→复合,steps(2) 跳档持留呈机械卡位感;
    配合容器 ryu-spin steps(4) 慢速转位,表达"加载中 + 科技感" */
 @keyframes ryu-tri-split-a {
   0%, 100% { transform: translate(0, 0); }
@@ -205,7 +229,7 @@
   animation: ryu-pulse-block var(--ryu-cycle-pulse) var(--sys-ease-smooth) infinite;
 }
 
-/* 呼吸脉冲工具(空态插画/装饰件,低频透明度微幅;类名保留,位移循环已按 §1.10 改透明度) */
+/* 呼吸脉冲工具(空态插画/装饰件,低频透明度微幅,§1.10) */
 .float-soft {
   animation: ryu-pulse-soft var(--ryu-cycle-float) ease-in-out infinite;
 }
@@ -233,8 +257,13 @@
   transition: transform var(--sys-dur-2) var(--sys-ease-smooth),
     box-shadow var(--sys-dur-2) var(--sys-ease-smooth);
 }
-.hover-lift:hover {
-  transform: translateY(-2px);
+.hover-lift:hover,
+.hover-lift.is-hover {
+  transform: translateY(-1px);
+}
+html[data-lang="b"] .hover-lift:hover,
+html[data-lang="b"] .hover-lift.is-hover {
+  transform: none;
 }
 
 /* 按压反馈工具(active 下沉 1px)。规则置于 .hover-lift 之后:
@@ -287,6 +316,21 @@
 }
 
 /* =============================================================================
+   5.4 主题扩散(View Transitions): 关掉默认交叉淡入,圆形揭示由 shell.js
+   spreadSelect() 经 WAAPI 注入 ::view-transition-new(root) 的 clip-path;
+   旧快照保持原位被新快照盖过(无动画),mix-blend 防默认 blend 发灰。
+   reduced-motion 由 JS 侧跳过整个转场(瞬时直切),此处无需再列。
+   ============================================================================= */
+html:not([data-studio])::view-transition-old(root),
+html:not([data-studio])::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-studio]::view-transition-old(root) { animation:ryu-theme-out var(--sys-dur-3) var(--sys-ease-smooth) both; }
+html[data-studio]::view-transition-new(root) { animation:ryu-fade-in var(--sys-dur-3) var(--sys-ease-smooth) both; }
+@keyframes ryu-theme-out { to { opacity:0; } }
+
+/* =============================================================================
    6. 动效降级: prefers-reduced-motion
    base.css 已将全部 animation/transition 压至 0.01ms;此处对
    "动画承载可见性/语义"的类显式静态化,保证任何实现路径下内容立即可见。
@@ -300,11 +344,15 @@
   .settle-up,
   .settle-down,
   .scroll-drift,
-  .scroll-drift-mask {
+  .scroll-drift-mask,
+  .l5-largetitle,
+  .l5-mini {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
+  /* l5 大标题折叠静态化: 展开态基准(mini 回隐藏基准) */
+  .l5-mini { opacity: 0 !important; }
   .caret {
     animation: none !important;
     opacity: 1 !important;
@@ -314,5 +362,10 @@
   .pulse-block,
   .float-soft {
     animation: none !important;
+  }
+  html[data-lang] :is(
+    .btn, .f-btn, .icon-btn, .f-icon-btn, .card--interactive, .tile, .hover-lift, .press
+  ):is(:hover, :active, .is-hover, .is-active) {
+    transform: none !important;
   }
 }

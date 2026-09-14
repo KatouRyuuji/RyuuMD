@@ -143,6 +143,7 @@
     syncWorkdirChrome();
 
     decideStartup();
+    scheduleDecorLoad();
   }
 
   // 后端不可用时的最小配置（welcome_shown=true：跳过欢迎窗）
@@ -152,7 +153,7 @@
       font_ui: "", font_mono: "",
       operation_style: "notion", display_mode: "ir",
       welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
-      readable_width: false, sidebar_width: 256,
+      readable_width: false, sidebar_width: 256, reduced_motion: false,
       startup_page: "home", edit_mode: "source",
     };
   }
@@ -287,6 +288,23 @@
     const kick = function () { ensureEditor(); };
     if (window.requestIdleCallback) window.requestIdleCallback(kick, { timeout: 2000 });
     else setTimeout(kick, 200);
+  }
+
+  function scheduleDecorLoad() {
+    if (scheduleDecorLoad._done) return;
+    scheduleDecorLoad._done = true;
+    const inject = function () {
+      if (document.getElementById("ryuu-patterns")) return;
+      const link = document.createElement("link");
+      link.id = "ryuu-patterns";
+      link.rel = "stylesheet";
+      link.href = "vendor/ryuuji/styles/patterns.css";
+      document.head.appendChild(link);
+    };
+    requestAnimationFrame(function () {
+      if (window.requestIdleCallback) window.requestIdleCallback(inject, { timeout: 1800 });
+      else setTimeout(inject, 120);
+    });
   }
 
   function scheduleFontLoad() {
@@ -960,7 +978,7 @@
     const persist = Object.assign({}, partial);
     delete persist.cloud_sync;
     if (a && Object.keys(persist).length) await a.update_config(persist);
-    if ("theme" in partial || "palette" in partial) {
+    if ("theme" in partial || "palette" in partial || "reduced_motion" in partial) {
       applyTheme(state.config.theme);
     }
     if ("font_ui" in partial || "font_mono" in partial) applyFonts();
@@ -1352,11 +1370,9 @@
   // ---------------------------------------------------------------
   // 主题
   // ---------------------------------------------------------------
-  // RyuujiDesign v6.1 A 语言色板（每板自带明暗双态，见 vendor/ryuuji/styles/palettes.css）
-  const PALETTES = ["a1", "a2", "a3", "a4", "a5", "a6"];
-  // 旧 phycat id → 最近似新板（一次性迁移；与 api.py _LEGACY_PALETTE_MAP 保持一致）
+  const PALETTES = ["a1", "a3", "a4", "a5", "a6"];
   const LEGACY_PALETTE_MAP = {
-    cherry: "a2", vampire: "a2", caramel: "a2", sakura: "a6", mauve: "a3",
+    cherry: "a6", vampire: "a6", caramel: "a6", a2: "a6", sakura: "a6", mauve: "a3",
     mint: "a5", abyss: "a5", forest: "a4", radiation: "a4",
     sky: "a1", prussian: "a1",
   };
@@ -1397,11 +1413,21 @@
     else style.removeProperty("--font-mono");
   }
 
+  function applyReducedMotion() {
+    const root = document.documentElement;
+    const sys = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const on = !!(state.config && state.config.reduced_motion) || sys;
+    if (on) root.setAttribute("data-reduced-motion", "");
+    else root.removeAttribute("data-reduced-motion");
+  }
+
   function applyTheme(theme) {
     const mode = theme === "dark" ? "dark" : "light";
     const root = document.documentElement;
+    root.setAttribute("data-lang", "a");
     root.setAttribute("data-theme", mode);
     root.setAttribute("data-palette", currentPalette());
+    applyReducedMotion();
     // 按钮展示「点击后切到」的目标态：亮色下显示 月亮+深色，暗色下显示 太阳+亮色
     const themeIcon = document.querySelector("#btn-theme .ib-icon");
     if (themeIcon) themeIcon.innerHTML = window.ICONS[mode === "dark" ? "sun" : "moon"];
@@ -1658,6 +1684,12 @@
       { id: "capture", title: "快速收集", keys: "", group: "文件", run: captureQuick },
       { id: "quick-open", title: "快速打开笔记", keys: "Ctrl+P", group: "导航", run: () => window.Palette.openFiles() },
       { id: "search", title: "在仓库中搜索", keys: "Ctrl+Shift+F", group: "导航", run: () => window.Palette.openSearch() },
+      { id: "im-feishu", title: "发送当前笔记到飞书", keys: "", group: "即时通讯", run: () => sendCurrentToIm("feishu") },
+      { id: "im-popo", title: "发送当前笔记到网易 POPO", keys: "", group: "即时通讯", run: () => sendCurrentToIm("popo") },
+      { id: "im-dingtalk", title: "发送当前笔记到钉钉", keys: "", group: "即时通讯", run: () => sendCurrentToIm("dingtalk") },
+      { id: "im-wecom", title: "发送当前笔记到企业微信", keys: "", group: "即时通讯", run: () => sendCurrentToIm("wecom") },
+      { id: "im-wechat", title: "发送当前笔记到微信", keys: "", group: "即时通讯", run: () => sendCurrentToIm("wechat") },
+      { id: "im-qq", title: "发送当前笔记到 QQ", keys: "", group: "即时通讯", run: () => sendCurrentToIm("qq") },
       { id: "summarize-doc", title: "概括当前文档", keys: "", group: "AI", run: () => runAiAction(window.AiPanel.summarizeDoc) },
       { id: "summarize-vault", title: "概括当前仓库", keys: "", group: "AI", run: () => runAiAction(window.AiPanel.summarizeVault) },
       { id: "knowledge-tree", title: "生成 / 刷新知识谱系", keys: "", group: "AI", run: () => runAiAction(() => window.AiPanel.knowledge()) },
@@ -1689,6 +1721,27 @@
       { id: "time", title: "插入当前时间", keys: "", group: "插入", run: () => window.Editor.insertValue(todayStamp(true)) },
       { id: "tpl-folder", title: "打开模板文件夹", keys: "", group: "模板", run: openTemplatesDir },
     ].concat(templateCommands());
+  }
+
+  async function sendCurrentToIm(provider) {
+    const a = apiOrToast();
+    if (!a || !a.im_send) return;
+    let md = "";
+    if (window.Editor && window.Editor.isReady && window.Editor.isReady() && window.Editor.getValue) {
+      md = window.Editor.getValue() || "";
+    }
+    if (!String(md).trim()) {
+      const sc = await a.read_scratch();
+      md = (sc && sc.content) || "";
+    }
+    if (!String(md).trim()) {
+      toast("没有可发送的正文，请先打开笔记或写随手记");
+      return;
+    }
+    const name = (state.currentPath || "").split(/[/\\]/).pop() || "RyuuMD";
+    const res = await a.im_send(provider, md, name);
+    if (res && res.ok) toast(res.via === "outbox" ? "已写入本机发件箱，可稍后配置 webhook" : "已发送");
+    else toast((res && res.error) || "发送失败", { type: "error" });
   }
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }

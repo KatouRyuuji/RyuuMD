@@ -5,7 +5,7 @@
 - 拖入 md 文件或文件夹即可打开
 - 以仓库形式管理笔记目录，首页快速切换，支持多窗口
 - 单实例：双击 md 文件复用已运行实例，在新窗口中秒开
-- RyuujiDesign A 语言六板配色（霜纸靛蓝 / 和红 / 藤色 / 柳染 / 水浅葱 / 樱花，各带明暗），可换正文/等宽字体
+- 五套色板（霜靛 / 藤色 / 柳染 / 水浅葱 / 樱花，各带明暗），可换正文/等宽字体
 """
 
 from __future__ import annotations
@@ -14,9 +14,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-
-import webview
-from webview.dom import DOMEventHandler
+from typing import Any
 
 from app.core.api import MD_EXTS, Api
 from app.core.config import APP_NAME, Config
@@ -41,6 +39,8 @@ def webview_gui() -> str | None:
 
 def start_webview(*args, **kwargs):
     """webview.start 的平台包装：补 GUI 后端，其余参数原样透传。"""
+    import webview
+
     gui = webview_gui()
     if gui is not None:
         kwargs.setdefault("gui", gui)
@@ -77,7 +77,9 @@ class WindowManager:
         # pywebview 的 create_window 非线程安全（windows 列表/事件注册）
         self._create_lock = threading.Lock()
 
-    def create(self, initial_path: str = "") -> "webview.Window":
+    def create(self, initial_path: str = "") -> Any:
+        import webview
+
         with self._create_lock:
             api = Api(self.config, window_manager=self, initial_path=initial_path)
             window = webview.create_window(
@@ -98,6 +100,8 @@ class WindowManager:
     def focus_first(self) -> bool:
         """激活已有窗口（「再次启动程序 = 激活当前窗口」时由转发触发）。"""
         try:
+            import webview
+
             wins = list(webview.windows)
             if not wins:
                 return False
@@ -111,7 +115,7 @@ class WindowManager:
     # ------------------------------------------------------------------
     # 拖放（每个窗口独立注册）
     # ------------------------------------------------------------------
-    def _bind_drop(self, window: "webview.Window") -> None:
+    def _bind_drop(self, window: Any) -> None:
         def _on_drop(event: dict) -> None:
             """拖入文件 / 文件夹（兜底通道）。
 
@@ -151,6 +155,8 @@ class WindowManager:
             「导航到被拖入文件」的行为。
             """
             try:
+                from webview.dom import DOMEventHandler
+
                 window.dom.document.events.drop += DOMEventHandler(
                     _on_drop, prevent_default=True
                 )
@@ -162,7 +168,7 @@ class WindowManager:
     # ------------------------------------------------------------------
     # 窗口尺寸记忆（最后关闭的窗口生效）
     # ------------------------------------------------------------------
-    def _bind_size_memory(self, window: "webview.Window") -> None:
+    def _bind_size_memory(self, window: Any) -> None:
         def _remember() -> None:
             try:
                 w, h = int(window.width), int(window.height)
@@ -175,6 +181,11 @@ class WindowManager:
 
 
 def main() -> None:
+    from app.core.adv import dispatch_argv, is_adv_argv
+
+    if is_adv_argv(sys.argv[1:]):
+        raise SystemExit(dispatch_argv(sys.argv[1:]))
+
     initial = _initial_path_from_argv()
     config = Config()
 

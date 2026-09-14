@@ -1,7 +1,7 @@
 /* =============================================================================
-   patterns.css v3 — 公用纹样库(双语言共用,DESIGN-v3 §1.4/§2.5)
+   patterns.css — 公用纹样库(双语言共用,DESIGN-v3 §1.4/§2.5)
    -----------------------------------------------------------------------------
-   ⚠ 本文件由 tools/gen-patterns.mjs 生成,请勿手改(规则/几何改动走生成器)
+   ⚠ 本文件由 tools/gen-patterns.mjs 生成(规则/几何改动走生成器)
    配套资产: assets/patterns/*.svg(31 枚单枚 tile,供 <img>/内联使用)
    染色机制: mask-image(data-URI 内嵌 SVG 几何,取 alpha)+ background-color
      消费 --sys-pattern-fg 令牌染色,几何与颜色完全解耦。
@@ -15,7 +15,7 @@
      / .deco-divider=⑤端点(components.css) / .page__margin=⑥书口;角章永久禁止。
    用法: <div class="pattern-sig deco-band"></div>
          <div class="card__trim pattern-sig"></div>(.card 首子,每卡 ≤1 条)
-         签名位请用 .pattern-sig(A=青海波 / B=半调网点带 AM),勿再写死 seigaiha。
+         签名位用 .pattern-sig(A=青海波 / B=半调网点带 AM),随语言换几何。
    契约: .ptn 只负责染色盒,不写 mask;.pattern-* / .ptn-* / .pattern-sig 才给几何。
    ========================================================================== */
 @layer patterns {
@@ -38,7 +38,7 @@
   html[data-lang="a"][data-theme="light"][data-pattern-opacity="whisper"] { --sys-pattern-opacity: 0.05; }
   html[data-lang="a"][data-theme="dark"][data-pattern-opacity="whisper"] { --sys-pattern-opacity: 0.045; }
   html[data-lang="b"][data-theme="light"][data-pattern-opacity="whisper"] { --sys-pattern-opacity: 0.06; }
-  html[data-lang="b"][data-theme="dark"][data-pattern-opacity="whisper"] { --sys-pattern-opacity: 0.05; }
+  html[data-lang="b"][data-theme="dark"][data-pattern-opacity="whisper"] { --sys-pattern-opacity: 0.06; }
   html[data-lang="a"][data-theme="light"][data-pattern-opacity="regular"] { --sys-pattern-opacity: 0.075; }
   html[data-lang="a"][data-theme="dark"][data-pattern-opacity="regular"] { --sys-pattern-opacity: 0.06; }
   html[data-lang="b"][data-theme="light"][data-pattern-opacity="regular"] { --sys-pattern-opacity: 0.1; }
@@ -176,38 +176,45 @@
        ⑥ .page__margin B6 书口(宽 --sys-margin-w ≤120px,向版心溶到 0)
        双 mask 渐隐机制: 第一层单色渐隐 × 第二层纹样几何,mask-composite 相交成形。
        渐隐黑以命名色 black 书写(值同 #000;生成物在 color-no-hex 门禁下不留裸 hex)。
-       角章(三角贴角)永久禁止(§1.4): 不再产出定义/几何/教学。
+       角章(三角贴角)永久禁止(§1.4)。
      --------------------------------------------------------------------------- */
   .deco-band {
     display: block;
     inline-size: 100%;
     height: var(--sys-band-h, clamp(13px, 1.5vw, 16px));
-    -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 100%), var(--ptn-mask);
-    mask-image: linear-gradient(to bottom, black 45%, transparent 100%), var(--ptn-mask);
-    -webkit-mask-size: 100% 100%, var(--pattern-tile);
-    mask-size: 100% 100%, var(--pattern-tile);
-    -webkit-mask-repeat: no-repeat, repeat;
-    mask-repeat: no-repeat, repeat;
-    -webkit-mask-position: 0 0, center;
-    mask-position: 0 0, center;
+    /* 腰封: 几何横向平铺并拉满带高,读成一条纹 */
+    -webkit-mask-image: linear-gradient(to bottom, black 75%, transparent 100%), var(--ptn-mask);
+    mask-image: linear-gradient(to bottom, black 75%, transparent 100%), var(--ptn-mask);
+    -webkit-mask-size: 100% 100%, 48px 48px;
+    mask-size: 100% 100%, 48px 48px;
+    -webkit-mask-repeat: no-repeat, repeat-x;
+    mask-repeat: no-repeat, repeat-x;
+    -webkit-mask-position: 0 0, 0 0;
+    mask-position: 0 0, 0 0;
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
   }
   .card__trim {
     display: block;
     inline-size: 100%;
-    height: 10px;
-    /* 前 30% 持色再向下溶到 0(W5: 原 0→8px 即起溶,有效着墨折半,签名槽≈不可见) */
-    -webkit-mask-image: linear-gradient(to bottom, black 30%, transparent 100%), var(--ptn-mask);
-    mask-image: linear-gradient(to bottom, black 30%, transparent 100%), var(--ptn-mask);
-    -webkit-mask-size: 100% 100%, var(--pattern-tile);
-    mask-size: 100% 100%, var(--pattern-tile);
-    -webkit-mask-repeat: no-repeat, repeat;
-    mask-repeat: no-repeat, repeat;
-    -webkit-mask-position: 0 0, center;
-    mask-position: 0 0, center;
+    height: 12px;
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%), var(--ptn-mask);
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%), var(--ptn-mask);
+    -webkit-mask-size: 100% 100%, 36px 36px;
+    mask-size: 100% 100%, 36px 36px;
+    -webkit-mask-repeat: no-repeat, repeat-x;
+    mask-repeat: no-repeat, repeat-x;
+    -webkit-mask-position: 0 0, 0 0;
+    mask-position: 0 0, 0 0;
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
+  }
+  .deco-band,
+  .card__trim,
+  .page-head__ptn {
+    --pattern-opacity: 0.10;
+    background-color: var(--sys-pattern-fg, var(--sys-primary-ink));
+    opacity: var(--pattern-opacity, 0.10);
   }
   .deco-empty {
     position: absolute;
@@ -249,15 +256,14 @@
   html[data-lang="a"][data-theme="dark"] .page__margin { --pattern-opacity: 0.045; }
   html[data-lang="b"][data-theme="light"] .page__margin { --pattern-opacity: 0.06; }
   html[data-lang="b"][data-theme="dark"] .page__margin { --pattern-opacity: 0.05; }
-  /* 触发与挂载一一对应(W5 修复: 原 html[data-band="b6"] 与 shell.js 行为不符——
-     data-band 写在 .band-frame 上,html 从无此属性,书口恒不触发):
+  /* 触发与挂载一一对应(data-band 写在 .band-frame 上,html 无此属性):
      框内节点走带触发,body 直挂节点(band:false 门面/工具页)走真宽屏触发 */
   .band-frame[data-band="b6"] > .page__margin { display: block; }
   @media (min-aspect-ratio: 21/9) {
     body > .page__margin { display: block; }
   }
 
-  /* .ptn 只做染色盒,不写 mask,避免盖掉并列的 .pattern-* */
+  /* .ptn 只做染色盒,mask 几何由并列的 .pattern-* 提供 */
   .ptn {
     background-color: var(--sys-pattern-color, var(--sys-pattern-fg, var(--sys-primary-shallow)));
     opacity: var(--pattern-opacity, var(--ptn-opacity, var(--sys-pattern-opacity, 0.075)));
@@ -283,7 +289,7 @@
 
 /* ---------------------------------------------------------------------------
    语言互斥工具类(故意不分层): 纹样内容按语言门控(另一语言下整节点隐藏)。
-   必须压过未分层的 display 声明(base.css svg{display:block}、页面
+   选择器必须压过未分层的 display 声明(base.css svg{display:block}、页面
    .l2-item{display:flex} 等)——@layer 内规则输给一切未分层样式,
    放层内会对 svg/自带 display 的元素静默失效,故这两条在 @layer 之外。
    --------------------------------------------------------------------------- */

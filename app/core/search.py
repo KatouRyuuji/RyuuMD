@@ -136,13 +136,16 @@ def search_vault(root: str, query: str, max_hits: int = MAX_HITS) -> dict[str, A
         )
         return len(hits) >= max_hits
 
+    pending: list[Path] = []
     for p in iter_md_files(root_p):
         rel = _rel(root_p, p)
         if q_l in p.name.lower() or q_l in rel.lower():
             if add("name", p, 0, rel):
                 return {"ok": True, "hits": hits, "truncated": True}
+        else:
+            pending.append(p)
 
-    for p in iter_md_files(root_p):
+    for p in pending:
         text = _read_head(p)
         for i, line in enumerate(text.splitlines(), 1):
             if q_l in line.lower():

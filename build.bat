@@ -97,8 +97,8 @@ if errorlevel 1 (
 
 REM ---- 2.5 打包前单元测试闸门（单测全绿;E2E 需真实窗口,请手动跑 python run_tests.py） ----
 echo.
-echo [2/5] 运行单元测试（test_api + test_cloud + test_search + test_fonts + test_ai + test_workdir） ...
-python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts tests.test_ai tests.test_workdir -q >NUL 2>&1
+echo [2/5] 运行单元测试（test_api + test_cloud + test_search + test_fonts + test_ai + test_workdir + test_design + test_adv + test_im + test_perf） ...
+python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts tests.test_ai tests.test_workdir tests.test_design tests.test_adv tests.test_im tests.test_perf -q >NUL 2>&1
 if errorlevel 1 (
     echo [错误] 单元测试未通过,已中止打包。请先运行 python run_tests.py 定位修复
     call :maybe_pause

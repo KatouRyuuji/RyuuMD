@@ -17,10 +17,10 @@ from typing import Any
 
 APP_NAME = "RyuuMD"
 
-# RyuujiDesign A 语言色板 id；旧 phycat id 在 Config._load 时映射到此集合
-_VALID_PALETTES = frozenset({"a1", "a2", "a3", "a4", "a5", "a6"})
+# 当前色板 id；旧 id（含已退役的 a2）在 Config._load 时映射到此集合
+_VALID_PALETTES = frozenset({"a1", "a3", "a4", "a5", "a6"})
 _LEGACY_PALETTE_MAP = {
-    "cherry": "a2", "vampire": "a2", "caramel": "a2", "sakura": "a6", "mauve": "a3",
+    "cherry": "a6", "vampire": "a6", "caramel": "a6", "a2": "a6", "sakura": "a6", "mauve": "a3",
     "mint": "a5", "abyss": "a5", "forest": "a4", "radiation": "a4",
     "sky": "a1", "prussian": "a1",
 }
@@ -39,10 +39,11 @@ DEFAULTS: dict[str, Any] = {
     "operation_style": "notion",
     # 主题明暗：light | dark（决定 Vditor setTheme 与基础明暗）
     "theme": "light",
-    # 配色方案：RyuujiDesign v6.1 A 语言色板 a1 霜靛 / a2 和红 / a3 藤色 / a4 柳染 /
-    # a5 水浅葱 / a6 樱花；每板自带明暗双态（palettes.css）。旧 phycat 的
-    # palette_light/palette_dark 键由前端读取时经映射表迁移为本键（api.py/app.js 各一份）
+    # 配色方案：a1 霜靛 / a3 藤色 / a4 柳染 / a5 水浅葱 / a6 樱花；每板自带明暗双态。
+    # 旧 palette_light/palette_dark 与已退役 a2 在读取时映射到本键。
     "palette": "a1",
+    # 减少动态效果：true 时根节点带 data-reduced-motion，悬停位移取消
+    "reduced_motion": False,
     # 界面字体；空字符串 = 跟随主题默认（霞鹜文楷）
     "font_ui": "",
     # 等宽字体；空字符串 = 跟随主题默认（Cascadia Code）
@@ -100,6 +101,15 @@ DEFAULTS: dict[str, Any] = {
     },
     # Anthropic Messages 协议：用户自备兼容端点（官方或本地中转）
     "ai": dict(DEFAULT_AI),
+    # 即时通讯结合：各通道 webhook；空则发送失败，测试可注入传输
+    "im": {
+        "feishu": {"webhook": ""},
+        "popo": {"webhook": ""},
+        "dingtalk": {"webhook": ""},
+        "wecom": {"webhook": ""},
+        "wechat": {"webhook": ""},
+        "qq": {"webhook": ""},
+    },
 }
 
 
@@ -132,7 +142,7 @@ class Config:
         self._load()
 
     def _migrate_palette(self, loaded: dict[str, Any]) -> None:
-        """旧配置只有 palette_light/dark 或 phycat id 时，写入 palette a1–a6。"""
+        """旧配置只有 palette_light/dark 或已退役 id 时，写入当前色板。"""
         pal = self._data.get("palette")
         if "palette" not in loaded:
             theme = self._data.get("theme")

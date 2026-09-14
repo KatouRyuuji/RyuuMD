@@ -39,9 +39,26 @@ a:focus-visible,
   outline-offset: 2px;
 }
 
+html[data-lang="a"] .icon-btn:hover:not(:disabled),
+html[data-lang="a"] .btn:hover:not(:disabled),
+html[data-lang="a"] .icon-btn.is-hover:not(:disabled),
+html[data-lang="a"] .btn.is-hover:not(:disabled) {
+  transform: translateY(-1px);
+}
 button:active:not(:disabled),
-[role="button"]:active:not([aria-disabled="true"]) {
+[role="button"]:active:not([aria-disabled="true"]),
+.icon-btn.is-active:not(:disabled),
+.btn.is-active:not(:disabled) {
   transform: translateY(1px);
+}
+html[data-reduced-motion] .icon-btn:hover,
+html[data-reduced-motion] .btn:hover,
+html[data-reduced-motion] .icon-btn.is-hover,
+html[data-reduced-motion] .btn.is-hover,
+html[data-reduced-motion] button:active,
+html[data-reduced-motion] .icon-btn.is-active,
+html[data-reduced-motion] .btn.is-active {
+  transform: none;
 }
 
 button:disabled,
@@ -380,7 +397,7 @@ button.sb-item:hover,
 }
 
 #sb-path {
-  max-width: min(46vw, 520px);
+  min-width: 0;
 }
 
 .sb-views,
@@ -721,7 +738,7 @@ select:focus {
   grid-template-columns: minmax(220px, 0.8fr) minmax(420px, 1.5fr);
   grid-template-rows: auto auto;
   gap: 6px var(--space-6);
-  align-items: end;
+  align-items: start;
   padding: 0 0 var(--space-6);
   border-bottom: 1px solid var(--edge-soft);
 }
@@ -1276,6 +1293,11 @@ select:focus {
 
 #find-bar .find-row {
   gap: 6px;
+}
+#find-bar.replace-open #find-toggle-replace {
+  border-color: color-mix(in srgb, var(--primary), transparent 54%);
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 #find-count {

@@ -1,8 +1,18 @@
 /* =============================================================================
-   sys-tokens.css — RyuuMD 共享原语（空间/字号/字体/动效/z 阶）
-   本仓库维护。外壳 Noto Sans SC（css/noto-sans-sc.css），等宽 Cascadia Code。
-   颜色由 palettes.css 写入 --sys-*。
+   tokens.css — 设计令牌·共享原语层(语言/主题无关,挂 :root)
+   -----------------------------------------------------------------------------
+   加载顺序: tokens → palettes → lang/{a,b} → themes/{light,dark} → base → (components…)
+   契约: 页面与组件只消费 --sys-* 语义令牌,禁止散落硬编码色值。
+   分工: 本文件只放"四组合下取值不变"的原语(空间/字号/字体/动效/断点/z 阶);
+         颜色见 palettes.css(7 套命名色板);圆角/切角/阴影见 lang/{a,b}.css。
+
+   颜色在 palettes.css;对比度用 node tools/gen-palettes.mjs 当场验。
+   红线: 正文 ≥ 4.5:1,次要文字 ≥ 3:1,on-primary ≥ 4.5:1。
    ========================================================================== */
+
+/* 三套 OFL 子集化 webfont(unicode-range 分片按需加载):
+   Noto Sans SC 400/500/600/700(UI 与正文)、LXGW WenKai 400(A 标题与阅读)、
+   Cascadia Code 300-700(等宽;许可均为 OFL 1.1,见各目录 OFL.txt) */
 
 :root {
   /* ------------------------------------------------------------------
@@ -21,9 +31,9 @@
      尺寸令牌(消灭魔法数字;DESIGN-v3 §2.1)
      控件高三档 / 壳层宽(侧栏·抽屉) / 叠层宽(模态三档·cmdk·notice)
      ------------------------------------------------------------------ */
-  --sys-control-h-sm: 28px;
-  --sys-control-h-md: 36px;
-  --sys-control-h-lg: 44px;
+  --sys-control-h-sm: 32px;
+  --sys-control-h-md: 40px;
+  --sys-control-h-lg: 48px;
   --sys-sidebar-w: 232px;
   --sys-drawer-w: 360px;
   --sys-modal-sm: 320px;
@@ -58,7 +68,7 @@
   --sys-text-5xl: 38px;
 
   /* ------------------------------------------------------------------
-     display 流式字阶(DESIGN-v4 §D1,新增不改旧 9 档)
+     display 流式字阶(DESIGN-v4 §D1,与上方 9 档并列独立)
      门面 hero/章节大编号/页脚大字标专用,随视口流式缩放;
      行高压至 1.08、字距 -0.02em(语言 B 等宽 display 由 lang/b.css 覆盖字距 0)
      ------------------------------------------------------------------ */
@@ -74,19 +84,19 @@
   --sys-leading-normal: 1.6;
   --sys-leading-loose: 1.7;
 
-  /* ------------------------------------------------------------------
-     字体族(RyuuMD：外壳 Noto Sans SC VF，等宽 Cascadia Code；
-     webfont 由 app/web/css/noto-sans-sc.css 与 fonts.css 加载)
-     ------------------------------------------------------------------ */
-  --sys-font-ui: "Noto Sans SC", sans-serif;
+  /* 字体按角色分工：UI 和正文使用 Noto Sans SC；A 展示标题和阅读笔记使用 LXGW WenKai；B 展示标题使用 Noto Sans SC；代码与测量数字使用 Cascadia Code。 */
+  --sys-font-ui: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
   --sys-font-body: var(--sys-font-ui);
   --sys-font-reading: "LXGW WenKai", "LXGW WenKai Screen", "STKaiti", "KaiTi", serif;
-  --sys-font-display: "LXGW WenKai", "LXGW WenKai Screen", "STKaiti", "KaiTi", serif;
+  --sys-font-display: "LXGW WenKai", "LXGW WenKai Screen", "STKaiti", "KaiTi",
+    "Songti SC", serif;
   --sys-font-mono: "Cascadia Code", "Cascadia Mono", "JetBrains Mono",
     "Fira Code", Consolas, "Courier New", monospace;
 
   /* ------------------------------------------------------------------
-     字重阶梯(Noto Sans SC VF 400-700;契约:正文 regular,
+     字重阶梯(Noto Sans SC/Cascadia Code 本地 400/500/600/700;LXGW WenKai
+     仅 400,粗重由浏览器合成;契约:正文 regular,
      强调/表头 semibold,标题 bold,控件标签 medium)
      ------------------------------------------------------------------ */
   --sys-font-weight-regular: 400;
@@ -148,9 +158,11 @@
   /* 色板未就绪时的回退;正式值由 palettes.css 写入 */
   --sys-on-danger: #ffffff;
   --sys-primary-ink: var(--sys-primary-deep);
+  --sys-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--sys-primary) 18%, transparent);
+  --sys-shadow-focus-error: 0 0 0 3px color-mix(in srgb, var(--sys-danger) 18%, transparent);
 
   /* --sys-text-3(三级文字色,由 palettes.css 按板定义): 页面级令牌,
-     系统层无消费者,仅 f1/f4 页面消费;保留不删(DESIGN-v3 §2.1) */
+     系统层无消费者,仅 f1/f4 页面消费(DESIGN-v3 §2.1) */
 }
 
 /* 窄屏(≤640px)腰封降为 12px(DESIGN-v3 §2.1) */

@@ -119,6 +119,7 @@ def build_messages_body(
     user_text: str,
     system: str = "",
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    tools: Optional[list[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     """组装 Anthropic Messages JSON body。"""
     body: dict[str, Any] = {
@@ -129,6 +130,8 @@ def build_messages_body(
     sys_text = (system or "").strip()
     if sys_text:
         body["system"] = sys_text
+    if tools:
+        body["tools"] = list(tools)
     return body
 
 
@@ -151,12 +154,37 @@ def extract_text(payload: Any) -> str:
     return str(payload.get("text") or "")
 
 
+def extract_tool_use(payload: Any) -> Optional[dict[str, Any]]:
+    """从 Messages 响应取出第一块 tool_use（name + input）。"""
+    if not isinstance(payload, dict):
+        return None
+    content = payload.get("content")
+    if not isinstance(content, list):
+        return None
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") != "tool_use":
+            continue
+        name = str(block.get("name") or "").strip()
+        if not name:
+            continue
+        raw_in = block.get("input")
+        inp = dict(raw_in) if isinstance(raw_in, dict) else {}
+        out: dict[str, Any] = {"name": name, "input": inp}
+        if block.get("id"):
+            out["id"] = str(block.get("id"))
+        return out
+    return None
+
+
 def complete(
     cfg: Any,
     user_text: str,
     system: str = "",
     max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: int = 90,
+    tools: Optional[list[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     """对已配置端点发一次非流式 Messages 请求。"""
     data = normalize_ai(cfg)
@@ -166,7 +194,7 @@ def complete(
     url = messages_url(data["base_url"])
     if not url:
         return {"ok": False, "error": "Base URL 仅支持 http 或 https", "text": ""}
-    body = build_messages_body(data["model"], user_text, system, max_tokens)
+    body = build_messages_body(data["model"], user_text, system, max_tokens, tools=tools)
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=raw, method="POST")
     req.add_header("Content-Type", "application/json")
@@ -188,7 +216,16 @@ def complete(
     except (OSError, json.JSONDecodeError, TimeoutError, ValueError) as e:
         return {"ok": False, "error": f"Anthropic 请求失败: {e}", "text": ""}
     text = extract_text(payload)
-    return {"ok": True, "error": "", "text": text}
+    use = extract_tool_use(payload)
+    out: dict[str, Any] = {
+        "ok": True,
+        "error": "",
+        "text": text,
+        "stop_reason": str(payload.get("stop_reason") or "") if isinstance(payload, dict) else "",
+    }
+    if use:
+        out["tool_use"] = use
+    return out
 
 
 def _run_complete(cfg: Any, user_text: str, complete_fn: Optional[CompleteFn]) -> dict[str, Any]:

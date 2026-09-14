@@ -128,6 +128,25 @@ class ProjectStore:
         self._save(items)
         return {"ok": True, "project": project, "existed": False}
 
+    def create(self, parent: str, name: str) -> dict[str, Any]:
+        """在父目录下新建文件夹并注册为仓库。"""
+        parent_p = Path(parent)
+        if not parent_p.is_dir():
+            return {"ok": False, "error": "父目录不存在"}
+        raw = (name or "").strip()
+        if not raw:
+            return {"ok": False, "error": "名称不能为空"}
+        if any(sep in raw for sep in ("/", "\\", ":")) or raw in (".", ".."):
+            return {"ok": False, "error": "名称不能包含路径分隔符"}
+        dest = parent_p / raw
+        if dest.exists() and not dest.is_dir():
+            return {"ok": False, "error": "同名文件已存在"}
+        try:
+            dest.mkdir(parents=False, exist_ok=True)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return self.add(str(dest), raw)
+
     def remove(self, project_id: str) -> dict[str, Any]:
         items = [it for it in self._all() if it["id"] != project_id]
         self._save(items)

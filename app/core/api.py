@@ -18,7 +18,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-import webview
+try:
+    import webview
+except Exception:  # noqa: BLE001
+    webview = None  # CLI / TUI / MCP 不需要 GUI 后端
 
 from . import file_assoc
 from .cloud_sync import get_engine, public_cloud, save_cloud
@@ -54,6 +57,8 @@ class Api:
         self._initial_path = initial_path
         # 知识谱系缓存：规范化仓库根 → 生成结果；写盘或 refresh 时失效
         self._knowledge_cache: dict[str, dict[str, Any]] = {}
+        # 即时通讯传输；测试注入 MemoryTransport，未注入则按配置走 webhook
+        self._im_transport: Any = None
 
     def bind_window(self, window: "webview.Window") -> None:
         self._window = window
@@ -800,6 +805,130 @@ class Api:
     def add_project(self, path: str, name: str = "") -> dict[str, Any]:
         return self.projects.add(path, name)
 
+    def create_project(self, parent: str, name: str) -> dict[str, Any]:
+        """在父目录下新建文件夹并注册为仓库。"""
+        return self.projects.create(parent, name)
+
+    def create_directory(self, parent: str, name: str) -> dict[str, Any]:
+        """在任意已存在的父目录下新建文件夹。"""
+        folder = Path(parent or "")
+        if not folder.is_dir():
+            return {"ok": False, "error": "父文件夹不存在"}
+        raw = (name or "").strip()
+        if not raw:
+            return {"ok": False, "error": "名称不能为空"}
+        if any(sep in raw for sep in ("/", "\\", ":")) or raw in (".", ".."):
+            return {"ok": False, "error": "名称不能包含路径分隔符"}
+        target = folder / raw
+        if target.exists():
+            if target.is_dir():
+                return {"ok": True, "path": str(target), "name": target.name, "existed": True}
+            return {"ok": False, "error": "同名文件已存在"}
+        try:
+            target.mkdir()
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "path": str(target), "name": target.name, "existed": False}
+
+    def scratch_path(self) -> str:
+        return str(self.config.data_dir / "scratch.md")
+
+    def read_scratch(self) -> dict[str, Any]:
+        """读取首页随手记（用户数据目录 scratch.md），不改 last_file / 最近打开。"""
+        p = Path(self.scratch_path())
+        if not p.is_file():
+            return {"ok": True, "path": str(p), "name": "scratch.md", "content": "", "size": 0}
+        try:
+            content = p.read_text(encoding="utf-8")
+            st = p.stat()
+            return {
+                "ok": True,
+                "path": str(p),
+                "name": "scratch.md",
+                "content": content,
+                "size": st.st_size,
+            }
+        except OSError as e:
+            return {"ok": False, "error": str(e), "path": str(p), "content": ""}
+
+    def write_scratch(self, content: str) -> dict[str, Any]:
+        """写入首页随手记，不改 last_file / 最近打开。"""
+        p = Path(self.scratch_path())
+        try:
+            atomic_write_text(p, content if content is not None else "")
+            st = p.stat()
+            return {"ok": True, "path": str(p), "name": "scratch.md", "size": st.st_size}
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+
+    def preview_file(self, path: str = "", max_chars: int = 1600) -> dict[str, Any]:
+        """有界读取供首页速览，不改 last_file / 最近打开。"""
+        raw = (path or "").strip()
+        p = Path(raw)
+        if not p.is_file():
+            return {"ok": False, "error": "文件不存在"}
+        limit = max(200, int(max_chars or 1600))
+        try:
+            with open(p, "rb") as f:
+                data = f.read(limit * 4 + 16)
+            text = data.decode("utf-8", errors="replace")
+            st = p.stat()
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        preview = text[:limit]
+        return {
+            "ok": True,
+            "path": str(p),
+            "name": p.name,
+            "preview": preview,
+            "content": preview,
+            "truncated": len(text) > limit,
+            "size": st.st_size,
+        }
+
+    def invoke_mcp_tool(self, name: str, arguments: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        """本应用内调用 MCP / AISkill 工具表中的一只工具。"""
+        from . import adv
+
+        return adv.invoke_tool(self, name, arguments or {})
+
+    def _im_channel(self) -> Any:
+        from . import im as im_mod
+
+        if self._im_transport is not None:
+            return self._im_transport
+        raw = self.config.get("im") or {}
+        hooks: dict[str, str] = {}
+        if isinstance(raw, dict):
+            for pid in im_mod.PROVIDERS:
+                item = raw.get(pid) or {}
+                if isinstance(item, dict):
+                    hooks[pid] = str(item.get("webhook") or "")
+        outbox = im_mod.FileOutboxTransport(self.config.data_dir / "im-outbox.json")
+        return im_mod.ChannelTransport(hooks, outbox)
+
+    def im_providers(self) -> dict[str, Any]:
+        from . import im as im_mod
+
+        return {"ok": True, "items": im_mod.provider_list()}
+
+    def im_send(self, provider: str, markdown: str, title: str = "") -> dict[str, Any]:
+        """把一篇 Markdown 经指定即时通讯通道发出。"""
+        from . import im as im_mod
+
+        return im_mod.send_markdown(provider, markdown, self._im_channel(), title=title)
+
+    def im_receive(self, provider: str) -> dict[str, Any]:
+        """从指定即时通讯通道取回最近一封 Markdown。"""
+        from . import im as im_mod
+
+        return im_mod.receive_markdown(provider, self._im_channel())
+
+    def list_aiskills(self) -> dict[str, Any]:
+        from . import adv
+
+        return {"ok": True, "skills": adv.list_skills(), "tools": adv.list_tools()}
+
     def add_project_dialog(self) -> dict[str, Any]:
         """弹文件夹选择框，把所选目录添加为仓库。"""
         if not self._window:
@@ -1249,8 +1378,15 @@ class Api:
         return ai_client.summarize_vault(root, self._ai_cfg())
 
     def ask_ai(self, folder: str = "", question: str = "") -> dict[str, Any]:
-        """AI 侧栏提问：附当前仓库摘录走 Anthropic 回答。"""
-        return ai_client.ask_question(question, self._vault_root(folder), self._ai_cfg())
+        """AI 侧栏提问：附当前仓库摘录；模型若请求工具则走本应用 MCP / AISkill 表。"""
+        from . import adv
+
+        return adv.ask_with_tools(
+            question,
+            self._vault_root(folder),
+            self._ai_cfg(),
+            dispatch=lambda n, a: adv.invoke_tool(self, n, a),
+        )
 
     def knowledge_tree(self, folder: str = "", refresh: bool = False) -> dict[str, Any]:
         """生成仓库知识谱系；结果按仓库缓存，refresh=True 重新生成。"""
@@ -1552,55 +1688,38 @@ def apply_template_vars(text: str, title: str = "", now: datetime | None = None)
     return out
 
 
-# 导出 HTML 用的最小色表（主色 / 深色 / 背景 / 文字 / 次要文字 / 边框）。
-# 色值与 vendor/ryuuji/styles/palettes.css 的 a1-a6 × light/dark 令牌一致（v6.1），
-# 上游色板更新时随 vendor 整目录覆盖后同步本表。
-_EXPORT_PALETTES: dict[str, dict[str, dict[str, str]]] = {
-    "a1": {  # 霜靛
-        "light": {"primary": "#4a51e8", "deep": "#3f45c5", "bg": "#f3f7fc", "text": "#29313d", "muted": "#6b7791", "border": "#dae3ee"},
-        "dark": {"primary": "#5d68e7", "deep": "#4f58c4", "bg": "#0e1118", "text": "#e8ecf4", "muted": "#6e7789", "border": "#272f3e"},
-    },
-    "a2": {  # 和红
-        "light": {"primary": "#e3253f", "deep": "#c11f36", "bg": "#fff6f4", "text": "#3d2b2d", "muted": "#a06a6a", "border": "#f3cecb"},
-        "dark": {"primary": "#e42435", "deep": "#c21f2d", "bg": "#151114", "text": "#efe7e8", "muted": "#7d6a6c", "border": "#33272b"},
-    },
-    "a3": {  # 藤色
-        "light": {"primary": "#9550e0", "deep": "#7f44be", "bg": "#faf6fe", "text": "#332b40", "muted": "#8a7aa0", "border": "#ddd0f0"},
-        "dark": {"primary": "#8d5ad6", "deep": "#784db6", "bg": "#12101a", "text": "#ece7f2", "muted": "#776d8a", "border": "#2d2838"},
-    },
-    "a4": {  # 柳染
-        "light": {"primary": "#568213", "deep": "#496f10", "bg": "#f7fceb", "text": "#2d3523", "muted": "#7a9260", "border": "#d2e3b2"},
-        "dark": {"primary": "#617f26", "deep": "#526c20", "bg": "#11150f", "text": "#e9f0e2", "muted": "#728060", "border": "#2a3324"},
-    },
-    "a5": {  # 水浅葱
-        "light": {"primary": "#108289", "deep": "#0e6f74", "bg": "#f1fcfb", "text": "#253736", "muted": "#6a8b86", "border": "#bfe2e0"},
-        "dark": {"primary": "#21827e", "deep": "#1c6f6b", "bg": "#0f1516", "text": "#e4efee", "muted": "#6f8582", "border": "#273331"},
-    },
-    "a6": {  # 樱花
-        "light": {"primary": "#e7134b", "deep": "#c41040", "bg": "#fef4f8", "text": "#3a2a31", "muted": "#9a6b78", "border": "#f0d4e0"},
-        "dark": {"primary": "#e61d3d", "deep": "#c41934", "bg": "#141017", "text": "#f0e7ec", "muted": "#8a707c", "border": "#322733"},
-    },
-}
-# 旧 phycat 色板 id → 最近似新板（一次性迁移，写入前归一）
+# 旧色板 id → 当前板（一次性迁移）
 _LEGACY_PALETTE_MAP = {
-    "cherry": "a2", "vampire": "a2", "caramel": "a2", "sakura": "a6", "mauve": "a3",
+    "cherry": "a6", "vampire": "a6", "caramel": "a6", "a2": "a6", "sakura": "a6", "mauve": "a3",
     "mint": "a5", "abyss": "a5", "forest": "a4", "radiation": "a4",
     "sky": "a1", "prussian": "a1",
 }
 
 
 def _export_palette(config: Optional[dict[str, Any]]) -> dict[str, str]:
-    """按当前 palette + theme 取导出配色组；旧 phycat id 经映射表迁移，未知回退 a1。"""
+    """按当前 palette + theme 从运行时 palettes.css 取导出配色；旧 id 经映射表迁移。"""
+    from .palette_css import load_export_palettes
+
+    tables = load_export_palettes()
     cfg = config or {}
     pal = str(cfg.get("palette") or "")
-    if pal not in _EXPORT_PALETTES:
-        # 兼容旧配置：palette 缺失时看旧 palette_light/dark，再映射
+    if pal not in tables:
         legacy = pal or str(
             cfg.get("palette_dark") if cfg.get("theme") == "dark" else cfg.get("palette_light") or ""
         )
         pal = _LEGACY_PALETTE_MAP.get(legacy, "a1")
+    if pal not in tables:
+        pal = "a1"
     theme = "dark" if cfg.get("theme") == "dark" else "light"
-    return _EXPORT_PALETTES[pal][theme]
+    row = (tables.get(pal) or {}).get(theme) or (tables.get("a1") or {}).get("light") or {}
+    return {
+        "primary": row.get("primary", ""),
+        "deep": row.get("deep", ""),
+        "bg": row.get("bg", ""),
+        "text": row.get("text", ""),
+        "muted": row.get("muted", ""),
+        "border": row.get("border", ""),
+    }
 
 
 def _safe_css_font(name: str, fallback: str) -> str:

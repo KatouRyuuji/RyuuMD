@@ -20,16 +20,32 @@ class FontOverlayTests(unittest.TestCase):
         self.assertNotIn("vendor/ryuuji", text)
         self.assertIsNone(re.search(r"--sys-font-ui:\s*\"MiSans\"", text))
         self.assertIn('--sys-font-ui: "Noto Sans SC", sans-serif', text)
-        self.assertIn('--sys-font-display: "Noto Sans SC", sans-serif', text)
+        self.assertIn('--sys-font-display: "LXGW WenKai"', text)
         self.assertNotIn("Microsoft YaHei", text)
         self.assertNotIn("PingFang SC", text)
         self.assertIn('--sys-font-mono: "Cascadia Code"', text)
 
-    def test_index_loads_sys_tokens_not_vendor_tokens(self):
+    def test_index_loads_sys_tokens_and_vendor_tokens_without_webfont_import(self):
         html = INDEX.read_text(encoding="utf-8")
         self.assertIn("css/sys-tokens.css", html)
         self.assertIn("css/noto-sans-sc.css", html)
-        self.assertNotIn("vendor/ryuuji/styles/tokens.css", html)
+        self.assertIn("vendor/ryuuji/styles/tokens.css", html)
+        self.assertNotIn('href="vendor/ryuuji/styles/patterns.css"', html)
+        vendor = (ROOT / "app" / "web" / "vendor" / "ryuuji" / "styles" / "tokens.css").read_text(encoding="utf-8")
+        self.assertNotIn("@import", vendor)
+
+    def test_home_shell_uses_duration_tokens_no_backdrop(self):
+        home = (ROOT / "app" / "web" / "css" / "home.css").read_text(encoding="utf-8")
+        self.assertNotIn("backdrop-filter", home)
+        self.assertIn("var(--sys-dur-2)", home)
+        self.assertIn("var(--sys-shadow-lift)", home)
+        self.assertIn("var(--sys-paper-lip)", home)
+        self.assertNotIn("translateY(-2px)", home)
+
+    def test_boot_defers_patterns_stylesheet(self):
+        js = (ROOT / "app" / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("scheduleDecorLoad", js)
+        self.assertIn("vendor/ryuuji/styles/patterns.css", js)
 
     def test_sys_bridge_does_not_redeclare_sys_fonts(self):
         text = BRIDGE.read_text(encoding="utf-8")

@@ -16,6 +16,11 @@
   let repoItems = [];  // 最近一次 list_projects 结果
   let view = "card";   // card | list
   let modalReturnFocus = null;
+  let previewPath = "";
+  let quickEditPath = "";
+  let qeLoadedFull = false;
+  let qeLoadPromise = null;
+  let qeGen = 0;
 
   // ---------------------------------------------------------------
   // 初始化 / 显示控制
@@ -66,9 +71,18 @@
     repoWrap.setAttribute("aria-busy", "true");
     recentWrap.setAttribute("aria-busy", "true");
     try {
-      const [repos, recent] = await Promise.all([a.list_projects(), a.get_recent()]);
+      const [repos, recent, scratch] = await Promise.all([
+        a.list_projects(),
+        a.get_recent(),
+        a.read_scratch(),
+      ]);
       if (repos && repos.ok) renderRepos(repos.items);
-      if (recent && recent.ok) renderRecent(recent.items);
+      if (recent && recent.ok) {
+        renderRecent(recent.items);
+        await loadGlance(recent.items);
+      }
+      const scratchEl = document.getElementById("home-scratch-input");
+      if (scratchEl && scratch && scratch.ok) scratchEl.value = scratch.content || "";
     } catch (e) {
       toast("首页数据加载失败，请稍后重试", { type: "error" });
     } finally {
@@ -136,7 +150,7 @@
 
   function cardHTML(r) {
     return `
-      <div class="repo-card${r.exists ? "" : " missing"}" data-id="${esc(r.id)}">
+      <div class="repo-card hover-lift press${r.exists ? "" : " missing"}" data-id="${esc(r.id)}">
         <button class="repo-open" type="button" aria-label="打开仓库：${esc(r.name)}">
           <span class="repo-card-top">
             <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
@@ -192,7 +206,7 @@
 
   function fileCardHTML(it) {
     return `
-      <button class="recent-file-card${it.exists ? "" : " missing"}" type="button" data-path="${esc(it.path)}" title="${esc(it.path)}" aria-label="打开最近文件：${esc(it.name)}">
+      <button class="recent-file-card hover-lift press${it.exists ? "" : " missing"}" type="button" data-path="${esc(it.path)}" title="${esc(it.path)}" aria-label="打开最近文件：${esc(it.name)}">
         <span class="rf-icon">${window.ICONS.fileText}</span>
         <span class="rf-name">${esc(it.name)}</span>
         <span class="rf-path">${esc(it.path)}</span>
@@ -219,8 +233,17 @@
     on("hq-new", () => { handlers.newDoc && handlers.newDoc(); });
     on("hq-open-file", () => handlers.openFileDialog && handlers.openFileDialog());
     on("hq-add-repo", addRepo);
+    on("hq-create-repo", () => openCreateModal("repo"));
+    on("hq-create-folder", () => openCreateModal("folder"));
     on("hq-tutorial", () => handlers.openTutorial && handlers.openTutorial());
     on("repo-empty-add", addRepo);
+    on("home-preview-open", () => {
+      if (previewPath && handlers.openPath) handlers.openPath(previewPath);
+    });
+    on("home-qe-save", saveQuickEdit);
+    on("home-scratch-save", saveScratch);
+    const qeEl = document.getElementById("home-qe-input");
+    if (qeEl) qeEl.addEventListener("focus", () => { ensureQeFull(); });
 
     // 视图切换
     document.querySelectorAll("#repo-view-toggle button").forEach((btn) => {
@@ -340,6 +363,163 @@
       toast("已移除");
       refresh();
     }
+  }
+
+  function setGlanceVisible(on) {
+    const g = document.getElementById("home-glance-sec");
+    const q = document.getElementById("home-qe-sec");
+    if (g) g.style.display = on ? "" : "none";
+    if (q) q.style.display = on ? "" : "none";
+  }
+
+  async function loadGlance(items) {
+    const empty = document.getElementById("home-preview-empty");
+    const card = document.getElementById("home-preview-card");
+    const title = document.getElementById("home-preview-title");
+    const body = document.getElementById("home-preview-body");
+    const qe = document.getElementById("home-qe-input");
+    const files = (items || []).filter((it) => it.kind !== "folder" && it.exists);
+    previewPath = "";
+    quickEditPath = "";
+    qeLoadedFull = false;
+    qeLoadPromise = null;
+    qeGen += 1;
+    if (!files.length) {
+      setGlanceVisible(false);
+      if (empty) empty.style.display = "block";
+      if (card) card.hidden = true;
+      if (qe) { qe.value = ""; qe.disabled = true; qe.readOnly = false; }
+      return;
+    }
+    setGlanceVisible(true);
+    const a = api();
+    if (!a) return;
+    const res = await a.preview_file(files[0].path);
+    if (!res || !res.ok) {
+      if (empty) empty.style.display = "block";
+      if (card) card.hidden = true;
+      if (qe) { qe.value = ""; qe.disabled = true; qe.readOnly = false; }
+      return;
+    }
+    previewPath = res.path;
+    quickEditPath = res.path;
+    if (empty) empty.style.display = "none";
+    if (card) card.hidden = false;
+    if (title) title.textContent = res.name || files[0].name;
+    if (body) body.textContent = res.preview || res.content || "";
+    if (qe) {
+      qe.disabled = false;
+      qe.readOnly = false;
+      qe.value = res.preview || res.content || "";
+      qeLoadedFull = !res.truncated;
+    }
+  }
+
+  async function ensureQeFull() {
+    if (qeLoadedFull || !quickEditPath) return true;
+    if (qeLoadPromise) return qeLoadPromise;
+    const a = api();
+    const qe = document.getElementById("home-qe-input");
+    if (!a || !qe) return false;
+    qe.readOnly = true;
+    const gen = qeGen;
+    const path = quickEditPath;
+    qeLoadPromise = a.read_file(path).then((opened) => {
+      if (gen !== qeGen) return false;
+      if (!opened || !opened.ok) return false;
+      qe.value = opened.content || "";
+      qeLoadedFull = true;
+      return true;
+    }).catch(() => false).finally(() => {
+      if (gen === qeGen) qe.readOnly = false;
+      if (qeLoadPromise && gen === qeGen) qeLoadPromise = null;
+    });
+    return qeLoadPromise;
+  }
+
+  async function saveQuickEdit() {
+    const a = api();
+    const qe = document.getElementById("home-qe-input");
+    if (!a || !qe || !quickEditPath) { toast("没有可保存的笔记"); return; }
+    if (!(await ensureQeFull())) { toast("无法读取全文，未保存", { type: "error" }); return; }
+    const res = await a.save_file(quickEditPath, qe.value);
+    if (res && res.ok) {
+      toast("已保存快速编辑");
+      const prev = await a.preview_file(quickEditPath);
+      const body = document.getElementById("home-preview-body");
+      if (prev && prev.ok && body) body.textContent = prev.preview || prev.content || "";
+    } else toast("保存失败：" + ((res && res.error) || ""), { type: "error" });
+  }
+
+  async function saveScratch() {
+    const a = api();
+    const el = document.getElementById("home-scratch-input");
+    if (!a || !el) return;
+    const res = await a.write_scratch(el.value);
+    if (res && res.ok) toast("随手记已保存");
+    else toast("保存失败：" + ((res && res.error) || ""), { type: "error" });
+  }
+
+  function openCreateModal(kind) {
+    if (isModalOpen()) closeModal();
+    modalReturnFocus = document.activeElement;
+    const isRepo = kind === "repo";
+    modalMask.innerHTML = `
+      <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${isRepo ? "新建仓库" : "新建文件夹"}">
+        <div class="modal-head">
+          <span class="badge">${window.ICONS.folder}</span>
+          <div><h2>${isRepo ? "新建仓库" : "新建文件夹"}</h2><p>填写父目录与名称，会在磁盘上创建目录${isRepo ? "并登记为仓库" : ""}</p></div>
+        </div>
+        <div class="modal-body">
+          <div class="mm-path-row">
+            <input class="mm-input" id="mm-parent" aria-label="父目录" placeholder="父目录完整路径" spellcheck="false" />
+            <button type="button" class="btn" id="mm-browse">浏览</button>
+          </div>
+          <input class="mm-input" id="mm-new-name" aria-label="名称" placeholder="${isRepo ? "仓库名称" : "文件夹名称"}" maxlength="60" style="margin-top:8px" />
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn--text" id="mm-cancel">取消</button>
+          <button class="btn btn--primary press" id="mm-ok">创建</button>
+        </div>
+      </div>`;
+    modalMask.classList.add("open");
+    if (window.App && window.App.registerEscape) window.App.registerEscape(closeModal);
+    const parentEl = document.getElementById("mm-parent");
+    const nameEl = document.getElementById("mm-new-name");
+    const cfg = handlers.getConfig && handlers.getConfig();
+    if (cfg && cfg.last_folder) parentEl.value = cfg.last_folder;
+    parentEl.focus();
+    parentEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); nameEl.focus(); }
+    });
+    const browseBtn = document.getElementById("mm-browse");
+    if (browseBtn) {
+      browseBtn.addEventListener("click", async () => {
+        const a = api();
+        if (!a || !a.open_folder_dialog) return;
+        const picked = await a.open_folder_dialog();
+        if (picked && picked.ok && picked.root) parentEl.value = picked.root;
+      });
+    }
+    const submit = async () => {
+      const parent = parentEl.value.trim();
+      const name = nameEl.value.trim();
+      if (!parent || !name) { toast("请填写父目录和名称"); return; }
+      const res = isRepo
+        ? await api().create_project(parent, name)
+        : await api().create_directory(parent, name);
+      if (res && res.ok) {
+        closeModal();
+        toast(isRepo ? "已新建仓库：" + ((res.project && res.project.name) || name) : "已新建文件夹");
+        refresh();
+      } else toast("创建失败：" + ((res && res.error) || ""), { type: "error" });
+    };
+    document.getElementById("mm-ok").addEventListener("click", submit);
+    document.getElementById("mm-cancel").addEventListener("click", closeModal);
+    nameEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+      else if (e.key === "Escape") { e.stopPropagation(); closeModal(); }
+    });
   }
 
   // ---------------------------------------------------------------

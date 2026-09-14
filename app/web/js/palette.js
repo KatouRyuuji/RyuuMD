@@ -533,6 +533,14 @@
   const input = document.getElementById("find-input");
   const replaceInput = document.getElementById("replace-input");
   const countEl = document.getElementById("find-count");
+  const toggleBtn = document.getElementById("find-toggle-replace");
+
+  function syncReplaceToggle() {
+    const on = !!(bar && bar.classList.contains("replace-open"));
+    if (!toggleBtn) return;
+    toggleBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    toggleBtn.title = on ? "收起替换 (Ctrl+H)" : "替换 (Ctrl+H)";
+  }
 
   function isOpen() {
     return bar && bar.classList.contains("open");
@@ -541,6 +549,7 @@
   function open(opts) {
     bar.classList.add("open");
     if (opts && opts.replace) bar.classList.add("replace-open");
+    syncReplaceToggle();
     input.focus();
     input.select();
     updateCount();
@@ -549,6 +558,7 @@
   function close() {
     bar.classList.remove("open");
     bar.classList.remove("replace-open");
+    syncReplaceToggle();
     input.value = "";
     if (replaceInput) replaceInput.value = "";
     countEl.textContent = "";
@@ -557,6 +567,7 @@
   function toggleReplace() {
     if (!isOpen()) open({ replace: true });
     else bar.classList.toggle("replace-open");
+    syncReplaceToggle();
     if (bar.classList.contains("replace-open") && replaceInput) replaceInput.focus();
   }
 
@@ -625,7 +636,6 @@
   document.getElementById("find-next").addEventListener("click", () => find(false));
   document.getElementById("find-prev").addEventListener("click", () => find(true));
   document.getElementById("find-close").addEventListener("click", close);
-  const toggleBtn = document.getElementById("find-toggle-replace");
   if (toggleBtn) toggleBtn.addEventListener("click", toggleReplace);
   const oneBtn = document.getElementById("replace-one");
   if (oneBtn) oneBtn.addEventListener("click", replaceOne);
