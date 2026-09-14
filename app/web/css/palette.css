@@ -137,7 +137,7 @@
 }
 .pal-ask-wait, .pal-ask-error { white-space: pre-wrap; }
 .pal-ask-wait { color: var(--text-muted); }
-.pal-ask-error { color: var(--danger); }
+.pal-ask-error { color: var(--sys-danger-ink); }
 
 #pal-input {
   flex: 1;

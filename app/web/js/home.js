@@ -65,17 +65,28 @@
   // ---------------------------------------------------------------
   // 数据加载
   // ---------------------------------------------------------------
+  async function fetchHomeData(a) {
+    return Promise.all([
+      a.list_projects(),
+      a.get_recent(),
+      a.read_scratch(),
+    ]);
+  }
+
   async function refresh() {
     const a = api();
-    if (!a) return;
+    if (!a || typeof a.list_projects !== "function") return;
     repoWrap.setAttribute("aria-busy", "true");
     recentWrap.setAttribute("aria-busy", "true");
     try {
-      const [repos, recent, scratch] = await Promise.all([
-        a.list_projects(),
-        a.get_recent(),
-        a.read_scratch(),
-      ]);
+      let pair;
+      try {
+        pair = await fetchHomeData(a);
+      } catch (e) {
+        await new Promise((r) => setTimeout(r, 120));
+        pair = await fetchHomeData(a);
+      }
+      const [repos, recent, scratch] = pair;
       if (repos && repos.ok) renderRepos(repos.items);
       if (recent && recent.ok) {
         renderRecent(recent.items);

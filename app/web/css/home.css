@@ -232,7 +232,7 @@
 }
 .repo-meta .dot { color: var(--text-muted); }
 .repo-missing-tag {
-  color: var(--sys-warning, var(--warning));
+  color: var(--sys-warning-ink);
   font-size: 12px;
 }
 
@@ -267,7 +267,7 @@
   background: var(--hover-bg);
   color: var(--primary);
 }
-.repo-actions button.danger:hover { color: var(--sys-danger, var(--danger)); }
+.repo-actions button.danger:hover { color: var(--sys-danger-ink); }
 .repo-actions button svg { width: 14px; height: 14px; }
 .repo-actions button.pinned { color: var(--primary); }
 

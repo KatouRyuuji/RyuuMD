@@ -33,8 +33,12 @@
   --scrollbar-thumb: var(--sys-scrollbar-thumb);
   --selection-bg: var(--sys-selection-bg);
 
-  /* —— 语义 —— */
+  /* —— 语义（跟当前色板，不用固定警示橙 / 错误红） —— */
+  --warning: var(--sys-warning);
+  --warning-ink: var(--sys-warning-ink);
+  --warning-fg: var(--sys-text-inverse);
   --danger: var(--sys-danger);
+  --danger-ink: var(--sys-danger-ink);
   --danger-fg: var(--sys-on-danger);
   --success: var(--sys-success);
   --success-fg: var(--sys-text-inverse);

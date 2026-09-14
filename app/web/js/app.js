@@ -38,14 +38,12 @@
     bindDragDrop();
     bindPasteImages();
 
-    // js_api 注入可能迟到。永久等待桥就绪；2.5s 后显示「正在连接后端」，并提供重新加载。
+    // js_api 注入可能迟到；桥对象出现后第一次 get_config 偶发失败。
+    // 等到真正读到配置再继续，避免默认色 + 空数据的残窗口。
     const pendingTimer = setTimeout(showBackendPending, 2500);
     try {
       await waitForApi();
-      state.config = await api().get_config();
-    } catch (e) {
-      state.config = defaultConfig();
-      toast("后端连接异常，已以默认配置启动；请尝试重启应用");
+      state.config = await loadConfig();
     } finally {
       clearTimeout(pendingTimer);
       hideBackendPending();
@@ -146,29 +144,45 @@
     scheduleDecorLoad();
   }
 
-  // 后端不可用时的最小配置（welcome_shown=true：跳过欢迎窗）
-  function defaultConfig() {
-    return {
-      theme: "light", palette: "a1",
-      font_ui: "", font_mono: "",
-      operation_style: "notion", display_mode: "ir",
-      welcome_shown: true, auto_save: true, daily_note_folder: "日记", editor_zoom: 100,
-      readable_width: false, sidebar_width: 256, reduced_motion: false,
-      startup_page: "home", edit_mode: "source",
-    };
+  function apiReady() {
+    const a = api();
+    return !!(a && typeof a.get_config === "function");
   }
 
   function waitForApi() {
-    // 只在桥真正就绪时 resolve，永不放弃：放弃会得到一个看似正常实则全残的窗口，
-    // 比「明确等待中」糟糕得多。桥永远不来的极端情况由等待遮罩上的重载按钮兜底。
+    // 等到 get_config 可调用。仅判断 api 对象存在会在方法尚未挂上时放行，
+    // 随后 get_config 抛错就会落到空数据窗口。桥不来时由等待遮罩上的重载按钮兜底。
     return new Promise((resolve) => {
-      if (api()) return resolve();
-      window.addEventListener("pywebviewready", () => resolve(), { once: true });
-      // 兜底轮询
-      const t = setInterval(() => {
-        if (api()) { clearInterval(t); resolve(); }
-      }, 60);
+      if (apiReady()) return resolve();
+      const done = () => {
+        if (!apiReady()) return;
+        window.removeEventListener("pywebviewready", done);
+        clearInterval(t);
+        resolve();
+      };
+      window.addEventListener("pywebviewready", done);
+      const t = setInterval(done, 60);
     });
+  }
+
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  async function loadConfig() {
+    // WebView2 上桥刚就绪时第一次调用偶发失败，短间隔重试直到读到对象。
+    let delay = 40;
+    while (true) {
+      try {
+        const a = api();
+        if (a && typeof a.get_config === "function") {
+          const cfg = await a.get_config();
+          if (cfg && typeof cfg === "object" && !Array.isArray(cfg)) return cfg;
+        }
+      } catch (e) { /* 再试 */ }
+      await sleep(delay);
+      delay = Math.min(delay + 40, 300);
+    }
   }
 
   // 后端等待遮罩：2.5s 未就绪即显示；20s 仍未就绪给出「重新加载」出口
@@ -1423,10 +1437,15 @@
 
   function applyTheme(theme) {
     const mode = theme === "dark" ? "dark" : "light";
+    const palette = currentPalette();
     const root = document.documentElement;
     root.setAttribute("data-lang", "a");
     root.setAttribute("data-theme", mode);
-    root.setAttribute("data-palette", currentPalette());
+    root.setAttribute("data-palette", palette);
+    root.setAttribute("data-chrome-ready", "");
+    try {
+      localStorage.setItem("ryuumd-chrome", JSON.stringify({ theme: mode, palette: palette }));
+    } catch (e) { /* 无 localStorage 时下次启动等本次 applyTheme */ }
     applyReducedMotion();
     // 按钮展示「点击后切到」的目标态：亮色下显示 月亮+深色，暗色下显示 太阳+亮色
     const themeIcon = document.querySelector("#btn-theme .ib-icon");

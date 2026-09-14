@@ -56,6 +56,17 @@ def load_export_palettes(path: Optional[str] = None) -> dict[str, dict[str, dict
     return _parse(text)
 
 
+def chrome_background(palette: str, theme: str) -> str:
+    """窗口尚未绘制 HTML 时的底色，与当前色板 --sys-bg 一致。"""
+    pals = load_export_palettes()
+    mode = "dark" if theme == "dark" else "light"
+    pal = palette if palette in pals else "a1"
+    bg = ((pals.get(pal) or {}).get(mode) or {}).get("bg")
+    if bg:
+        return bg
+    return "#111318" if mode == "dark" else "#eef2fc"
+
+
 def duration_map(css: str) -> dict[str, str]:
     """从 tokens CSS 抽出 --sys-dur-1..5。"""
     found = re.findall(r"--sys-dur-([1-5])\s*:\s*([^;]+);", css or "")

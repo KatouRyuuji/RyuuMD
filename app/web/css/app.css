@@ -252,7 +252,7 @@ body:not(.is-workdir) #btn-merge-source {
 .ai-entry.is-pending .ai-entry-body,
 .ai-entry.is-error .ai-entry-body { white-space: pre-wrap; }
 .ai-entry.is-pending .ai-entry-body { color: var(--text-muted); }
-.ai-entry.is-error .ai-entry-body { color: var(--danger, #c62828); }
+.ai-entry.is-error .ai-entry-body { color: var(--sys-danger-ink); }
 .ai-side-ask {
   display: flex;
   gap: 6px;
@@ -1016,8 +1016,8 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   max-width: 28vw;
 }
 .sb-workdir:hover { color: var(--primary); }
-.sb-workdir.is-pending { color: var(--warning, #c48a2a); }
-.sb-workdir.is-conflict { color: var(--danger, #c23b3b); }
+.sb-workdir.is-pending { color: var(--sys-warning-ink); }
+.sb-workdir.is-conflict { color: var(--sys-danger-ink); }
 
 /* 分段选择器 */
 .segmented {

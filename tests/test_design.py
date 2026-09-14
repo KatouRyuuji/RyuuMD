@@ -62,6 +62,58 @@ class TestDesignAlign(unittest.TestCase):
         self.assertIn("translateY(-1px)", motion)
         self.assertIn("data-reduced-motion", motion)
 
+    def test_chrome_background_follows_palette(self):
+        from app.core.palette_css import chrome_background, load_export_palettes
+
+        pals = load_export_palettes()
+        self.assertEqual(chrome_background("a1", "light"), pals["a1"]["light"]["bg"])
+        self.assertEqual(chrome_background("a6", "dark"), pals["a6"]["dark"]["bg"])
+        self.assertNotEqual(pals["a1"]["light"]["bg"], pals["a6"]["dark"]["bg"])
+        self.assertEqual(chrome_background("nope", "light"), pals["a1"]["light"]["bg"])
+
+    def test_sys_bridge_maps_warning_danger(self):
+        bridge = (ROOT / "app" / "web" / "css" / "sys-bridge.css").read_text(encoding="utf-8")
+        self.assertIn("--warning: var(--sys-warning);", bridge)
+        self.assertIn("--danger: var(--sys-danger);", bridge)
+        self.assertIn("--warning-ink: var(--sys-warning-ink);", bridge)
+        self.assertIn("--danger-ink: var(--sys-danger-ink);", bridge)
+
+    def test_app_css_semantic_colors_use_sys_tokens(self):
+        app = (ROOT / "app" / "web" / "css" / "app.css").read_text(encoding="utf-8")
+        self.assertNotIn("#c48a2a", app)
+        self.assertNotIn("#c23b3b", app)
+        self.assertNotIn("#c62828", app)
+        self.assertIn("var(--sys-warning-ink)", app)
+        self.assertIn("var(--sys-danger-ink)", app)
+
+    def test_index_applies_chrome_before_css(self):
+        html = (ROOT / "app" / "web" / "index.html").read_text(encoding="utf-8")
+        boot = html.find("ryuumd-chrome")
+        css = html.find("vendor/ryuuji/styles/palettes.css")
+        self.assertGreater(boot, 0)
+        self.assertGreater(css, boot)
+        self.assertIn("data-chrome-ready", html)
+
+    def test_boot_does_not_fallback_to_empty_defaults(self):
+        js = (ROOT / "app" / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("已以默认配置启动", js)
+        self.assertIn("async function loadConfig()", js)
+        self.assertIn('typeof a.get_config === "function"', js)
+
+    def test_window_background_follows_config(self):
+        from app.core.config import Config
+        from app.core.palette_css import load_export_palettes
+        from main import chrome_attrs, window_background
+
+        cfg = Config()
+        cfg.update({"theme": "dark", "palette": "a6"})
+        self.assertEqual(chrome_attrs(cfg), ("dark", "a6"))
+        pals = load_export_palettes()
+        self.assertEqual(window_background(cfg), pals["a6"]["dark"]["bg"])
+        self.assertNotEqual(window_background(cfg), "#f4faff")
+        cfg.update({"palette": "cherry"})
+        self.assertEqual(chrome_attrs(cfg)[1], "a1")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

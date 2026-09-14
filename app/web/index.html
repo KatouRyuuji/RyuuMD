@@ -4,6 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>RyuuMD</title>
+  <style>
+    html:not([data-chrome-ready]),
+    html:not([data-chrome-ready]) body { background: transparent; }
+    html:not([data-chrome-ready]) #app { opacity: 0; }
+  </style>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      function apply(theme, palette) {
+        var ok = false;
+        if (theme === "dark" || theme === "light") { root.setAttribute("data-theme", theme); ok = true; }
+        if (/^a[13456]$/.test(palette || "")) { root.setAttribute("data-palette", palette); ok = true; }
+        if (ok) root.setAttribute("data-chrome-ready", "");
+      }
+      try {
+        var o = JSON.parse(localStorage.getItem("ryuumd-chrome") || "null");
+        if (o && typeof o === "object") apply(o.theme, o.palette);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
   <!-- 外壳 UI：Noto Sans SC 可变字重分片（SIL OFL）；字栈见 css/sys-tokens.css -->

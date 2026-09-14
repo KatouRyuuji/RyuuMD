@@ -18,7 +18,25 @@ from typing import Any
 
 from app.core.api import MD_EXTS, Api
 from app.core.config import APP_NAME, Config
+from app.core.palette_css import chrome_background
 from app.core.singleton import InstanceServer, try_forward
+
+_CHROME_PALETTES = frozenset({"a1", "a3", "a4", "a5", "a6"})
+
+
+def chrome_attrs(config: Config) -> tuple[str, str]:
+    """当前窗口的明暗与色板 id（非法值回退 a1 / light）。"""
+    theme = "dark" if config.get("theme") == "dark" else "light"
+    pal = str(config.get("palette") or "a1")
+    if pal not in _CHROME_PALETTES:
+        pal = "a1"
+    return theme, pal
+
+
+def window_background(config: Config) -> str:
+    """原生窗口底色，与色板 --sys-bg 对齐，避免先闪霜靛蓝。"""
+    theme, pal = chrome_attrs(config)
+    return chrome_background(pal, theme)
 
 
 def resource_path(*parts: str) -> str:
@@ -89,7 +107,7 @@ class WindowManager:
                 width=int(self.config.get("window_width", 1280)),
                 height=int(self.config.get("window_height", 820)),
                 min_size=(880, 600),
-                background_color="#f4faff",
+                background_color=window_background(self.config),
                 text_select=True,
             )
             api.bind_window(window)
