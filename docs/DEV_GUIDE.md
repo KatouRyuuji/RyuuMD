@@ -32,6 +32,10 @@ app/core/
   singleton.py              单实例：try_forward（客户端）/ InstanceServer（服务端）
   webdav.py                 轻量 WebDAV（PROPFIND/GET/PUT/MKCOL，仅标准库）
   cloud_sync.py             可选云同步引擎：门闩 + 三路比对 + 冲突副本
+  workdir.py                仓库工作副本（edit_mode=workdir）
+  adv.py                    CLI / TUI / MCP / AISkill，与 AI 共用 invoke_tool
+  im.py                     六家 IM 通道载荷（feishu/popo/dingtalk/wecom/wechat/qq）
+  palette_css.py            从 palettes.css 解析导出 HTML 用色值
 app/web/
   index.html                单页外壳：工具栏/侧栏/编辑器/首页/弹窗挂载点
   css/app.css               外壳布局与结构规则（颜色/形状令牌全部来自 RyuujiDesign，见下）
@@ -44,9 +48,11 @@ app/web/
   css/palette.css           命令面板 + 本文查找条 + 可读宽度
   vendor/ryuuji/            配色与皮肤：styles/{palettes,motion,patterns,lang/a,themes/{light,dark}}.css
   css/noto-sans-sc.css      外壳 Noto Sans SC 可变字重分片 webfont
+  css/fonts.css             正文霞鹜文楷 / 等宽 Cascadia（延迟插入）
   js/icons.js               内联 SVG 图标集（feather 风格，currentColor）
   js/commands.js            斜杠命令定义（notion/wolai 两套触发词）
   js/slash.js               斜杠/右键菜单交互（剪贴板组 + 文件「所在目录」+ 段落转换）+ `[[` 笔记过滤
+  js/convert.js             段落转换与表格/代码/公式块操作
   js/sidebar.js             侧栏：文件树/大纲/最近（容器级事件委托）+ 文件右键管理菜单 + 目录全折叠
   js/home.js                首页：仓库双视图/快速操作/最近/重命名弹窗
   js/welcome.js             首次欢迎窗口
@@ -61,7 +67,13 @@ tests/
   test_cloud.py             云同步门闩/双向/冲突
   test_search.py            仓库检索/wikilink/贴图/日记/待办索引/收集箱
   test_ai.py                Anthropic 协议/概括/三模式/ask；http(s) 白名单与禁重定向；仓库边界；谱系缓存失效
+  test_workdir.py           工作副本
+  test_design.py            设计令牌 / 字体门闩补充
+  test_adv.py               CLI / TUI / MCP
+  test_im.py                IM 通道
+  test_perf.py              性能相关
   test_e2e.py               真实窗口 E2E（evaluate_js 探针）
+  ui_shots.py               视觉回归截图（输出 tests/ui-shots/，gitignore）
 ```
 
 ## 3. 架构与数据流
@@ -213,16 +225,16 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 ### 4.8 主题、配色与设置分组
 
 双维度：`html[data-theme=light|dark]` 决定 Vditor `setTheme` 与基础明暗；
-`html[data-palette=a1..a6]` 决定色相（RyuujiDesign v6.1 A 语言六板，每板自带明暗双态）。
+`html[data-palette=a1|a3|a4|a5|a6]` 决定色相（A 语言五板：霜靛 / 藤色 / 柳染 / 水浅葱 / 樱花，每板自带明暗双态）。
 工具栏主题按钮只对切亮暗，色板 id 不随明暗变化。
 
 - 令牌供给链（index.html 加载序）：`css/noto-sans-sc.css`（外壳 Noto Sans SC VF 分片）
   → `css/sys-tokens.css`（本仓库 --sys-* 原语）→
-  `palettes.css`（六板双侧色值）→ `lang/a.css`（A 语言皮肤
+  `palettes.css`（五板双侧色值）→ `lang/a.css`（A 语言皮肤
   令牌：圆角/阴影/唇/边）→ `themes/light.css`+`dark.css`（焦点环/滚动条/选区/disabled）
   → `css/sys-bridge.css`（应用变量 → --sys-*）
   → 应用各 CSS。
-- 编辑区语法高亮为固定 Dracula 系；编辑区元素色（--el 族）经桥接随板。
+- 编辑区语法高亮：亮色 `github`、暗色 `github-dark`；编辑区元素色（--el 族）经桥接随板。
 - 配置键 `palette` 默认 `a1`。`Config._load` 在旧文件缺该键或值为 phycat id 时，按 `palette_light`/`palette_dark` 与 `LEGACY_PALETTE_MAP` 写成 a1–a6。导出 HTML（api.py）与前端 `currentPalette()`（app.js）使用同一映射。
 - `font_ui` / `font_mono` 空字符串表示默认：外壳 `--sys-font-ui` 为 Noto Sans SC
   （unicode-range 分片、`font-display: block`，末项 `sans-serif`）；正文默认霞鹜文楷，
@@ -244,7 +256,7 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 | 分组 | 内容 |
 | --- | --- |
 | 通用 | 操作风格、启动时显示、再次启动程序、默认 Markdown 应用、欢迎页、学习仓库、公式引擎、自动保存、日记目录 |
-| 外观 | 主题亮/暗、配色方案 6 swatch（写入 `palette`）、正文字体、等宽字体 |
+| 外观 | 主题亮/暗、配色方案 5 swatch（写入 `palette`）、正文字体、等宽字体 |
 | 云同步 | 启用开关 + 现有 WebDAV 面板（`save_cloud_settings` 独立通道不动） |
 | AI | Anthropic Base URL / API Key / 模型（`update_config` 写入 `ai`）；语义与 `ask` 仅 Enter 请求 |
 
@@ -276,12 +288,12 @@ python main.py                        # 开发运行
 
 ```bash
 python run_tests.py                   # 单测 + E2E 全量
-python -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts tests.test_ai -v
+python run_tests.py --unit            # 仅单测（打包门禁同一清单）
 python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他实例）
 ```
 
-- 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API/云同步/检索）；
-- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为（当前 90 项）；
+- 单测覆盖后端纯逻辑（文件/树/仓库/关联/单实例/多窗口 API/云同步/检索/工作副本/AI/IM）；
+- E2E 用 `evaluate_js` 探针驱动真实窗口断言 UI 行为；
 - 新增功能必须配套用例；中文注入断言一律用 `JV()`（json.dumps）；
 - 详见 `docs/TEST_PLAN.md`（含手动验证清单）。
 

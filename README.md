@@ -41,7 +41,7 @@
 - **双操作风格**，设置中随时切换，首次启动弹窗选择：
   - **Typora + Notion**（默认）：英文 / 符号触发，如 `/h1`、`#`、`/table`。
   - **Typora + Wolai**：拼音缩写触发，如 `/bt1`、`/dmk`、`/lb`、`/wxlb`。
-- **RyuujiDesign 配色**：A 语言六板（霜纸靛蓝 / 和红 / 藤色 / 柳染 / 水浅葱 / 樱花），每板自带明暗双态，明暗对切自动换面。
+- **RyuujiDesign 配色**：A 语言五板（霜靛 / 藤色 / 柳染 / 水浅葱 / 樱花），每板自带明暗双态，明暗对切自动换面。
 - **目录 / 大纲 / 最近 / 链接侧栏**：浏览文件夹中的 md，文档大纲实时生成、点击跳转；最近打开列表快速回访；链接页展示反向链接。
 - **文件树管理**：右键文件可重命名、移动、在资源管理器中显示、删除（回收站）；
   右键文件夹可新建笔记 / 文件夹。`Ctrl+P` 输入新名也可直接新建。
@@ -86,8 +86,8 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 
 | 模式 | 产物 | 体积 | 启动 | 适用 |
 | --- | --- | --- | --- | --- |
-| onedir（默认） | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 85 MB | 快 | 整目录拷贝分发 |
-| onefile | `dist/RyuuMD.exe`（单个文件） | 约 42 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
+| onefile（`build.bat` 默认） | `dist/RyuuMD.exe`（单个文件） | 约 42 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
+| onedir | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 85 MB | 快 | 整目录拷贝分发 |
 
 两种产物互不覆盖，可同时存在于 `dist/`。
 
@@ -101,7 +101,8 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 本机是 Windows，Mac 包由 GitHub Actions 的 `macos-latest` runner 构建：
 
 - 推送 `v*` tag，或在 Actions 里手动跑 **macOS 打包**；
-- 产物 `RyuuMD-mac-arm64.zip`（`.app` + 说明 + `打开 RyuuMD.command`）；
+- 产物 `RyuuMD-mac-arm64.tar.gz`（推荐）与 `.zip`（`.app` + 说明 + `打开 RyuuMD.command`）；
+  须在 Mac 上解压，不要在 Windows 解压后再拷过去；
 - **未签名、未公证**。首次打开：右键 `RyuuMD.app` → 打开；或双击 `打开 RyuuMD.command`；
   或终端 `xattr -cr RyuuMD.app`。
 - 仅 Apple Silicon（M 系列）。Intel Mac 不支持。
@@ -140,9 +141,9 @@ Mac 上修饰键为 `⌘`（与下表 `Ctrl` 对应）。
 python run_tests.py
 ```
 
-先跑 Python API 单元测试（126 项），再跑真实窗口端到端测试（90 项）。
+先跑 Python API 单元测试，再跑真实窗口端到端测试。打包门禁用 `python run_tests.py --unit`。
 端到端测试须真实窗口，**运行前请关闭其他 RyuuMD / WebView2 实例**。
-测试计划、实测结果与手动验证清单见 `docs/TEST_PLAN.md`。
+测试计划与手动验证清单见 `docs/TEST_PLAN.md`。
 
 ## 文档
 
@@ -165,10 +166,13 @@ app/core/singleton.py   单实例守护（端口+token 转发，新窗口秒开�
 app/core/fsutil.py      共享常量、md 计数与回收站删除（api/projects 共用）
 app/core/webdav.py      轻量 WebDAV 客户端（标准库，无额外依赖）
 app/core/cloud_sync.py  可选云同步引擎（默认关闭，用户自备 WebDAV）
+app/core/workdir.py     仓库工作副本
+app/core/adv.py         CLI / TUI / MCP / AISkill
+app/core/im.py          即时通讯通道载荷
 app/web/index.html      前端外壳（含首页 DOM）
 app/web/css/            主题（app / editor / slash / home）
-app/web/js/             icons / commands / slash / sidebar / welcome / settings / home / editor / palette / app
-app/web/vendor/vditor/  内置 Vditor 全量资源
+app/web/js/             icons / commands / slash / convert / sidebar / welcome / settings / home / editor / palette / ai_panel / app
+app/web/vendor/vditor/  内置 Vditor 运行时（index.min.js + method.min.js + 插件）
 ```
 
 ## 配置说明
@@ -177,7 +181,7 @@ app/web/vendor/vditor/  内置 Vditor 全量资源
 
 - `operation_style`：`notion` | `wolai`
 - `theme`：`light` | `dark`（基础明暗）
-- `palette`：配色方案，默认 `a1`（a1 霜靛 / a2 和红 / a3 藤色 / a4 柳染 / a5 水浅葱 / a6 樱花；每板自带明暗双态。旧 `palette_light`/`palette_dark` 的 phycat id 读取时自动映射迁移）
+- `palette`：配色方案，默认 `a1`（a1 霜靛 / a3 藤色 / a4 柳染 / a5 水浅葱 / a6 樱花；每板自带明暗双态。旧 phycat id 与已退役 `a2` 读取时自动映射）
 - `font_ui` / `font_mono`：正文字体/等宽字体，空 = 默认（外壳固定 Noto Sans SC，正文霞鹜文楷 / Cascadia Code）
 - `math_engine`：`katex`（默认，快）| `mathjax`（Typora 同款，兼容更多宏）
 - `display_mode`：`ir`（渲染）| `sv`（源码）

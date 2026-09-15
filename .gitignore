@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 /build/
 /dist/
+/RyuuMD-mac-*.zip
+/RyuuMD-mac-*.tar.gz
 assets/icon.icns
 .venv/
 venv/

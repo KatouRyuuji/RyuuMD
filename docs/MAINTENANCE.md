@@ -88,7 +88,7 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 ## 4. 测试与质量门禁
 
 ```bash
-python run_tests.py     # 单测 126 + E2E 90，全绿才可发布
+python run_tests.py     # 单测 + E2E，全绿才可发布（打包门禁：python run_tests.py --unit）
 ```
 
 E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
@@ -106,7 +106,7 @@ E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
 4. 手动清单走查（TEST_PLAN 末节）；
 5. 产物：`dist/RyuuMD.exe`（onefile）/ `dist/RyuuMD/`（onedir），两者可共存；
 6. **macOS（未公证）**：推送 `v*` tag 或手动跑 Actions **macOS 打包**；
-   产物 `RyuuMD-mac-arm64.zip`。无 Apple 签名，用户需右键打开或 `xattr -cr`。
+   产物 `RyuuMD-mac-arm64.tar.gz`（推荐）与 `.zip`。无 Apple 签名，用户需右键打开或 `xattr -cr`。
    本机 Windows 不能打 Mac 包。有 Mac 时 `bash build-mac.sh`。
 7. 本地提交勿直接推远端（项目约定）。
 

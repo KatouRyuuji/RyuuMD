@@ -35,7 +35,7 @@ echo "[1/6] 安装依赖 / PyInstaller ..."
 
 echo
 echo "[2/6] 单元测试门禁 ..."
-"$PY" -m unittest tests.test_api tests.test_cloud tests.test_search tests.test_fonts tests.test_ai -v
+"$PY" run_tests.py --unit
 
 echo
 echo "[3/6] 从 icon.png 生成 icon.icns ..."

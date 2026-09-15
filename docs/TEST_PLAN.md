@@ -8,17 +8,17 @@
 + **可读宽度 / 转到行 / 快速收集 / 目录全折叠 / 未链接提及**
 + **内置学习仓库 / 外壳 Noto Sans SC / mermaid 与公式 / 段落转换与块操作**
 + **Anthropic AI 配置 / 文档与仓库概括 / 标题·内容·语义搜索 / ask 前缀问答**。
-自动化分层：**Python API 层单元测试**(`tests/test_api.py` + `tests/test_cloud.py` + `tests/test_search.py` + `tests/test_fonts.py` + `tests/test_ai.py`,unittest,零依赖）与
-**真实窗口端到端测试**(`tests/test_e2e.py`,pywebview + evaluate_js 探针断言）。
-统一入口：根目录 `run_tests.py`（先单测后 E2E，任一失败退出码非零）。
+自动化分层：**Python API 层单元测试**（`run_tests.py --unit` 所列模块，unittest，零依赖）与
+**真实窗口端到端测试**（`tests/test_e2e.py`，pywebview + evaluate_js 探针断言）。
+统一入口：根目录 `run_tests.py`（先单测后 E2E，任一失败退出码非零；`--unit` 供打包门禁）。
 
 > E2E 全程使用**临时 APPDATA**（隔离用户真实配置）与临时目录文件，
 > 并 hook `window.confirm` / `App.confirm` 恒为 true（防未保存确认框阻塞自动化）。
 
 ## 当前实测结果
 
-- **单元测试：140/140 通过**。
-- **E2E:92/92 通过**。
+- **单元测试：以 `python run_tests.py --unit` 为准**（本仓库实测 219 项通过）。
+- **E2E：以 `python tests/test_e2e.py` 汇总为准**。
 - 多窗口/单实例已做真实进程冒烟：主实例启动写锁 → 第二进程 254ms 秒退
   （转发成功）→ 主实例新窗口打开目标文档（last_file 证实）。
 - 多窗口链路回归脚本：`python tests/smoke_multiwindow.py` —— 真实双进程验证

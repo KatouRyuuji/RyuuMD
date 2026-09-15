@@ -1,7 +1,7 @@
 /* ============================================================
    RyuuMD 编辑区主题 —— phycat 排版身份（标题装饰/引用/代码块皮肤）保留，
    色值令牌由 css/sys-bridge.css 桥接到 RyuujiDesign v6.1（--sys-*）。
-   明暗由 [data-theme] 决定；色相由 [data-palette]（a1-a6）经 palettes.css 决定。
+   明暗由 [data-theme] 决定；色相由 [data-palette]（a1/a3/a4/a5/a6）经 palettes.css 决定。
    选择器从 Typora 的 #write 映射到 Vditor IR 的 .vditor-reset。
    ============================================================ */
 

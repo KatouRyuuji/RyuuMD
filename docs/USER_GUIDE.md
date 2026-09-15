@@ -16,7 +16,7 @@
 
 **macOS（Apple Silicon，未公证）**
 
-解压 `RyuuMD-mac-arm64.zip` 后：
+在 Mac 上解压 `RyuuMD-mac-arm64.tar.gz`（推荐）或 `.zip` 后：
 
 1. 右键 `RyuuMD.app` →「打开」→ 提示里再点「打开」（未公证包会被拦截，这是正常的）；
 2. 或双击同目录的「打开 RyuuMD.command」；
