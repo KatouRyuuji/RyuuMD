@@ -293,9 +293,10 @@ CASES = [
          setup="window.Home.show()",
          sleep=0.8,
          js=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
-             "if(document.querySelectorAll('#home .quick-card').length!==6)return 'quick cards';"
+             "if(document.querySelectorAll('#home .quick-card').length!==2)return 'quick cards';"
              "if(!document.getElementById('hq-tutorial'))return 'no tutorial card';"
              "if(!document.getElementById('hq-create-repo')||!document.getElementById('hq-create-folder'))return 'no create cards';"
+             "if(!document.getElementById('home-repo-plus'))return 'no repo plus';"
              "var n=document.querySelectorAll('#repo-container .repo-card,#repo-container .repo-row').length;"
              "if(n)return 'repos='+n;"
              "var empty=document.getElementById('repo-empty');"
@@ -460,14 +461,16 @@ CASES = [
               "if(!document.getElementById('cloud-auto-save')||!document.getElementById('cloud-sync-all'))return 'missing checks';"
               "document.getElementById('set-close').click();return true;})()")),
 
-    dict(name="T13 欢迎页重开:结构完整、二维码加载、可关闭",
+    dict(name="T13 欢迎页重开:两个选择、打赏二维码、可关闭",
          setup="window.App.showWelcome()", sleep=1.2,
          js=("(function(){var m=document.getElementById('welcome-mask');"
-             "return m.classList.contains('open')&&m.querySelectorAll('.feature-card').length===6"
+             "var qr=document.getElementById('welcome-qr');"
+             "return m.classList.contains('open')"
+             "&&m.querySelectorAll('.feature-card').length===0"
              "&&m.querySelectorAll('.style-opt').length===2"
              "&&m.querySelectorAll('.mode-opt').length===2"
              "&&document.getElementById('welcome-edit-mode')"
-             "&&document.getElementById('welcome-qr').classList.contains('has-img');})()"),
+             "&&qr&&qr.classList.contains('has-img');})()"),
          setup2="document.getElementById('welcome-start').click()", sleep2=0.5,
          js2="!document.getElementById('welcome-mask').classList.contains('open')"),
 
@@ -599,17 +602,14 @@ CASES = [
          js2=("(function(){var dn=document.getElementById('doc-name').textContent;"
               "return dn.indexOf('small.md')>=0?true:'doc='+dn;})()")),
 
-    dict(name="T119 首页预览和快速编辑可见最近笔记正文",
+    dict(name="T119 首页有最近时骨架仍含随手记",
          setup="window.Home.show()", sleep=1.0,
          js=("(function(){"
              "if(!window.Home.isOpen())return 'home closed';"
-             "var body=document.getElementById('home-preview-body');"
-             "if(!body||body.hidden)return 'no preview body';"
-             "var t=body.textContent||'';"
-             "if(t.indexOf(" + JV("普通正文") + ")<0 && t.indexOf(" + JV("小文档") + ")<0)"
-             "return 'preview='+t.slice(0,40);"
-             "var qe=document.getElementById('home-qe-input');"
-             "if(!qe||(qe.value||'').indexOf(" + JV("普通正文") + ")<0)return 'qe empty';"
+             "if(document.getElementById('home-glance-sec')||document.getElementById('home-qe-sec'))return 'glance still';"
+             "if(!document.getElementById('home-scratch-sec'))return 'no scratch';"
+             "var recent=document.getElementById('home-recent');"
+             "if(!recent||!recent.children.length)return 'no recent';"
              "return true;})()"),
          timeout=12),
 
@@ -1606,7 +1606,7 @@ CASES = [
               "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'empty hidden';"
               "return true;})()")),
 
-    dict(name="T93 AI 侧栏:工具栏按钮开关与入口齐全",
+    dict(name="T93 AI 侧栏:工具栏按钮开关与未配置空态",
          setup="document.getElementById('btn-ai').click()",
          sleep=0.3,
          js=("(function(){var p=document.getElementById('ai-sidebar');"
@@ -1615,10 +1615,10 @@ CASES = [
              "if(!document.getElementById('ai-sum-vault'))return 'no vault';"
              "if(!document.getElementById('ai-knowledge'))return 'no knowledge';"
              "if(!document.getElementById('ai-ask-input'))return 'no ask';"
+             "var actions=document.getElementById('ai-side-actions');"
+             "if(actions&&!actions.hidden)return 'actions shown unconfigured';"
              "var t=p.textContent;"
-             "if(t.indexOf(" + JV("概括当前文档") + ")<0)return 'no doc text';"
-             "if(t.indexOf(" + JV("概括当前仓库") + ")<0)return 'no vault text';"
-             "if(t.indexOf(" + JV("知识谱系") + ")<0)return 'no knowledge text';"
+             "if(t.indexOf(" + JV("去配置 AI") + ")<0)return 'no configure';"
              "return true;})()"),
          setup2="document.getElementById('btn-ai').click()",
          sleep2=0.2,
@@ -1651,7 +1651,7 @@ CASES = [
          setup="window.Home.show()",
          sleep=0.4,
          js=("(function(){"
-             "var hid=['btn-sidebar','btn-save','btn-push-source','btn-merge-source','btn-ai','btn-reveal'];"
+             "var hid=['btn-sidebar','btn-save','btn-push-source','btn-merge-source','btn-ai','btn-reveal','btn-open-folder','btn-new'];"
              "for(var i=0;i<hid.length;i++){"
              "var b=document.getElementById(hid[i]);"
              "if(getComputedStyle(b).display!=='none')return 'shown on home:'+hid[i];}"
@@ -1660,10 +1660,12 @@ CASES = [
          setup2="window.Home.hide()",
          sleep2=0.4,
          js2=("(function(){"
-              "var ids=['btn-sidebar','btn-save','btn-ai'];"
+              "var ids=['btn-sidebar','btn-ai'];"
               "for(var i=0;i<ids.length;i++){"
               "var b=document.getElementById(ids[i]);"
               "if(getComputedStyle(b).display==='none')return 'hidden on editor:'+ids[i];}"
+              "if(!document.getElementById('sb-save'))return 'no sb-save';"
+              "if(getComputedStyle(document.getElementById('btn-save')).display!=='none')return 'save still in toolbar';"
               "return !document.body.classList.contains('is-home');})()")),
 
     dict(name="T98 编辑方式开关:设置切到工作副本后状态栏与 body 同步",
@@ -1950,10 +1952,9 @@ CASES = [
          js=("(function(){"
              "var btn=document.querySelector('#pal-modes [data-mode=semantic]');"
              "if(!btn)return 'no semantic';"
-             "var kbd=btn.querySelector('.pal-mode-kbd');"
-             "if(!kbd||kbd.textContent.indexOf(" + JV("回车") + ")<0)return 'no kbd';"
-             "var h=document.getElementById('pal-hint').textContent||'';"
-             "if(h.indexOf('Enter')<0&&h.indexOf(" + JV("回车") + ")<0)return 'hint='+h;"
+             "if(btn.querySelector('.pal-mode-kbd'))return 'kbd still';"
+             "var h=document.getElementById('pal-foot').textContent||'';"
+             "if(h.indexOf('Enter')<0&&h.indexOf(" + JV("回车") + ")<0)return 'foot='+h;"
              "return true;})()"),
          setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
          sleep2=0.3,

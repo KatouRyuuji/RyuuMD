@@ -117,8 +117,8 @@
 | 编号 | 特性 | 测试点 | 方式 | 自动化 |
 | --- | --- | --- | --- | --- |
 | F1 | 首启弹出 | welcome_shown=false → 自动弹 | 手动 | ⬜（E2E 启动时配置干净会弹，runner 内关闭） |
-| F2 | 结构 | 6 功能卡 / 2 风格卡 / 提示条 / 赞助栏 | E2E | ✅ T13 |
-| F3 | 二维码 | assets/QRCode.png 存在且加载成功（has-img) | 单测+E2E | ✅ |
+| F2 | 结构 | 2 风格卡 / 2 编辑方式 / 右侧打赏栏 / 无功能卡 | E2E | ✅ T13 |
+| F3 | 二维码 | assets/QRCode.png 存在且欢迎页加载成功（has-img） | 单测+E2E | ✅ T13 / test_api |
 | F4 | 风格选择+不再显示 | 点选 wolai/notion → 持久化；「开始使用」关闭 | E2E | ✅ T13 |
 | F5 | 设置重开 | 设置 → 欢迎页 → 再次弹出 | E2E | ✅ T13（直接调 showWelcome) |
 
@@ -184,7 +184,7 @@
 
 | 编号 | 特性 | 测试点 | 方式 | 自动化 |
 | --- | --- | --- | --- | --- |
-| K1 | 首启进首页 | startup_page=home 且 config 有 last_file：welcome 关闭后仍进首页、4 快速操作（含学习仓库）、空态提示 | E2E | ✅ T00 |
+| K1 | 首启进首页 | startup_page=home 且 config 有 last_file：welcome 关闭后仍进首页、2 快速操作（写/打开）、仓库 `+` 含学习仓库、空态提示 | E2E | ✅ T00 |
 | K2 | 启动页策略 | 仅 restore 才恢复；home/缺失/非法一律首页。首页打开文档走 ensureEditor | 单测/E2E | ✅ T00 / T00b ⬜（restore 档手动） |
 | K3 | 仓库增删改 | add 去重（大小写不敏感）/rename 空名拒绝/remove/失效标记不丢弃 | 单测 | ✅ TestProjects |
 | K4 | 排序 | 置顶最前 → last_opened_at 倒序 | 单测 | ✅ test_pin_and_sort_order |

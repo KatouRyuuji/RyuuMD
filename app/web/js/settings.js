@@ -101,9 +101,16 @@
             <div class="setting-row">
               <div>
                 <div class="label">欢迎页</div>
-                <div class="desc">重看功能介绍与支持作者</div>
+                <div class="desc">重选操作风格与编辑方式</div>
               </div>
               <button class="btn" id="set-welcome">打开</button>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">支持作者</div>
+                <div class="desc">扫码请一杯咖啡，或打开 B 站主页</div>
+              </div>
+              <button class="btn" id="set-sponsor">查看</button>
             </div>
             <div class="setting-row">
               <div>
@@ -221,7 +228,7 @@
             </div>
           </div>
           <div class="settings-pane" data-pane="ai">
-            <p class="cloud-hint">使用 Anthropic Messages 协议（官方或兼容中转）。笔记摘录与提问会发往你填写的 Base URL；API Key 保存在本机配置且不回显。语义搜索与 <code>ask</code> 提问需按 Enter 才会请求。提问时可调用本应用内的 MCP / AISkill 工具（读笔记、写笔记、搜索、仓库列表、随手记、即时通讯发送）。飞书 / 网易 POPO / 钉钉 / 企业微信 / 微信 / QQ 走同一套 <code>im_send</code> / <code>im_receive</code>，无需另开程序。</p>
+            <p class="cloud-hint">Anthropic Messages 协议（官方或兼容中转）。API Key 保存在本机且不回显。</p>
             <div class="field-grid ai-fields">
               <label for="ai-base-url">Base URL</label>
               <input class="field-input" id="ai-base-url" placeholder="https://api.anthropic.com" spellcheck="false" />
@@ -230,21 +237,28 @@
               <label for="ai-model">模型</label>
               <input class="field-input" id="ai-model" placeholder="claude-sonnet-4-20250514" spellcheck="false" />
             </div>
-            <p class="cloud-hint">即时通讯 webhook（可空：空则写入本机发件箱）。命令面板可把当前笔记发到对应通道。</p>
-            <div class="field-grid ai-fields" id="im-webhooks">
-              <label for="im-feishu">飞书</label>
-              <input class="field-input" id="im-feishu" data-im="feishu" placeholder="webhook URL" spellcheck="false" />
-              <label for="im-popo">网易 POPO</label>
-              <input class="field-input" id="im-popo" data-im="popo" placeholder="webhook URL" spellcheck="false" />
-              <label for="im-dingtalk">钉钉</label>
-              <input class="field-input" id="im-dingtalk" data-im="dingtalk" placeholder="webhook URL" spellcheck="false" />
-              <label for="im-wecom">企业微信</label>
-              <input class="field-input" id="im-wecom" data-im="wecom" placeholder="webhook URL" spellcheck="false" />
-              <label for="im-wechat">微信</label>
-              <input class="field-input" id="im-wechat" data-im="wechat" placeholder="webhook URL" spellcheck="false" />
-              <label for="im-qq">QQ</label>
-              <input class="field-input" id="im-qq" data-im="qq" placeholder="webhook URL" spellcheck="false" />
+            <div class="cloud-actions ai-test-row">
+              <button class="btn" id="ai-test" type="button">测通</button>
+              <span id="ai-test-status"></span>
             </div>
+            <details class="ai-advanced" id="ai-advanced">
+              <summary>高级：即时通讯 webhook</summary>
+              <p class="cloud-hint">可空。空则写入本机发件箱。命令面板可把当前笔记发到对应通道。</p>
+              <div class="field-grid ai-fields" id="im-webhooks">
+                <label for="im-feishu">飞书</label>
+                <input class="field-input" id="im-feishu" data-im="feishu" placeholder="webhook URL" spellcheck="false" />
+                <label for="im-popo">网易 POPO</label>
+                <input class="field-input" id="im-popo" data-im="popo" placeholder="webhook URL" spellcheck="false" />
+                <label for="im-dingtalk">钉钉</label>
+                <input class="field-input" id="im-dingtalk" data-im="dingtalk" placeholder="webhook URL" spellcheck="false" />
+                <label for="im-wecom">企业微信</label>
+                <input class="field-input" id="im-wecom" data-im="wecom" placeholder="webhook URL" spellcheck="false" />
+                <label for="im-wechat">微信</label>
+                <input class="field-input" id="im-wechat" data-im="wechat" placeholder="webhook URL" spellcheck="false" />
+                <label for="im-qq">QQ</label>
+                <input class="field-input" id="im-qq" data-im="qq" placeholder="webhook URL" spellcheck="false" />
+              </div>
+            </details>
           </div>
         </div>
         <div class="modal-foot">
@@ -267,6 +281,9 @@
     document.getElementById("set-welcome").addEventListener("click", () => {
       close();
       if (window.App && window.App.showWelcome) window.App.showWelcome();
+    });
+    document.getElementById("set-sponsor").addEventListener("click", () => {
+      if (window.Sponsor && window.Sponsor.show) window.Sponsor.show();
     });
     // 学习仓库：关闭设置后走 App 的打开流程（含幂等复制与导读加载）
     document.getElementById("set-tutorial").addEventListener("click", () => {
@@ -582,6 +599,24 @@
     [urlEl, keyEl, modelEl].forEach((el) => {
       el.addEventListener("change", () => persist());
     });
+
+    const testBtn = document.getElementById("ai-test");
+    const testStatus = document.getElementById("ai-test-status");
+    if (testBtn) {
+      testBtn.addEventListener("click", async () => {
+        await persist();
+        const hasKey = !!(keyEl.value.trim() || ai.api_key_set || (cfg.ai && cfg.ai.api_key_set));
+        const url = urlEl.value.trim();
+        const model = modelEl.value.trim();
+        if (!hasKey || !url || !model) {
+          if (testStatus) testStatus.textContent = "请先填写 Base URL、API Key 和模型";
+          if (window.App) window.App.toast("请先填写 Base URL、API Key 和模型", { type: "error" });
+          return;
+        }
+        if (testStatus) testStatus.textContent = "已保存。打开 AI 侧栏提问即可验证。";
+        if (window.App) window.App.toast("AI 接口已保存");
+      });
+    }
   }
 
   function bindIm() {
@@ -657,7 +692,7 @@
     return mask.classList.contains("open");
   }
 
-  function open(config, applyFn) {
+  function open(config, applyFn, opts) {
     cfg = Object.assign({}, config);
     onApply = applyFn;
     if (!isOpen()) {
@@ -666,6 +701,11 @@
     }
     render();
     mask.classList.add("open");
+    const tabId = opts && opts.tab;
+    if (tabId) {
+      const tab = mask.querySelector('.settings-tab[data-tab="' + tabId + '"]');
+      if (tab) tab.click();
+    }
     const closer = document.getElementById("set-close");
     if (closer) closer.focus();
   }

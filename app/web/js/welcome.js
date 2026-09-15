@@ -1,34 +1,46 @@
-/* 欢迎窗口：应用特性介绍 + 操作风格选择 + 赞助侧栏。
-   布局参考 WeekRepo 欢迎界面：徽章标题 + WELCOME 字标 → 问候语 →
-   功能卡片 → 灯泡提示条 → 右侧「扫码支持作者」卡片 → 底部「不再显示 / 开始使用」；
-   RyuuMD 额外保留「选择操作风格」一节。
-   首次启动自动弹出（app.js），也可从「设置 → 欢迎页」重新打开。 */
+/* 欢迎窗口：问候 + 操作风格 / 编辑方式；右侧为安静可扫的打赏图章。
+   首次启动自动弹出（app.js），也可从「设置 → 欢迎页」重新打开。
+   打赏卡同时给设置「支持作者」和命令面板复用（勾选不再显示后仍可找到）。 */
 (function () {
+  const BILI_URL = "https://space.bilibili.com/445111";
+  const BILI_HOST = "space.bilibili.com/445111";
   const mask = document.getElementById("welcome-mask");
+  const sponsorMask = document.getElementById("sponsor-mask");
   let chosenStyle = "notion";
   let chosenEdit = "source";
   let resolveFn = null;
+  let sponsorFocus = null;
 
-  const FEATURES = [
-    { icon: "zap", title: "极速即时渲染", desc: "Typora 式所见即所得，输入即排版" },
-    { icon: "slash", title: "斜杠命令", desc: "输入 / 插入标题、表格、公式" },
-    { icon: "lock", title: "全本地 · 隐私安全", desc: "无需账号，文件始终留在本机" },
-    { icon: "toc", title: "文件树与大纲", desc: "侧栏浏览文件夹，大纲一点即达" },
-    { icon: "palette", title: "五套色板", desc: "霜靛、藤色、柳染、水浅葱、樱花" },
-    { icon: "drag", title: "拖拽即开", desc: "拖入 md 或文件夹即可打开" },
-  ];
+  function fillQr(box) {
+    if (!box) return;
+    const img = new Image();
+    img.onload = () => { box.classList.add("has-img"); box.innerHTML = ""; box.appendChild(img); };
+    img.onerror = () => {};
+    img.alt = "打赏二维码";
+    img.src = "assets/QRCode.png";
+  }
 
-  function buildFeatureCards() {
-    return FEATURES.map(
-      (f) => `
-      <div class="feature-card">
-        <span class="fc-icon">${window.ICONS[f.icon] || ""}</span>
-        <div>
-          <h4>${f.title}</h4>
-          <p>${f.desc}</p>
-        </div>
-      </div>`
-    ).join("");
+  function bindBili(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-bili]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (window.App && window.App.openExternal) window.App.openExternal(BILI_URL);
+      });
+    });
+  }
+
+  function sponsorCardHtml(qrId) {
+    const tv = (window.ICONS && window.ICONS.tv) || "";
+    return `
+      <aside class="sponsor" aria-label="支持作者">
+        <p class="sponsor-kicker">支持作者</p>
+        <div class="qr" id="${qrId}">赞助二维码</div>
+        <p class="sponsor-lead">请一杯咖啡</p>
+        <button type="button" class="sponsor-bili" data-bili aria-label="打开 B 站主页 ${BILI_HOST}">
+          ${tv}<span>B 站主页</span>
+        </button>
+      </aside>`;
   }
 
   function buildStylePicker() {
@@ -68,17 +80,11 @@
             <h2>欢迎使用 RyuuMD</h2>
             <p>轻量、全本地、极速的 Markdown 编辑与阅读工具</p>
           </div>
-          <span class="welcome-word">WELCOME</span>
         </div>
         <div class="modal-body">
           <div class="welcome-grid">
             <div class="welcome-main">
               <p class="welcome-greet">你好，我是 RyuuJi。愿读写 Markdown 这件事，始终轻快、专注、不被打扰。</p>
-              <div class="feature-grid">${buildFeatureCards()}</div>
-              <div class="welcome-tip">
-                ${window.ICONS.lightbulb}
-                <span>超大文档会自动以源码模式打开保持流畅，右下角可随时切换渲染 / 源码。</span>
-              </div>
               <div class="style-sec">
                 <div class="label">选择操作风格</div>
                 <div class="desc">决定斜杠命令的触发词，随时可在「设置」中更改</div>
@@ -90,14 +96,7 @@
                 ${buildEditModePicker()}
               </div>
             </div>
-            <aside class="sponsor">
-              <h4>${window.ICONS.coffee}<span>扫码支持作者</span></h4>
-              <div class="qr" id="welcome-qr">赞助二维码</div>
-              <div class="link">
-                <span class="link-head">${window.ICONS.tv}<span>B 站主页</span></span>
-                <span class="link-url">space.bilibili.com/445111</span>
-              </div>
-            </aside>
+            ${sponsorCardHtml("welcome-qr")}
           </div>
         </div>
         <div class="modal-foot">
@@ -120,18 +119,45 @@
         chosenEdit = el.dataset.mode || "source";
       });
     });
-    tryLoadQR();
+    fillQr(document.getElementById("welcome-qr"));
+    bindBili(mask);
     document.getElementById("welcome-start").addEventListener("click", finish);
   }
 
-  /* 有图则展示（白底保证暗色主题下可扫码），无图保留虚线占位。
-     约定：二维码放置于 assets/QRCode.png（见 README）。 */
-  function tryLoadQR() {
-    const box = document.getElementById("welcome-qr");
-    const img = new Image();
-    img.onload = () => { box.classList.add("has-img"); box.innerHTML = ""; box.appendChild(img); };
-    img.onerror = () => {};
-    img.src = "assets/QRCode.png";
+  function closeSponsor() {
+    if (!sponsorMask || !sponsorMask.classList.contains("open")) return;
+    if (window.App && window.App.unregisterEscape) window.App.unregisterEscape(closeSponsor);
+    sponsorMask.classList.remove("open");
+    sponsorMask.innerHTML = "";
+    if (sponsorFocus && typeof sponsorFocus.focus === "function") {
+      try { sponsorFocus.focus(); } catch (e) { /* 原焦点可能已卸 */ }
+    }
+    sponsorFocus = null;
+  }
+
+  function showSponsor() {
+    if (!sponsorMask) return;
+    sponsorFocus = document.activeElement;
+    sponsorMask.innerHTML = `
+      <div class="modal sponsor-dialog" role="dialog" aria-modal="true" aria-label="支持作者">
+        <div class="modal-head">
+          <span class="badge">${(window.ICONS && window.ICONS.coffee) || ""}</span>
+          <div><h2>支持作者</h2><p>扫码请一杯咖啡，或去 B 站看看</p></div>
+        </div>
+        <div class="modal-body">${sponsorCardHtml("sponsor-qr")}</div>
+        <div class="modal-foot">
+          <button class="btn btn--primary" id="sponsor-close" type="button">关闭</button>
+        </div>
+      </div>`;
+    fillQr(document.getElementById("sponsor-qr"));
+    bindBili(sponsorMask);
+    sponsorMask.classList.add("open");
+    if (window.App && window.App.registerEscape) window.App.registerEscape(closeSponsor);
+    const closer = document.getElementById("sponsor-close");
+    if (closer) {
+      closer.addEventListener("click", closeSponsor);
+      closer.focus();
+    }
   }
 
   function isOpen() {
@@ -176,5 +202,12 @@
     return new Promise((res) => (resolveFn = res));
   }
 
+  if (sponsorMask) {
+    sponsorMask.addEventListener("click", (e) => {
+      if (e.target === sponsorMask) closeSponsor();
+    });
+  }
+
   window.Welcome = { show, close, isOpen };
+  window.Sponsor = { show: showSponsor, close: closeSponsor };
 })();

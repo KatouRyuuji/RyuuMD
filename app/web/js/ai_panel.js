@@ -63,12 +63,43 @@
     askInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); sendAsk(); }
     });
+    if (emptyEl) {
+      emptyEl.addEventListener("click", (e) => {
+        if (e.target && e.target.id === "ai-go-settings") {
+          if (deps.openSettingsAi) deps.openSettingsAi();
+        }
+      });
+    }
+    syncConfigured();
+  }
+
+  function isConfigured() {
+    const cfg = deps.getConfig && deps.getConfig();
+    const ai = cfg && cfg.ai;
+    return !!(ai && (ai.api_key_set || ai.api_key));
+  }
+
+  function syncConfigured() {
+    const ok = isConfigured();
+    const actions = document.getElementById("ai-side-actions");
+    if (actions) actions.hidden = !ok;
+    if (!emptyEl) return;
+    const hasLog = !!(logEl && logEl.querySelector(".ai-entry"));
+    if (hasLog) {
+      emptyEl.style.display = "none";
+      return;
+    }
+    emptyEl.style.display = "";
+    emptyEl.innerHTML = ok
+      ? "问点什么，或概括文档、梳理知识谱系。"
+      : '尚未配置 AI 接口。<br /><button type="button" class="btn btn--primary" id="ai-go-settings">去配置 AI</button>';
   }
 
   function isOpen() { return !panel.hidden; }
 
   function open() {
     panel.hidden = false;
+    syncConfigured();
     syncButton();
     if (window.App && window.App.registerEscape) window.App.registerEscape(onEsc);
   }
@@ -197,6 +228,13 @@
     return false;
   }
 
+  function ask(q) {
+    const text = String(q || "").trim();
+    if (!text) return;
+    askInput.value = text;
+    sendAsk();
+  }
+
   async function sendAsk() {
     const q = (askInput.value || "").trim();
     if (!q) return;
@@ -252,7 +290,7 @@
   function hasKnowledge() { return knowledgeDone; }
 
   window.AiPanel = {
-    init, open, close, toggle, isOpen, resetKnowledge,
-    summarizeDoc, summarizeVault, knowledge, isBusy, hasKnowledge,
+    init, open, close, toggle, isOpen, resetKnowledge, syncConfigured,
+    summarizeDoc, summarizeVault, knowledge, isBusy, hasKnowledge, ask,
   };
 })();

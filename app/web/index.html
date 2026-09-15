@@ -61,16 +61,16 @@
       <!-- 图标放在 .ib-icon（data-icon 注入目标）里，文字放 .ib-label，互不覆盖 -->
       <button class="icon-btn" id="btn-home" title="首页 (Ctrl+Shift+H)" aria-label="首页"><span class="ib-icon" data-icon="home"></span><span class="ib-label">首页</span></button>
       <button class="icon-btn" id="btn-sidebar" title="切换侧栏 (Ctrl+Shift+B)" aria-label="切换侧栏"><span class="ib-icon" data-icon="sidebar"></span><span class="ib-label">侧栏</span></button>
-      <button class="icon-btn" id="btn-open-folder" title="打开文件夹" aria-label="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
-      <button class="icon-btn" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
-      <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
-      <button class="icon-btn" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
+      <button class="icon-btn tb-chrome-hide" id="btn-open-folder" title="打开文件夹" aria-label="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
+      <button class="icon-btn tb-chrome-hide" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
+      <button class="icon-btn tb-chrome-hide" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
+      <button class="icon-btn tb-chrome-hide" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
       <button class="icon-btn workdir-only" id="btn-push-source" title="保存至源文件 (Ctrl+Shift+S)" aria-label="保存至源文件"><span class="ib-icon" data-icon="upload"></span><span class="ib-label">保存至源</span></button>
       <button class="icon-btn workdir-only" id="btn-merge-source" title="合并源文件" aria-label="合并源文件"><span class="ib-icon" data-icon="gitMerge"></span><span class="ib-label">合并源</span></button>
       <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
       <button class="icon-btn" id="btn-ai" title="AI 侧栏" aria-label="AI 侧栏" aria-expanded="false"><span class="ib-icon" data-icon="sparkles"></span><span class="ib-label">AI</span></button>
-      <button class="icon-btn" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
-      <button class="icon-btn" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
+      <button class="icon-btn tb-chrome-hide" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
+      <button class="icon-btn tb-chrome-hide" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
 
       <div class="tb-spacer"></div>
 
@@ -118,21 +118,22 @@
           <div class="find-row">
             <input id="find-input" aria-label="在本文查找" placeholder="在本文查找" spellcheck="false" />
             <span id="find-count"></span>
-            <button type="button" class="btn" id="find-prev">上一个</button>
-            <button type="button" class="btn" id="find-next">下一个</button>
+            <button type="button" class="btn" id="find-prev" title="上一个">上</button>
+            <button type="button" class="btn" id="find-next" title="下一个">下</button>
             <button type="button" class="btn" id="find-toggle-replace" title="替换 (Ctrl+H)" aria-pressed="false">替换</button>
-            <button type="button" class="btn" id="find-close">关闭</button>
-          </div>
-          <div class="find-row" id="replace-row">
-            <input id="replace-input" aria-label="替换为" placeholder="替换为" spellcheck="false" />
-            <button type="button" class="btn" id="replace-one">替换</button>
-            <button type="button" class="btn" id="replace-all">全部替换</button>
+            <div id="replace-inline">
+              <input id="replace-input" aria-label="替换为" placeholder="替换为" spellcheck="false" />
+              <button type="button" class="btn" id="replace-one">替换</button>
+              <button type="button" class="btn" id="replace-all">全部</button>
+            </div>
+            <button type="button" class="icon-btn" id="find-close" title="关闭" aria-label="关闭"><span class="ib-icon" data-icon="close"></span></button>
           </div>
         </div>
         <div id="editor"></div>
         <div id="statusbar">
           <div class="sb-left">
             <span id="sb-path" class="sb-item" title="在目录中定位">未打开文件</span>
+            <button type="button" class="sb-item" id="sb-save" title="保存 (Ctrl+S)">未保存</button>
             <button type="button" class="sb-item sb-workdir" id="sb-workdir" title="编辑方式" hidden>直改源文件</button>
           </div>
           <div class="sb-right">
@@ -156,13 +157,13 @@
           <span class="ai-side-title"><span class="ai-side-logo" data-icon="sparkles"></span>AI 助手</span>
           <button type="button" class="ai-side-x" id="ai-side-close" title="关闭" aria-label="关闭 AI 侧栏" data-icon="close"></button>
         </div>
-        <div class="ai-side-actions">
+        <div class="ai-side-actions" id="ai-side-actions" hidden>
           <button type="button" class="btn" id="ai-sum-doc">概括当前文档</button>
           <button type="button" class="btn" id="ai-sum-vault">概括当前仓库</button>
           <button type="button" class="btn" id="ai-knowledge">生成知识谱系</button>
         </div>
         <div class="ai-side-log" id="ai-side-log">
-          <div class="ai-side-empty" id="ai-side-empty">问点什么，或概括文档、梳理知识谱系。<br />先在设置 → AI 填好接口。</div>
+          <div class="ai-side-empty" id="ai-side-empty">尚未配置 AI 接口。</div>
         </div>
         <div class="ai-side-ask">
           <input id="ai-ask-input" aria-label="向 AI 提问" placeholder="向 AI 提问…" spellcheck="false" autocomplete="off" />
@@ -179,27 +180,11 @@
             <div class="home-quick">
               <button class="quick-card hover-lift press" id="hq-new">
                 <span class="qc-icon" data-icon="plus"></span>
-                <span>新建文档<span class="qc-desc">开始记录新想法</span></span>
+                <span>新建文档<span class="qc-desc">开始写一篇</span></span>
               </button>
               <button class="quick-card hover-lift press" id="hq-open-file">
                 <span class="qc-icon" data-icon="file"></span>
-                <span>打开文件<span class="qc-desc">浏览单个 Markdown</span></span>
-              </button>
-              <button class="quick-card hover-lift press" id="hq-add-repo">
-                <span class="qc-icon" data-icon="folder"></span>
-                <span>添加仓库<span class="qc-desc">把已有目录登记为仓库</span></span>
-              </button>
-              <button class="quick-card hover-lift press" id="hq-create-repo">
-                <span class="qc-icon" data-icon="folder"></span>
-                <span>新建仓库<span class="qc-desc">创建目录并登记</span></span>
-              </button>
-              <button class="quick-card hover-lift press" id="hq-create-folder">
-                <span class="qc-icon" data-icon="folder"></span>
-                <span>新建文件夹<span class="qc-desc">在指定位置创建目录</span></span>
-              </button>
-              <button class="quick-card hover-lift press" id="hq-tutorial">
-                <span class="qc-icon" data-icon="books"></span>
-                <span>学习仓库<span class="qc-desc">交互式教程，边玩边学</span></span>
+                <span>打开文件<span class="qc-desc">打开已有 Markdown</span></span>
               </button>
             </div>
           </header>
@@ -208,6 +193,15 @@
             <div class="home-sec-head">
               <h2><span data-icon="books"></span>我的仓库 <span class="home-sec-count" id="repo-count"></span></h2>
               <div class="home-sec-spacer"></div>
+              <div class="home-repo-add">
+                <button type="button" class="btn" id="home-repo-plus" title="添加仓库" aria-label="添加仓库" aria-haspopup="true" aria-expanded="false"><span data-icon="plus"></span></button>
+                <div class="home-repo-menu" id="home-repo-menu" hidden>
+                  <button type="button" id="hq-add-repo">添加已有目录</button>
+                  <button type="button" id="hq-create-repo">新建仓库</button>
+                  <button type="button" id="hq-create-folder">新建文件夹</button>
+                  <button type="button" id="hq-tutorial">打开学习仓库</button>
+                </div>
+              </div>
               <div class="view-toggle" id="repo-view-toggle">
                 <button data-view="card" title="卡片视图" aria-label="卡片视图" aria-pressed="false" data-icon="grid"></button>
                 <button data-view="list" title="列表视图" aria-label="列表视图" aria-pressed="false" data-icon="listView"></button>
@@ -230,35 +224,11 @@
             <div class="home-empty" id="home-recent-empty" style="display:none">最近打开的文件和文件夹会显示在这里</div>
           </section>
 
-          <section class="home-section" id="home-glance-sec">
-            <div class="home-sec-head">
-              <h2><span data-icon="fileText"></span>预览和速览</h2>
-              <div class="home-sec-spacer"></div>
-              <button class="btn btn--text" id="home-preview-open">打开这篇</button>
-            </div>
-            <div id="home-preview" class="home-preview">
-              <div class="home-empty" id="home-preview-empty">打开过的笔记会出现在这里</div>
-              <article id="home-preview-card" hidden>
-                <h3 id="home-preview-title"></h3>
-                <pre id="home-preview-body"></pre>
-              </article>
-            </div>
-          </section>
-
-          <section class="home-section" id="home-qe-sec">
-            <div class="home-sec-head">
-              <h2><span data-icon="edit"></span>快速编辑</h2>
-              <div class="home-sec-spacer"></div>
-              <button class="btn btn--primary press" id="home-qe-save">保存</button>
-            </div>
-            <textarea id="home-qe-input" class="home-pad" aria-label="快速编辑最近一篇笔记" spellcheck="false" placeholder="最近一篇笔记的正文会出现在这里，改完点保存。"></textarea>
-          </section>
-
           <section class="home-section" id="home-scratch-sec">
             <div class="home-sec-head">
               <h2><span data-icon="clipboard"></span>随手记</h2>
               <div class="home-sec-spacer"></div>
-              <button class="btn btn--primary press" id="home-scratch-save">保存</button>
+              <button class="btn press" id="home-scratch-save">保存</button>
             </div>
             <textarea id="home-scratch-input" class="home-pad" aria-label="随手记" spellcheck="false" placeholder="写一点马上要记下的内容，保存在本机随手记文件里。"></textarea>
           </section>
@@ -290,7 +260,7 @@
       <div id="pal-modes" hidden>
         <button type="button" class="pal-mode active" data-mode="title" title="输入即搜标题" aria-pressed="true">标题</button>
         <button type="button" class="pal-mode" data-mode="content" title="输入即搜正文" aria-pressed="false">内容</button>
-        <button type="button" class="pal-mode" data-mode="semantic" title="按 Enter 搜索，将调用已配置的模型" aria-pressed="false">语义 <kbd class="pal-mode-kbd">回车</kbd></button>
+        <button type="button" class="pal-mode" data-mode="semantic" title="按 Enter 搜索，将调用已配置的模型" aria-pressed="false">语义</button>
       </div>
       <div id="pal-answer" hidden></div>
       <div id="pal-list"></div>
@@ -302,6 +272,7 @@
   <!-- 弹窗挂载点 -->
   <div class="modal-mask" id="settings-mask"></div>
   <div class="modal-mask" id="welcome-mask"></div>
+  <div class="modal-mask" id="sponsor-mask"></div>
   <!-- 后端桥等待遮罩：js_api 注入偶发迟到时给出可视反馈与重载出口（app.js showBackendPending） -->
   <div class="modal-mask" id="backend-pending">
     <div class="modal" style="width:340px;text-align:center;padding:28px 24px">

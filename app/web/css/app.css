@@ -108,6 +108,8 @@ body.is-home #btn-push-source,
 body.is-home #btn-merge-source,
 body.is-home #btn-ai,
 body.is-home #btn-reveal,
+body.is-home #doc-name,
+body.is-home #sb-save,
 body.no-doc #btn-reveal,
 body.no-doc #btn-push-source,
 body.no-doc #btn-merge-source,
@@ -163,6 +165,7 @@ body:not(.is-workdir) #btn-merge-source {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
+.ai-side-actions[hidden] { display: none; }
 .ai-side-actions .btn {
   width: 100%;
   justify-content: center;
@@ -320,6 +323,9 @@ body:not(.is-workdir) #btn-merge-source {
   font-family: inherit;
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
+}
+#toolbar .icon-btn.tb-chrome-hide {
+  display: none;
 }
 .icon-btn:hover {
   background: var(--hover-bg);
@@ -790,6 +796,25 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   color: var(--text);
   white-space: pre-wrap;
 }
+#cf-ok.btn--danger {
+  background: var(--sys-danger);
+  color: var(--sys-on-danger, #fff);
+  border-color: var(--sys-danger);
+}
+.ai-test-row { margin-top: 12px; }
+#ai-test-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ai-advanced {
+  margin-top: 16px;
+}
+.ai-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.ai-advanced .cloud-hint { margin-top: 8px; }
 
 /* 设置弹窗：分组标签页 */
 .modal.settings-modal {
@@ -1046,10 +1071,10 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 }
 
 /* ============================================================
-   欢迎窗口（布局参考 WeekRepo：字标 / 问候 / 功能卡 / 提示条 / 赞助卡）
+   欢迎窗口：问候 + 操作风格 / 编辑方式
    ============================================================ */
 .modal.welcome {
-  width: min(840px, calc(100vw - 48px));
+  width: min(760px, calc(100vw - 48px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1223,37 +1248,37 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   line-height: 1.55;
 }
 
-/* 赞助侧栏（右列卡片：扫码支持 + B 站主页） */
+/* 赞助栏：纸面图章，不与左侧选择抢主视觉 */
 .welcome-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 196px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 168px;
+  gap: var(--sys-space-5);
+  align-items: start;
 }
+#sponsor-mask { z-index: 1100; }
 .sponsor {
-  background: var(--primary-bg-soft);
-  border-radius: var(--radius);
-  padding: 16px;
+  padding: 0;
   text-align: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
-.sponsor h4 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 0 0 10px;
-  font-size: 13px;
-  color: var(--text);
+.modal.welcome .sponsor {
+  padding-left: var(--sys-space-4);
+  border-left: 1px solid var(--edge-soft);
 }
-.sponsor h4 svg {
-  width: 15px;
-  height: 15px;
-  color: var(--primary);
+.sponsor-kicker {
+  margin: 0 0 var(--sys-space-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
 }
 .sponsor .qr {
-  width: 156px;
-  height: 156px;
+  width: 152px;
+  height: 152px;
   margin: 0 auto;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--bg-elevated);
   border: 1px dashed var(--border);
   display: grid;
@@ -1265,28 +1290,50 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 /* 有图时改白底 + 内边距：暗色主题下也保证二维码可扫 */
 .sponsor .qr.has-img {
   background: #fff;
-  border-style: solid;
-  padding: 6px;
+  border: 1px solid var(--edge-soft);
+  padding: var(--sys-space-2);
 }
 .sponsor .qr img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.sponsor .link {
-  margin-top: 12px;
-  font-size: 11.5px;
-  color: var(--text-secondary);
+.sponsor-lead {
+  margin: var(--sys-space-3) 0 0;
+  font-family: var(--sys-font-reading), var(--sys-font-ui), sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.45;
 }
-.sponsor .link-head {
-  display: flex;
+.sponsor-bili {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  color: var(--primary);
-  font-weight: 600;
+  margin-top: var(--sys-space-2);
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
 }
-.sponsor .link-head svg { width: 14px; height: 14px; }
-.sponsor .link-url {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
+.sponsor-bili:hover { color: var(--primary); }
+.sponsor-bili svg { width: 14px; height: 14px; }
+.modal.sponsor-dialog {
+  width: min(300px, calc(100vw - 48px));
+}
+.sponsor-dialog .sponsor-kicker,
+.sponsor-dialog .sponsor-lead {
+  display: none;
+}
+.sponsor-dialog .sponsor {
+  padding: var(--sys-space-2) 0 0;
+}
+.sponsor-dialog .qr {
+  width: 180px;
+  height: 180px;
+}
+.sponsor-dialog .sponsor-bili {
+  margin-top: var(--sys-space-3);
 }
 
 .checkbox {
@@ -1421,4 +1468,35 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   .icon-btn { padding: 0 6px; }
   #toolbar { gap: 2px; padding: 0 8px; }
   .tb-doc-name { max-width: 12vw; }
+}
+@media (max-width: 720px) {
+  .welcome-grid { grid-template-columns: 1fr; }
+  .modal.welcome .sponsor {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    column-gap: var(--sys-space-4);
+    row-gap: 2px;
+    align-items: center;
+    justify-items: start;
+    text-align: left;
+    padding-left: 0;
+    padding-top: var(--sys-space-4);
+    border-left: none;
+    border-top: 1px solid var(--edge-soft);
+  }
+  .modal.welcome .sponsor .qr {
+    grid-row: 1 / span 3;
+    width: 120px;
+    height: 120px;
+    margin: 0;
+  }
+  .modal.welcome .sponsor-kicker,
+  .modal.welcome .sponsor-lead {
+    margin: 0;
+  }
+  .modal.welcome .sponsor-bili {
+    margin: 0;
+    padding-left: 0;
+  }
 }

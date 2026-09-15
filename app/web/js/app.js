@@ -83,6 +83,7 @@
 
     window.Palette.init({
       commands: appCommands,
+      getFolder: () => state.currentFolder || "",
       listFiles: async (q) => {
         const a = api();
         if (!a || !a.list_md_files) return { items: [] };
@@ -131,6 +132,8 @@
       getFolder: () => state.currentFolder || "",
       getPath: () => state.currentPath || "",
       getContent: () => (window.Editor && window.Editor.getValue ? window.Editor.getValue() : ""),
+      getConfig: () => state.config,
+      openSettingsAi: () => openSettings("ai"),
       toast,
     });
 
@@ -827,6 +830,11 @@
     docNameEl.innerHTML = esc(base) + (state.dirty ? '<span class="dirty">●</span>' : "");
     // 无文档时隐藏「所在目录」等文档态按钮（规则见 app.css body.no-doc）
     document.body.classList.toggle("no-doc", !state.currentPath);
+    const sb = document.getElementById("sb-save");
+    if (sb) {
+      sb.textContent = state.dirty || !state.currentPath ? "未保存" : "已保存";
+      sb.title = state.dirty || !state.currentPath ? "保存 (Ctrl+S)" : "已保存";
+    }
   }
 
   // ---------------------------------------------------------------
@@ -841,6 +849,7 @@
     on("btn-open-file", openFile);
     on("btn-new", newDoc);
     on("btn-save", save);
+    on("sb-save", save);
     on("btn-push-source", () => pushCurrentToSource());
     on("btn-merge-source", () => mergeCurrentFromSource());
     on("sb-workdir", openEditModeHelp);
@@ -959,8 +968,9 @@
     if (window.FindBar) window.FindBar.open(opts);
   }
 
-  function openSettings() {
-    window.Settings.open(state.config, applyConfig);
+  function openSettings(tab) {
+    window.Settings.open(state.config, applyConfig, tab ? { tab: tab } : undefined);
+    if (window.AiPanel && window.AiPanel.syncConfigured) window.AiPanel.syncConfigured();
   }
 
   async function flushEditorBeforeModeSwitch() {
@@ -1001,6 +1011,7 @@
       window.Editor.setOpStyle(partial.operation_style);
     }
     if ("cloud_sync" in partial) refreshCloudBadge();
+    if ("ai" in partial && window.AiPanel && window.AiPanel.syncConfigured) window.AiPanel.syncConfigured();
     if ("math_engine" in partial && window.Editor.setMathEngine) {
       window.Editor.setMathEngine(partial.math_engine);
     }
@@ -1687,6 +1698,7 @@
       { id: "merge-all-source", title: "全部合并源文件", keys: "", group: "工作副本", run: () => mergeAllFromSource() },
       { id: "reveal-source", title: "在资源管理器中打开源文件", keys: "", group: "工作副本", run: revealSourceFile },
       { id: "reveal-work", title: "打开工作副本目录", keys: "", group: "工作副本", run: revealWorkFolder },
+      { id: "sponsor", title: "支持作者", keys: "", group: "应用", run: () => { if (window.Sponsor && window.Sponsor.show) window.Sponsor.show(); } },
       { id: "new", title: "新建文档", keys: "Ctrl+N", group: "文件", run: newDoc },
       { id: "open", title: "打开文件", keys: "Ctrl+O", group: "文件", run: openFile },
       { id: "open-folder", title: "打开文件夹", keys: "", group: "文件", run: openFolder },
@@ -2285,6 +2297,7 @@
       message: "确定把「" + basename(path) + "」移入回收站？\n可从系统回收站恢复。",
       okText: "移入回收站",
       cancelText: "取消",
+      danger: true,
     }))) return;
     const res = await a.delete_file(path);
     if (!res.ok) { toast("删除失败：" + (res.error || "")); return; }
@@ -2375,10 +2388,14 @@
     if (confirmPending) confirmPending(false);
     return new Promise((resolve) => {
       const returnFocus = document.activeElement;
+      const danger = !!opts.danger;
+      const iconName = opts.icon || (danger ? "trash" : "file");
+      const icon = (window.ICONS && window.ICONS[iconName]) || (window.ICONS && window.ICONS.file) || "";
+      const okClass = danger ? "btn btn--danger" : "btn btn--primary";
       mask.innerHTML = `
         <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
           <div class="modal-head">
-            <span class="badge">${window.ICONS.gear}</span>
+            <span class="badge">${icon}</span>
             <div><h2>${esc(title)}</h2></div>
           </div>
           <div class="modal-body">
@@ -2386,7 +2403,7 @@
           </div>
           <div class="modal-foot">
             <button class="btn btn--text" id="cf-cancel">${esc(cancelText)}</button>
-            <button class="btn btn--primary" id="cf-ok">${esc(okText)}</button>
+            <button class="${okClass}" id="cf-ok">${esc(okText)}</button>
           </div>
         </div>`;
       mask.classList.add("open");
@@ -2514,6 +2531,7 @@
     registerEscape,
     unregisterEscape,
     showWelcome: runWelcome,
+    openSettings,
     syncCloud: runCloudSync,
     listVaultFiles,
     openWikilink,

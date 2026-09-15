@@ -129,6 +129,29 @@
       .replace(/"/g, "&quot;");
   }
 
+  function displayRel(it) {
+    const title = it.title || "";
+    const raw = String(it.rel || it.sub || it.path || "");
+    if (!raw) return "";
+    const norm = raw.replace(/\\/g, "/");
+    const looksAbs = /^[A-Za-z]:\//.test(norm) || norm.charAt(0) === "/";
+    if (!looksAbs && norm !== title) return norm;
+    const folder = handlers.getFolder ? String(handlers.getFolder() || "") : "";
+    if (folder) {
+      const f = folder.replace(/\\/g, "/").replace(/\/+$/, "");
+      const p = String(it.path || raw).replace(/\\/g, "/");
+      if (f && p.toLowerCase().indexOf(f.toLowerCase()) === 0) {
+        const rel = p.slice(f.length).replace(/^\/+/, "");
+        return rel || title;
+      }
+    }
+    if (looksAbs) {
+      const parts = norm.split("/");
+      return parts[parts.length - 1] || title;
+    }
+    return norm === title ? "" : norm;
+  }
+
   function highlight() {
     listEl.querySelectorAll(".pal-item").forEach((el) => {
       el.classList.toggle("active", parseInt(el.dataset.idx, 10) === activeIdx);
@@ -150,7 +173,9 @@
     emptyEl.style.display = "none";
     let html = "";
     items.forEach((it, i) => {
-      const sub = it.sub || it.rel || it.keys || "";
+      const sub = (it.kind === "file" || it.kind === "create" || it.kind === "hit" || it.kind === "orphan")
+        ? (displayRel(it) || it.sub || "")
+        : (it.sub || it.rel || it.keys || "");
       html += `<div class="pal-item${i === activeIdx ? " active" : ""}" data-idx="${i}">
         <div class="pal-title">${esc(it.title)}</div>
         ${sub ? `<div class="pal-sub">${esc(sub)}</div>` : ""}
@@ -217,7 +242,7 @@
           .map((r) => ({
             kind: "file",
             title: r.name,
-            sub: r.path,
+            sub: r.rel || "",
             path: r.path,
             badge: "最近",
           }));
@@ -277,18 +302,7 @@
       return;
     }
     if (isAskQuery(q)) {
-      renderAskPending(q);
-      if (!handlers.search) return;
-      let res;
-      try {
-        res = await handlers.search(q, searchMode);
-      } catch (e) {
-        if (my !== seq) return;
-        renderAskResult({ ok: false, error: (e && e.message) || "提问失败" });
-        return;
-      }
-      if (my !== seq) return;
-      renderAskResult(res);
+      renderAskHint(q);
       return;
     }
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
@@ -330,17 +344,17 @@
     render();
   }
 
-  function renderAskDraft(q) {
+  function renderAskHint(q) {
     items = [];
     listEl.innerHTML = "";
-    emptyEl.style.display = "none";
+    emptyEl.style.display = "";
+    emptyEl.textContent = "按 Enter 提问，将打开 AI 侧栏";
     syncSearchChrome();
-    if (!answerEl) return;
-    answerEl.hidden = false;
-    const parsed = String(q || "").trim().replace(/^ask\s+/i, "");
-    answerEl.innerHTML = '<div class="pal-ask-label">AI 回答</div>'
-      + '<div class="pal-ask-q">' + esc(parsed) + "</div>"
-      + '<div class="pal-ask-body pal-ask-wait">按 Enter 提问（将调用已配置的模型）</div>';
+    if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
+  }
+
+  function renderAskDraft(q) {
+    renderAskHint(q);
   }
 
   function renderSearchError(msg) {
@@ -447,7 +461,16 @@
     } else if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      if (mode === "search" && (isAskQuery(input.value) || searchMode === "semantic")) {
+      if (mode === "search" && isAskQuery(input.value)) {
+        const q = String(input.value || "").trim().replace(/^ask\s+/i, "");
+        close();
+        if (window.AiPanel) {
+          window.AiPanel.open();
+          window.AiPanel.ask(q);
+        }
+        return;
+      }
+      if (mode === "search" && searchMode === "semantic") {
         runPaidSearch();
         return;
       }
@@ -534,6 +557,7 @@
   const replaceInput = document.getElementById("replace-input");
   const countEl = document.getElementById("find-count");
   const toggleBtn = document.getElementById("find-toggle-replace");
+  let findIdx = 0;
 
   function syncReplaceToggle() {
     const on = !!(bar && bar.classList.contains("replace-open"));
@@ -571,11 +595,11 @@
     if (bar.classList.contains("replace-open") && replaceInput) replaceInput.focus();
   }
 
-  function updateCount() {
+  function countMatches() {
     const q = input.value;
-    if (!q) { countEl.textContent = ""; return; }
+    if (!q) return 0;
     const src = window.Editor && window.Editor.getValue ? window.Editor.getValue() : "";
-    if (!src) { countEl.textContent = "0"; return; }
+    if (!src) return 0;
     const ql = q.toLowerCase();
     const hay = src.toLowerCase();
     let n = 0, from = 0;
@@ -584,15 +608,28 @@
       from = hay.indexOf(ql, from) + ql.length;
       if (n > 999) break;
     }
-    countEl.textContent = n > 999 ? "999+" : String(n);
+    return n;
+  }
+
+  function updateCount() {
+    const q = input.value;
+    if (!q) { countEl.textContent = ""; findIdx = 0; return; }
+    const n = countMatches();
+    if (!n) { countEl.textContent = "0"; findIdx = 0; return; }
+    if (findIdx < 1) countEl.textContent = "0/" + (n > 999 ? "999+" : String(n));
+    else countEl.textContent = Math.min(findIdx, n) + "/" + (n > 999 ? "999+" : String(n));
   }
 
   function find(backward) {
     const q = input.value;
     if (!q) return;
+    const n = countMatches();
     try {
       window.find(q, false, !!backward, true, false, true, false);
     } catch (e) { /* 部分 WebView 无 window.find */ }
+    if (!n) { findIdx = 0; updateCount(); return; }
+    if (backward) findIdx = findIdx <= 1 ? n : findIdx - 1;
+    else findIdx = findIdx >= n ? 1 : findIdx + 1;
     updateCount();
   }
 
@@ -641,7 +678,7 @@
   if (oneBtn) oneBtn.addEventListener("click", replaceOne);
   const allBtn = document.getElementById("replace-all");
   if (allBtn) allBtn.addEventListener("click", replaceAll);
-  input.addEventListener("input", updateCount);
+  input.addEventListener("input", () => { findIdx = 0; updateCount(); });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();

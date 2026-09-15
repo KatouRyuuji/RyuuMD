@@ -202,7 +202,7 @@ def _run(window) -> None:
 
     step(window, "12-confirm-modal",
          'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
-         'window.App.confirm({title:"删除文件", message:"确定要把「样式总览.md」移到回收站吗？", okText:"删除"})',
+         'window.App.confirm({title:"移入回收站", message:"确定要把「样式总览.md」移入回收站吗？", okText:"移入回收站", danger:true})',
          sleep=0.8)
 
     # —— 首页深色 ——

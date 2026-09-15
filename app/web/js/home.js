@@ -1,4 +1,4 @@
-/* 首页：仓库列表（卡片/列表视图）+ 快速操作 + 最近打开。
+/* 首页：问候 + 写/打开 + 仓库列表 + 最近打开 + 随手记。
    仓库数据来自后端 ProjectStore（config["projects"]），视图偏好存 config.home_view。
    点击一律容器级事件委托，与侧栏同一模式。 */
 (function () {
@@ -16,11 +16,6 @@
   let repoItems = [];  // 最近一次 list_projects 结果
   let view = "card";   // card | list
   let modalReturnFocus = null;
-  let previewPath = "";
-  let quickEditPath = "";
-  let qeLoadedFull = false;
-  let qeLoadPromise = null;
-  let qeGen = 0;
 
   // ---------------------------------------------------------------
   // 初始化 / 显示控制
@@ -88,10 +83,7 @@
       }
       const [repos, recent, scratch] = pair;
       if (repos && repos.ok) renderRepos(repos.items);
-      if (recent && recent.ok) {
-        renderRecent(recent.items);
-        await loadGlance(recent.items);
-      }
+      if (recent && recent.ok) renderRecent(recent.items);
       const scratchEl = document.getElementById("home-scratch-input");
       if (scratchEl && scratch && scratch.ok) scratchEl.value = scratch.content || "";
     } catch (e) {
@@ -192,6 +184,11 @@
   // ---------------------------------------------------------------
   function renderRecent(items) {
     items = items || [];
+    const clearBtn = document.getElementById("home-clear-recent");
+    if (clearBtn) {
+      clearBtn.hidden = !items.length;
+      clearBtn.style.display = items.length ? "" : "none";
+    }
     if (!items.length) {
       recentEmpty.style.display = "block";
       recentWrap.innerHTML = "";
@@ -243,18 +240,18 @@
     // 快速操作
     on("hq-new", () => { handlers.newDoc && handlers.newDoc(); });
     on("hq-open-file", () => handlers.openFileDialog && handlers.openFileDialog());
-    on("hq-add-repo", addRepo);
-    on("hq-create-repo", () => openCreateModal("repo"));
-    on("hq-create-folder", () => openCreateModal("folder"));
-    on("hq-tutorial", () => handlers.openTutorial && handlers.openTutorial());
+    on("hq-add-repo", () => { closeRepoMenu(); addRepo(); });
+    on("hq-create-repo", () => { closeRepoMenu(); openCreateModal("repo"); });
+    on("hq-create-folder", () => { closeRepoMenu(); openCreateModal("folder"); });
+    on("hq-tutorial", () => { closeRepoMenu(); handlers.openTutorial && handlers.openTutorial(); });
     on("repo-empty-add", addRepo);
-    on("home-preview-open", () => {
-      if (previewPath && handlers.openPath) handlers.openPath(previewPath);
-    });
-    on("home-qe-save", saveQuickEdit);
     on("home-scratch-save", saveScratch);
-    const qeEl = document.getElementById("home-qe-input");
-    if (qeEl) qeEl.addEventListener("focus", () => { ensureQeFull(); });
+    const plus = document.getElementById("home-repo-plus");
+    if (plus) plus.addEventListener("click", (e) => { e.stopPropagation(); toggleRepoMenu(); });
+    document.addEventListener("click", (e) => {
+      const wrap = document.querySelector(".home-repo-add");
+      if (wrap && !wrap.contains(e.target)) closeRepoMenu();
+    });
 
     // 视图切换
     document.querySelectorAll("#repo-view-toggle button").forEach((btn) => {
@@ -376,90 +373,20 @@
     }
   }
 
-  function setGlanceVisible(on) {
-    const g = document.getElementById("home-glance-sec");
-    const q = document.getElementById("home-qe-sec");
-    if (g) g.style.display = on ? "" : "none";
-    if (q) q.style.display = on ? "" : "none";
+  function toggleRepoMenu() {
+    const menu = document.getElementById("home-repo-menu");
+    const plus = document.getElementById("home-repo-plus");
+    if (!menu) return;
+    const next = menu.hidden;
+    menu.hidden = !next;
+    if (plus) plus.setAttribute("aria-expanded", next ? "true" : "false");
   }
 
-  async function loadGlance(items) {
-    const empty = document.getElementById("home-preview-empty");
-    const card = document.getElementById("home-preview-card");
-    const title = document.getElementById("home-preview-title");
-    const body = document.getElementById("home-preview-body");
-    const qe = document.getElementById("home-qe-input");
-    const files = (items || []).filter((it) => it.kind !== "folder" && it.exists);
-    previewPath = "";
-    quickEditPath = "";
-    qeLoadedFull = false;
-    qeLoadPromise = null;
-    qeGen += 1;
-    if (!files.length) {
-      setGlanceVisible(false);
-      if (empty) empty.style.display = "block";
-      if (card) card.hidden = true;
-      if (qe) { qe.value = ""; qe.disabled = true; qe.readOnly = false; }
-      return;
-    }
-    setGlanceVisible(true);
-    const a = api();
-    if (!a) return;
-    const res = await a.preview_file(files[0].path);
-    if (!res || !res.ok) {
-      if (empty) empty.style.display = "block";
-      if (card) card.hidden = true;
-      if (qe) { qe.value = ""; qe.disabled = true; qe.readOnly = false; }
-      return;
-    }
-    previewPath = res.path;
-    quickEditPath = res.path;
-    if (empty) empty.style.display = "none";
-    if (card) card.hidden = false;
-    if (title) title.textContent = res.name || files[0].name;
-    if (body) body.textContent = res.preview || res.content || "";
-    if (qe) {
-      qe.disabled = false;
-      qe.readOnly = false;
-      qe.value = res.preview || res.content || "";
-      qeLoadedFull = !res.truncated;
-    }
-  }
-
-  async function ensureQeFull() {
-    if (qeLoadedFull || !quickEditPath) return true;
-    if (qeLoadPromise) return qeLoadPromise;
-    const a = api();
-    const qe = document.getElementById("home-qe-input");
-    if (!a || !qe) return false;
-    qe.readOnly = true;
-    const gen = qeGen;
-    const path = quickEditPath;
-    qeLoadPromise = a.read_file(path).then((opened) => {
-      if (gen !== qeGen) return false;
-      if (!opened || !opened.ok) return false;
-      qe.value = opened.content || "";
-      qeLoadedFull = true;
-      return true;
-    }).catch(() => false).finally(() => {
-      if (gen === qeGen) qe.readOnly = false;
-      if (qeLoadPromise && gen === qeGen) qeLoadPromise = null;
-    });
-    return qeLoadPromise;
-  }
-
-  async function saveQuickEdit() {
-    const a = api();
-    const qe = document.getElementById("home-qe-input");
-    if (!a || !qe || !quickEditPath) { toast("没有可保存的笔记"); return; }
-    if (!(await ensureQeFull())) { toast("无法读取全文，未保存", { type: "error" }); return; }
-    const res = await a.save_file(quickEditPath, qe.value);
-    if (res && res.ok) {
-      toast("已保存快速编辑");
-      const prev = await a.preview_file(quickEditPath);
-      const body = document.getElementById("home-preview-body");
-      if (prev && prev.ok && body) body.textContent = prev.preview || prev.content || "";
-    } else toast("保存失败：" + ((res && res.error) || ""), { type: "error" });
+  function closeRepoMenu() {
+    const menu = document.getElementById("home-repo-menu");
+    const plus = document.getElementById("home-repo-plus");
+    if (menu) menu.hidden = true;
+    if (plus) plus.setAttribute("aria-expanded", "false");
   }
 
   async function saveScratch() {

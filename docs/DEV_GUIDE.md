@@ -245,17 +245,17 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
   新增组件命名前先查 `vendor/ryuuji/styles/lang/a.css` 选择器，撞名时改用体系类名。
 - `#body` 为 `position: relative`，使 `#home`（`position:absolute; inset:0`）锚定在主区内、工具栏可见。
 - 弹窗 `Esc`：`App.registerEscape` 栈由 `bindShortcuts` 统一弹出（Palette / 查找条优先）；设置/欢迎/确认/输入框/首页重命名/AI 侧栏都入栈。
-- 确认框：`App.confirm({ title, message, okText, cancelText }) -> Promise<boolean>`，Esc=取消、Enter=确认。
+- 确认框：`App.confirm({ title, message, okText, cancelText, danger }) -> Promise<boolean>`，Esc=取消、Enter=确认。`danger: true` 时主按钮用危险色、图标为垃圾桶。
+- 工具栏显隐与界面状态强相关：`body.is-home`（home.js `syncHomeButton` 维护）隐藏侧栏/AI；`.tb-chrome-hide` 收起打开/新建/保存/新窗口/所在目录（走命令面板）。保存状态在 `#sb-save`。`body.no-doc`（app.js `updateDocName` 维护）隐藏所在目录。规则集中在 app.css。
 - Toast：`App.toast(msg, { type, duration })`，最多 3 条堆叠；文案含「失败」时自动 `error`（默认 4s，`--danger`）。
 - 状态栏 `#sb-views`：可读宽度，点击等效命令面板对应命令，激活态 `var(--primary)`。
-- 工具栏显隐与界面状态强相关：`body.is-home`（home.js `syncHomeButton` 维护）隐藏侧栏/保存/AI/所在目录；`body.no-doc`（app.js `updateDocName` 维护）隐藏所在目录。规则集中在 app.css。
 - 工具栏窄窗：`1080px` / `960px` 两档隐藏 `.ib-label`，只留图标，`title` 补偿。
 
 **T12（设置弹窗）**：四个分组标签页，切换只显隐、不重渲染（避免云同步与 AI 输入丢失）。
 
 | 分组 | 内容 |
 | --- | --- |
-| 通用 | 操作风格、启动时显示、再次启动程序、默认 Markdown 应用、欢迎页、学习仓库、公式引擎、自动保存、日记目录 |
+| 通用 | 操作风格、启动时显示、再次启动程序、默认 Markdown 应用、欢迎页、支持作者、学习仓库、公式引擎、自动保存、日记目录 |
 | 外观 | 主题亮/暗、配色方案 5 swatch（写入 `palette`）、正文字体、等宽字体 |
 | 云同步 | 启用开关 + 现有 WebDAV 面板（`save_cloud_settings` 独立通道不动） |
 | AI | Anthropic Base URL / API Key / 模型（`update_config` 写入 `ai`）；语义与 `ask` 仅 Enter 请求 |

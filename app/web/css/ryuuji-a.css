@@ -164,6 +164,9 @@ html[data-theme="dark"] .tb-title .logo {
   font-size: 12px;
   font-weight: 500;
 }
+#toolbar .icon-btn.tb-chrome-hide {
+  display: none;
+}
 
 .icon-btn:hover {
   border-color: var(--edge-soft);
@@ -695,8 +698,7 @@ select:focus {
 
 .feature-card,
 .mode-opt,
-.style-opt,
-.sponsor {
+.style-opt {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius);
   background: var(--surface-control);
@@ -711,8 +713,7 @@ select:focus {
   background: var(--primary-bg);
 }
 
-.feature-card .fc-icon,
-.sponsor h4 svg {
+.feature-card .fc-icon {
   color: var(--primary);
 }
 
