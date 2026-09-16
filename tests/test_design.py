@@ -94,6 +94,18 @@ class TestDesignAlign(unittest.TestCase):
         self.assertGreater(css, boot)
         self.assertIn("data-chrome-ready", html)
 
+    def test_index_hides_app_until_fonts_and_chrome(self):
+        html = (ROOT / "app" / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("html:not([data-ui-ready]) #app { opacity: 0; }", html)
+        self.assertNotIn("html:not([data-chrome-ready]) #app { opacity: 0; }", html)
+        self.assertIn("data-fonts-ready", html)
+        self.assertIn('document.fonts.load', html)
+
+    def test_main_persists_webview_profile(self):
+        text = (ROOT / "main.py").read_text(encoding="utf-8")
+        self.assertIn("private_mode=False", text)
+        self.assertIn('storage_path=str(config.data_dir / "webview")', text)
+
     def test_boot_does_not_fallback_to_empty_defaults(self):
         js = (ROOT / "app" / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertNotIn("已以默认配置启动", js)

@@ -7,21 +7,50 @@
   <style>
     html:not([data-chrome-ready]),
     html:not([data-chrome-ready]) body { background: transparent; }
-    html:not([data-chrome-ready]) #app { opacity: 0; }
+    html:not([data-ui-ready]) #app { opacity: 0; }
   </style>
   <script>
     (function () {
       var root = document.documentElement;
+      function tryReveal() {
+        if (root.hasAttribute("data-chrome-ready") && root.hasAttribute("data-fonts-ready")) {
+          root.setAttribute("data-ui-ready", "");
+        }
+      }
       function apply(theme, palette) {
         var ok = false;
         if (theme === "dark" || theme === "light") { root.setAttribute("data-theme", theme); ok = true; }
         if (/^a[13456]$/.test(palette || "")) { root.setAttribute("data-palette", palette); ok = true; }
-        if (ok) root.setAttribute("data-chrome-ready", "");
+        if (ok) {
+          root.setAttribute("data-chrome-ready", "");
+          tryReveal();
+        }
       }
       try {
         var o = JSON.parse(localStorage.getItem("ryuumd-chrome") || "null");
         if (o && typeof o === "object") apply(o.theme, o.palette);
       } catch (e) {}
+      function markFonts() {
+        if (root.hasAttribute("data-fonts-ready")) return;
+        root.setAttribute("data-fonts-ready", "");
+        tryReveal();
+      }
+      function waitFonts() {
+        var sample = "首页侧栏设置保存打开文件仓库最近";
+        var t = setTimeout(markFonts, 4000);
+        function done() { clearTimeout(t); markFonts(); }
+        try {
+          if (!document.fonts) { done(); return; }
+          var jobs = [document.fonts.ready];
+          if (document.fonts.load) {
+            jobs.push(document.fonts.load('400 16px "Noto Sans SC"', sample));
+            jobs.push(document.fonts.load('600 14px "Noto Sans SC"', sample));
+          }
+          Promise.all(jobs).then(done, done);
+        } catch (e) { done(); }
+      }
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", waitFonts);
+      else waitFonts();
     })();
   </script>
   <link rel="icon" type="image/png" href="assets/favicon.png" />

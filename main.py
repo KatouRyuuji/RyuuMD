@@ -229,8 +229,14 @@ def main() -> None:
 
     # 应用图标（标题栏 / 任务栏 / Dock）。Windows 读 .ico；macOS 打包后
     # Dock 图标主要来自 .app 的 icns，此处再传一份给 pywebview。
+    # 持久 WebView 用户目录：字体缓存与 localStorage（ryuumd-chrome）跨启动保留。
     try:
-        start_webview(debug=False, icon=_app_icon())
+        start_webview(
+            debug=False,
+            icon=_app_icon(),
+            private_mode=False,
+            storage_path=str(config.data_dir / "webview"),
+        )
     finally:
         server.stop()
 

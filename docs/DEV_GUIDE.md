@@ -134,7 +134,8 @@ boot()
 
 霞鹜文楷与 Cascadia（`css/fonts.css`）由 `scheduleFontLoad()` 在首页显示或编辑器就绪
 之后经 `requestAnimationFrame` + `requestIdleCallback` 插入。外壳 Noto Sans SC
-（`css/noto-sans-sc.css`）在 `index.html` 同步加载。
+（`css/noto-sans-sc.css`）在 `index.html` 同步加载。`#app` 在 `data-ui-ready` 后显示
+（Noto 外壳字体就绪或 4s 超时，且 `data-chrome-ready` 已上主题）。
 
 启动路径由前端 `api.get_initial_path()` 主动拉取。仅 `startup_page === "restore"` 时恢复会话。
 
@@ -308,6 +309,7 @@ bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同
 - Windows 脚本会先跑单元测试作门禁（`[2/5]` 步），单测不过则中止构建，E2E 需手动 `python run_tests.py`；
 - Mac 包用独立 `RyuuMD-mac.spec`（`BUNDLE` + `.icns`）；Windows 用对应 spec；
 - `start_webview()`（`main.py`）在 Windows 传 `gui=edgechromium`，其它平台不传 gui；
+  生产入口传 `private_mode=False` 与 `storage_path`（`Config.data_dir / "webview"`），保留字体缓存与 `ryuumd-chrome`；
 - 新增的 `app/web` 静态资源自动随 `('app/web','app/web')` datas 打包；
 - 新增 Python 模块经 import 自动分析，无需改 spec；
 - 若引入新的动态 import → 加 `hiddenimports`（Mac 为 `webview.platforms.cocoa`）；

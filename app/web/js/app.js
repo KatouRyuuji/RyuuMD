@@ -1454,6 +1454,7 @@
     root.setAttribute("data-theme", mode);
     root.setAttribute("data-palette", palette);
     root.setAttribute("data-chrome-ready", "");
+    if (root.hasAttribute("data-fonts-ready")) root.setAttribute("data-ui-ready", "");
     try {
       localStorage.setItem("ryuumd-chrome", JSON.stringify({ theme: mode, palette: palette }));
     } catch (e) { /* 无 localStorage 时下次启动等本次 applyTheme */ }
