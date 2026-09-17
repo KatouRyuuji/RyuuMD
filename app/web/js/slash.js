@@ -168,6 +168,21 @@
     position(ctx.rect, true);
   }
 
+  /* 通用菜单入口（操作柄等外部调用）：直接给完整命令列表，复用同一面板 */
+  function showItems(list, x, y) {
+    items = list || [];
+    if (!items.length) return;
+    activeIdx = 0;
+    mode = "context";
+    if (items[0] && items[0].disabled) step(1);
+    render();
+    menu.classList.add("open");
+    open = true;
+    position({ left: x, right: x, top: y, bottom: y }, false);
+  }
+
+  function isOpen() { return open; }
+
   /* 右键模式：鼠标处展示剪贴板组 + 块操作组（表格/代码块/数学块，按光标所在块
      动态出现）+ 转换为组（框选段落转格式）+ 全部插入命令 */
   function showContext(x, y) {
@@ -250,6 +265,11 @@
     if (!cmd || cmd.disabled) return; // 禁用项不响应、不关菜单
     close();
     if (cmd.clip) { doClipboard(cmd.clip); return; }
+    if (cmd.struct) {
+      // 操作柄菜单的结构动作（移动/删除/转换/范围切换），由 BlockUI 执行
+      if (window.BlockUI) window.BlockUI.applyMenuAction(cmd.struct);
+      return;
+    }
     if (cmd.appAction) {
       // 转发给 App 层动作（如「在资源管理器中打开所在目录」）
       if (window.App && window.App[cmd.appAction]) window.App[cmd.appAction]();
@@ -347,10 +367,11 @@
       if (inEditor(e.target)) onInput();
     });
     // 捕获阶段，菜单打开时优先于 Vditor 处理导航键（尤其 Tab/Enter）。
-    // 空格式壳回车只拦编辑器内的 Enter，查找条/面板不受影响。
+    // 空标题的 Enter/Backspace 只拦编辑器内的按键，查找条/面板不受影响。
     document.addEventListener("keydown", (e) => {
       if (open) onKeydown(e);
-      else if (inEditorTyping(e.target) && window.Convert && window.Convert.holdEmptyEnter(e)) return;
+      else if (inEditorTyping(e.target) && window.Convert &&
+        (window.Convert.handleEmptyEnter(e) || window.Convert.handleEmptyBackspace(e))) return;
     }, true);
     document.addEventListener("contextmenu", (e) => {
       if (inEditor(e.target)) {
@@ -370,5 +391,5 @@
   });
   window.addEventListener("resize", () => { if (open) close(); });
 
-  window.SlashMenu = { setEditor, setStyle, attach, close };
+  window.SlashMenu = { setEditor, setStyle, attach, close, showItems, isOpen };
 })();

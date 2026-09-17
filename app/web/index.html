@@ -147,9 +147,9 @@
           <div class="find-row">
             <input id="find-input" aria-label="在本文查找" placeholder="在本文查找" spellcheck="false" />
             <span id="find-count"></span>
-            <button type="button" class="btn" id="find-prev" title="上一个">上</button>
-            <button type="button" class="btn" id="find-next" title="下一个">下</button>
-            <button type="button" class="btn" id="find-toggle-replace" title="替换 (Ctrl+H)" aria-pressed="false">替换</button>
+            <button type="button" class="btn icon-btn" id="find-prev" title="上一个"><span class="ib-icon" data-icon="arrowUp"></span></button>
+            <button type="button" class="btn icon-btn" id="find-next" title="下一个"><span class="ib-icon" data-icon="arrowDown"></span></button>
+            <button type="button" class="btn icon-btn" id="find-toggle-replace" title="替换 (Ctrl+H)" aria-pressed="false"><span class="ib-icon" data-icon="chevron"></span></button>
             <div id="replace-inline">
               <input id="replace-input" aria-label="替换为" placeholder="替换为" spellcheck="false" />
               <button type="button" class="btn" id="replace-one">替换</button>
@@ -283,6 +283,7 @@
     <div id="palette">
       <div class="pal-head">
         <span id="pal-icon"></span>
+        <span id="pal-ask-chip" hidden>ask</span>
         <input id="pal-input" aria-label="命令面板搜索" spellcheck="false" autocomplete="off" />
         <span id="pal-hint"></span>
       </div>
@@ -323,7 +324,9 @@
   <script src="js/settings.js"></script>
   <script src="js/home.js"></script>
   <script src="js/editor.js"></script>
+  <script src="js/blocks.js"></script>
   <script src="js/convert.js"></script>
+  <script src="js/blockui.js"></script>
   <script src="js/ai_panel.js"></script>
   <script src="js/palette.js"></script>
   <script src="js/app.js"></script>

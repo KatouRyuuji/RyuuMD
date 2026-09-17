@@ -212,6 +212,13 @@ class Api:
         self.config.update(values)
         return {"ok": True}
 
+    def set_titlebar_theme(self, dark: bool) -> dict[str, Any]:
+        """前端主题切换时同步原生标题栏明暗（Windows DWM 沉浸式深色）。"""
+        from app.core.titlebar import set_dark_titlebar
+
+        set_dark_titlebar(bool(dark))
+        return {"ok": True}
+
     # ------------------------------------------------------------------
     # 最近打开列表（文件/文件夹，最新在前、去重、限长）
     # ------------------------------------------------------------------

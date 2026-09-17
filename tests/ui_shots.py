@@ -237,6 +237,43 @@ def _run(window) -> None:
          'window.Palette.close();window.Home.hide();'
          'document.getElementById("btn-ai").click()', sleep=0.8)
 
+    # —— 结构操作柄（blockui.js）：悬停列表项出柄（先滚入视口，柄按块坐标定位） ——
+    step(window, "18-block-handle",
+         'document.getElementById("btn-ai").click();'
+         'window.SlashMenu.close();'
+         '(function(){var li=document.querySelectorAll(".vditor-reset > ul > li")[1];'
+         'if(!li)return false;li.scrollIntoView({block:"center"});'
+         'var r=li.getBoundingClientRect();'
+         'li.dispatchEvent(new MouseEvent("mousemove",{bubbles:true,clientX:r.left+120,clientY:r.top+8}));'
+         'return true;})()', sleep=1.0)
+
+    # —— 柄菜单：点击开菜单 + 范围高亮 ——
+    step(window, "19-block-menu",
+         '(function(){var h=document.querySelector(".block-handle.on");'
+         'if(h)h.click();return true;})()', sleep=0.8)
+
+    # —— 拖拽落点：拖到柄下方 120px 的块（插入线 + 归属提示），截图后松手还原 ——
+    step(window, "20-block-drag", "")
+    window.evaluate_js(
+        "window.SlashMenu.close();"
+        "(function(){var h=document.querySelector('.block-handle.on');if(!h)return false;"
+        "var hr=h.getBoundingClientRect();"
+        "h.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true,"
+        "clientX:hr.left+6,clientY:hr.top+6}));"
+        "document.dispatchEvent(new MouseEvent('mousemove',{bubbles:true,"
+        "clientX:hr.left+300,clientY:hr.top+120}));"
+        "return true;})()"
+    )
+    time.sleep(0.7)
+    shot("20-block-drag")
+    # 松手完成移动，避免遗留拖拽状态
+    window.evaluate_js(
+        "(function(){var h=document.querySelector('.block-handle.on');"
+        "var hr=h?h.getBoundingClientRect():{left:0,top:0};"
+        "document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,"
+        "clientX:hr.left+300,clientY:hr.top+120}));return true;})()"
+    )
+
     print("done ->", OUT_DIR)
     window.destroy()
 

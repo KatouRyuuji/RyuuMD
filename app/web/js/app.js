@@ -37,6 +37,7 @@
     bindShortcuts();
     bindDragDrop();
     bindPasteImages();
+    if (window.BlockUI) window.BlockUI.attach();
 
     // js_api 注入可能迟到；桥对象出现后第一次 get_config 偶发失败。
     // 等到真正读到配置再继续，避免默认色 + 空数据的残窗口。
@@ -277,7 +278,11 @@
           theme: themeMode(),
           mode: state.config && state.config.display_mode,
           change: onEditorChange,
-          outline: (hs) => window.Sidebar.renderOutline(hs),
+          outline: (hs) => {
+            // 大纲拖拽期间抑制重渲染（innerHTML 重建会杀死拖拽中的行元素）
+            if (window.BlockUI && window.BlockUI.outlineDragging && window.BlockUI.outlineDragging()) return;
+            window.Sidebar.renderOutline(hs);
+          },
           onReady: readyCb(gen),
           modeChange: (m) => syncModeButtons(m),
           docDir: () => state.currentPath ? dirname(state.currentPath) : "",
@@ -1465,6 +1470,10 @@
     const themeLabel = document.querySelector("#btn-theme .ib-label");
     if (themeLabel) themeLabel.textContent = mode === "dark" ? "亮色" : "深色";
     window.Editor.setTheme(mode);
+    // 原生标题栏随主题（Windows DWM 沉浸式深色；桥迟到时静默跳过）
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.set_titlebar_theme) {
+      window.pywebview.api.set_titlebar_theme(mode === "dark").catch(() => {});
+    }
   }
 
   function toggleTheme() {
@@ -2396,7 +2405,7 @@
       mask.innerHTML = `
         <div class="modal mini-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
           <div class="modal-head">
-            <span class="badge">${icon}</span>
+            <span class="badge${danger ? " badge--danger" : ""}">${icon}</span>
             <div><h2>${esc(title)}</h2></div>
           </div>
           <div class="modal-body">

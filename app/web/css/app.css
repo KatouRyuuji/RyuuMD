@@ -349,10 +349,6 @@ body:not(.is-workdir) #btn-merge-source {
   line-height: 1;
   white-space: nowrap;
 }
-@media (max-width: 1180px) {
-  .icon-btn .ib-label { display: none; }
-  .icon-btn { padding: 0 8px; }
-}
 
 /* —— 主体：侧栏 + 编辑器（#home 覆盖层锚定于此，勿漏 position） —— */
 #body {
@@ -465,9 +461,10 @@ body:not(.is-workdir) #btn-merge-source {
   background: var(--hover-bg);
 }
 .tree-item.active {
-  background: var(--active-bg);
-  color: var(--active-fg);
+  background: var(--primary-bg);
+  color: var(--primary);
   font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--primary);
 }
 .tree-item.active .tw-icon { opacity: 1; }
 .tree-item .tw-icon {
@@ -606,6 +603,10 @@ body:not(.is-workdir) #btn-merge-source {
   min-width: 0;
   flex: 1;
   cursor: pointer;
+  /* 路径过长时从左侧截断：文件名永远可见（direction:rtl 让省略号落在开头） */
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: plaintext;
 }
 #sb-path:hover { color: var(--primary); }
 #sb-zoom {
@@ -751,6 +752,12 @@ body:not(.is-workdir) #btn-merge-source {
   font-weight: 700;
   letter-spacing: -1px;
   font-family: var(--font-mono);
+}
+
+/* 危险操作（移入回收站等）：图标底色随操作性质变红 */
+.modal-head .badge--danger {
+  background: var(--danger);
+  color: var(--danger-fg);
 }
 
 /* 设置弹窗头部：齿轮图标、透明底。特异性与 vendor lang/a.css 的
@@ -1456,8 +1463,8 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 .ctx-item.danger .ci-icon { color: #e74c3c; }
 .ctx-item.danger:hover { background: rgba(231, 76, 60, 0.1); }
 
-/* 窄窗：工具栏只留图标，title/aria-label 补偿文字 */
-@media (max-width: 1080px) {
+/* 窄窗：工具栏只留图标，title/aria-label 补偿文字（统一 1180px 断点） */
+@media (max-width: 1180px) {
   .icon-btn .ib-label { display: none; }
   .icon-btn { padding: 0 8px; }
   .tb-doc-name { max-width: 18vw; }

@@ -187,7 +187,7 @@
     outlineList.innerHTML = headings
       .map(
         (h) =>
-          `<div class="outline-item" data-level="${h.level}" data-id="${esc(h.id)}" title="${esc(h.text)}">${esc(h.text)}</div>`
+          `<div class="outline-item" data-level="${h.level}" data-id="${esc(h.id)}"${h.line != null ? ` data-line="${h.line}"` : ""} title="${esc(h.text)}">${esc(h.text)}</div>`
       )
       .join("");
   }

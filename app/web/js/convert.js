@@ -6,20 +6,16 @@
      代码块 —— 复制代码、转换为普通文本、删除代码块；
      数学块 —— 复制公式源码、转换为普通文本、删除公式块。
 
-   IR 模式：以顶层块为粒度。IR 的标记符是 width:0 的真实文本节点，
-   故 textContent 即含 ** 等行内标记的完整 md 源码，逐块提取→变换→整段替换。
-   替换路径分流：
-     - 纯段落/标题块：选中块内容 → execCommand("delete") → insertValue，
-       与用户键入同一条 Vditor 同步管线（input 回调、脏标记、撤销栈正常）；
-     - 含容器块（UL/OL/BLOCKQUOTE）：Vditor 会拦截 delete 并重建块壳
-       （插入内容落进壳里 →「- ## 甲」错位），统一走一次全文区间替换
-       （空行分段 ↔ 顶层块序对齐 + 首行校验 + setValue，代价是撤销栈重置）。
-   嵌套列表：每个 LI（任意深度）平铺为独立行——不保留缩进，但文本不丢不并。
+   IR 模式：操作范围按 Markdown 语义结构确定（Blocks 结构通道）——
+     光标在列表项内 → 当前列表项（含续段与子列表）；选区跨块 → 逐块。
+     每个目标块 locate 出源码行区间 → 行级变换 → commitRanges 一次 setValue
+     提交（独立撤销边界；首行探针不符整体放弃）。
+   列表↔列表/引用互转按行重写标记、保留全部缩进（嵌套不丢）；
+   整列表→标题/正文/代码按深度优先文档序逐块输出；
+   列表项→非列表目标：项自身段落转换，子列表整体上提一级填位。
+   空块→正文/代码：替换为空段落行/空围栏壳，不再是失败。
 
    sv 模式：段落转换按选区整行做同一套文本变换；块操作不开放（纯文本场景意义不大）。
-
-   粒度说明（KISS）：选区跨块时逐块独立转换；光标落在列表/引用内时转换整个
-   顶层列表/引用块（Typora 只转当前项，此处刻意简化，嵌套列表平铺为独立行）。
    不支持段落转换的块（表格/代码/数学块/分割线等）有各自的上下文操作组。 */
 (function () {
   /* 转换目标定义：id 即内部标识；h1~h6 动态生成 */
@@ -42,17 +38,18 @@
   // 行级变换（纯函数，ir/sv 两模式共用）
   // ---------------------------------------------------------------
 
-  /* 剥掉一行的全部前导块级标记（标题 #、引用 >、列表 -/1./- [x] 可叠加） */
+  /* 剥掉一行的全部前导块级标记（标题 #、引用 >、列表 -/1./- [x] 可叠加；
+     空格式行（"##"、"-" 等无尾空格形态）同样剥净） */
   function stripLine(line) {
     let s = String(line || "");
     let prev;
     do {
       prev = s;
       s = s
-        .replace(/^\s{0,3}#{1,6}\s+/, "")
+        .replace(/^\s{0,3}#{1,6}(?:[ \t]+|$)/, "")
         .replace(/^\s{0,3}>\s?/, "")
-        .replace(/^\s{0,3}[-*+]\s+\[[ xX]\]\s+/, "")
-        .replace(/^\s{0,3}(?:[-*+]|\d{1,9}[.)])\s+/, "");
+        .replace(/^\s{0,3}[-*+][ \t]+\[[ xX]\](?:[ \t]+|$)/, "")
+        .replace(/^\s{0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/, "");
     } while (s !== prev);
     return s;
   }
@@ -71,7 +68,8 @@
   }
 
   /* 把若干源行变换为目标格式的 md 文本；null = 未知目标。
-     空块只给行级前缀（标题/列表/引用）产出可写壳；正文/代码保持跳过。 */
+     空块只给行级前缀（标题/列表/引用）产出可写壳；空块 → 正文/代码返回 ""，
+     是有效结果而非失败——调用方按「替换为空段落行 / 空围栏壳」处理。 */
   function transform(lines, target) {
     const items = lines.map(stripLine).map((s) => s.trimEnd()).filter((s) => s !== "");
     if (!items.length) {
@@ -190,92 +188,118 @@
   }
 
   // ---------------------------------------------------------------
-  // 应用转换
+  // 应用转换（统一走 Blocks 结构通道：locate → 行级变换 → commitRanges
+  // 一次 setValue 提交，独立撤销边界；首行探针不符整体放弃）
   // ---------------------------------------------------------------
 
-  /* md 全文按空行分段（跳 ``` 围栏内部），段序与 IR 顶层块序一一对应。
-     loose list（项间空行）/ [toc] 等会破坏对齐——调用方须校验段数与块数。 */
-  function mdBlockRanges(lines) {
-    const ranges = [];
-    let start = -1;
-    let inFence = false;
-    lines.forEach((l, i) => {
-      if (/^\s*(```|~~~)/.test(l)) {
-        inFence = !inFence;
-        if (start < 0) start = i;
-        return;
-      }
-      if (inFence) return;
-      if (/^\s*$/.test(l)) {
-        if (start >= 0) { ranges.push([start, i]); start = -1; }
-      } else if (start < 0) start = i;
-    });
-    if (start >= 0) ranges.push([start, lines.length]);
-    return ranges;
+  function closestLi(node) {
+    let el = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
+    while (el && el.tagName !== "LI") el = el.parentElement;
+    return el || null;
   }
 
-  /* 含容器块（UL/OL/BLOCKQUOTE）的转换：DOM 手术对容器不可靠（Vditor 拦截
-     delete 并重建块壳，插入内容落进壳里 →「- ## 甲」错位），统一走一次
-     全文区间替换（与表格/代码块操作同一路径，代价是撤销栈重置）。
-     对齐校验：段数 == 顶层块数，且每段首行与对应块首行一致（stripLine 后），
-     任一不符放弃（loose list 等场景宁可不转，也不能误改其它内容）。 */
-  function applyViaFullText(blocks, target, editor) {
-    const panel = irPanel();
-    const topBlocks = [...panel.children].filter(isTopBlock);
-    const lines = window.Editor.getValue().split("\n");
-    const ranges = mdBlockRanges(lines);
-    if (ranges.length !== topBlocks.length) return 0;
-    // 逐块预计算新区间文本（倒序 splice 用）
-    const jobs = [];
-    for (const b of blocks) {
-      const idx = topBlocks.indexOf(b);
-      if (idx < 0) return 0;
-      if (!kindOf(b)) return 0;
-      const segFirst = stripLine((lines.slice(ranges[idx][0], ranges[idx][1]).find((l) => l.trim() !== "")) || "").trim();
-      const blkFirst = stripLine(blockLines(b)[0] || "").trim();
-      if (segFirst !== blkFirst) return 0;
-      const text = transform(blockLines(b), target);
-      if (!text) return 0;
-      jobs.push({ idx, text });
+  const LIST_LINE = /^(\s*)([-*+]|\d{1,9}[.)])([ \t]+|$)(\[[ xX]\][ \t]+)?/;
+
+  /* 列表↔列表/引用：按行重写标记、保留全部缩进（嵌套树不丢）。
+     ol 按缩进层级的兄弟序重排编号；todo 统一 "- [ ] "；quote 逐行加 "> "。 */
+  function transformListLines(lines, target) {
+    const counts = {};
+    const indents = [];
+    return lines.map((l) => {
+      if (target === "quote") return l.trim() === "" ? ">" : "> " + l;
+      const m = l.match(LIST_LINE);
+      if (!m) return l;
+      const rest = l.slice(m[0].length);
+      let marker;
+      if (target === "ul") marker = "- ";
+      else if (target === "todo") marker = "- [ ] ";
+      else {
+        const key = m[1].length;
+        while (indents.length && indents[indents.length - 1] > key) delete counts[indents.pop()];
+        if (indents[indents.length - 1] !== key) { indents.push(key); counts[key] = 0; }
+        counts[key]++;
+        marker = counts[key] + ". ";
+      }
+      return m[1] + marker + rest;
+    });
+  }
+
+  /* 列表项级转换（光标在列表项内、无选区）：
+     - 目标仍是列表（ul/ol/todo）：只重写该项自身的标记行，嵌套原样；
+     - 目标标题/正文/引用/代码：项自身段落逐个转换，子列表整体上提一级填位
+       （嵌套关系保留，不展平）。 */
+  function convertListItem(li, target) {
+    const loc = window.Blocks.locate(li);
+    if (!loc || loc.type !== "item") return false;
+    const seg = window.Editor.getValue().split("\n").slice(loc.start, loc.end);
+    if (!seg.length) return false;
+    let newLines;
+    if (target === "ul" || target === "ol" || target === "todo") {
+      const m = seg[0].match(LIST_LINE);
+      if (!m) return false;
+      const marker = target === "ul" ? "- " : target === "todo" ? "- [ ] " : "1. ";
+      newLines = seg.slice();
+      newLines[0] = m[1] + marker + seg[0].slice(m[0].length);
+    } else {
+      // 项自身段落 = 首个嵌套标记行之前的行；其余为子列表
+      let ownEnd = seg.length;
+      for (let k = 1; k < seg.length; k++) {
+        if (LIST_LINE.test(seg[k])) { ownEnd = k; break; }
+      }
+      const own = seg.slice(0, ownEnd).map((l, i) => (i === 0 ? l.replace(LIST_LINE, "") : l.replace(/^\s+/, "")));
+      const text = transform(own, target);
+      let ownOut;
+      if (!text) {
+        if (target !== "paragraph" && target !== "code") return false;
+        ownOut = target === "code" ? ["```", "```"] : [""];
+      } else {
+        ownOut = text.replace(/\n+$/, "").split("\n");
+      }
+      // 子列表整体上提一级填位：统一左移（首个嵌套标记的缩进 − 项缩进）
+      const nested = seg.slice(ownEnd);
+      let out = nested;
+      const nm = nested.find((l) => LIST_LINE.test(l));
+      if (nm) {
+        const delta = nm.match(LIST_LINE)[1].length - (loc.node.md ? loc.node.md.indent : 0);
+        if (delta > 0) out = nested.map((l) => l.replace(new RegExp("^ {0," + delta + "}"), ""));
+      }
+      newLines = ownOut.concat(out);
     }
-    const ratio = window.Editor.getScrollRatio();
-    jobs.sort((a, b) => b.idx - a.idx); // 倒序 splice：区间互不干扰
-    for (const j of jobs) {
-      const [s, e] = ranges[j.idx];
-      lines.splice(s, e - s, ...j.text.replace(/\n+$/, "").split("\n"));
-    }
-    editor.setValue(lines.join("\n"));
-    window.Editor.notifyChange();
-    setTimeout(() => window.Editor.setScrollRatio(ratio), 120);
-    return jobs.length;
+    return window.Blocks.commit(loc.start, loc.end, newLines, { probe: window.Blocks.probeFirstLine(li) });
   }
 
   function applyIR(target, editor) {
     const panel = irPanel();
     const sel = window.getSelection();
     const blocks = collectBlocks(panel, sel);
-    // 含容器块 → 一次全文替换；纯段落/标题 → DOM 手术（局部刷新、保撤销栈）
-    if (blocks.some((b) => /^(UL|OL|BLOCKQUOTE)$/.test(b.tagName))) {
-      return applyViaFullText(blocks, target, editor);
+    if (!blocks.length || !window.Blocks) return 0;
+    // 无选区且光标在列表项内：粒度 = 当前列表项（含其续段与子列表）
+    if (sel.isCollapsed && blocks.length === 1 && /^(UL|OL)$/.test(blocks[0].tagName)) {
+      const li = closestLi(sel.anchorNode);
+      if (li) return convertListItem(li, target) ? 1 : 0;
     }
-    let done = 0;
-    // 倒序处理：每次替换只重渲染当前块，倒序保证其余块的元素引用不被波及
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      const b = blocks[i];
-      if (!b.isConnected) continue; // 前一次重渲染波及则跳过
-      if (!kindOf(b)) continue;
-      const text = transform(blockLines(b), target);
-      if (!text) continue;
-      editor.focus();
-      const range = document.createRange();
-      range.selectNodeContents(b);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      document.execCommand("delete");
-      editor.insertValue(text, true);
-      done++;
+    const lines = window.Editor.getValue().split("\n");
+    const jobs = [];
+    for (const b of blocks) {
+      if (!kindOf(b)) return 0;
+      const loc = window.Blocks.locate(b);
+      if (!loc) return 0;
+      let newLines;
+      if (/^(UL|OL)$/.test(b.tagName) && (target === "ul" || target === "ol" || target === "todo" || target === "quote")) {
+        newLines = transformListLines(lines.slice(loc.start, loc.end), target);
+      } else {
+        const text = transform(blockLines(b), target);
+        if (!text) {
+          // 空块 → 正文/代码：正文替换为空段落行，代码替换为空围栏壳
+          if (target !== "paragraph" && target !== "code") return 0;
+          newLines = target === "code" ? ["```", "```"] : [""];
+        } else {
+          newLines = text.replace(/\n+$/, "").split("\n");
+        }
+      }
+      jobs.push({ start: loc.start, end: loc.end, newLines, probe: window.Blocks.probeFirstLine(b) });
     }
-    return done;
+    return window.Blocks.commitRanges(jobs) ? jobs.length : 0;
   }
 
   function applySV(target, editor) {
@@ -318,10 +342,10 @@
   }
 
   // ---------------------------------------------------------------
-  // 空格式壳：光标落到标记之后，避免再输入掉回正文
+  // 空格式壳：光标落到标记之后，避免再输入掉回正文。
+  // 空标题按 Enter/Backspace 一次退出标题格式（Blocks 事务替换为空段落，
+  // 光标留在原行）；空列表项/空引用的 Enter 交还 Vditor 原生。
   // ---------------------------------------------------------------
-
-  let holdingEmptyFormat = false;
 
   function prefixKind(k) {
     return !!(k && k !== "paragraph" && k !== "code");
@@ -337,13 +361,30 @@
     return block;
   }
 
+  /* \u9879\u7ea7\u5224\u7a7a\uff1a\u81ea\u8eab\u6587\u672c\u4e3a\u7a7a\uff0c\u4e14\u5d4c\u5957\u5b50\u5bb9\u5668\u4e5f\u5168\u90e8\u4e3a\u7a7a\u2014\u2014\u5b58\u5728\u5b50\u5185\u5bb9\u7684\u9879
+     \u4e0d\u80fd\u88ab\u8bef\u5224\u4e3a\u7a7a\uff08\u7a7a\u5217\u8868\u9879 Enter \u9000\u51fa\u5217\u8868\u5c42\u7ea7\u7684\u524d\u63d0\uff09\u3002 */
+  function liIsEmpty(li) {
+    if (textWithBreaks(li).replace(/\u200b/g, "").trim() !== "") return false;
+    const nested = li.querySelectorAll(":scope > ul, :scope > ol, :scope > blockquote");
+    return [...nested].every((n) => isVisuallyEmpty(n));
+  }
+
+  /* \u8bed\u4e49\u5224\u7a7a\uff1a\u6392\u9664\u7f16\u8f91\u5668\u5360\u4f4d\u5b57\u7b26\uff08\u96f6\u5bbd\u7a7a\u683c\uff09\uff0c\u8bc6\u522b\u771f\u5b9e\u5185\u5bb9\u2014\u2014
+     \u542b\u56fe\u7247\u7684\u6bb5\u843d\u5373\u4f7f textContent \u4e3a\u7a7a\u4e5f\u4e0d\u662f\u7a7a\u6bb5\u843d\uff1b\u4ee3\u7801/\u6570\u5b66\u5757\u7684\u7a7a\u767d\u662f\u6709\u6548\u5185\u5bb9\uff1b
+     \u5217\u8868\u9010\u9879\u5224\u300c\u9879\u81ea\u8eab\u6587\u672c\u300d\uff08\u5d4c\u5957\u5b50\u5217\u8868\u5c5e\u4e8e\u5b50\u9879\u5185\u5bb9\uff0c\u6709\u5b50\u5185\u5bb9\u7684\u9879\u4e0d\u662f\u7a7a\u9879\uff09\u3002 */
   function isVisuallyEmpty(el) {
-    const raw = (el.textContent || "").replace(/\u200b/g, "");
-    if (/^H[1-6]$/.test(el.tagName)) return raw.replace(/^#{1,6}\s*/, "").trim() === "";
-    if (el.tagName === "BLOCKQUOTE") return raw.replace(/^>\s*/gm, "").trim() === "";
-    if (el.tagName === "UL" || el.tagName === "OL") {
-      return raw.replace(/^(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/gm, "").trim() === "";
+    if (el.querySelector && el.querySelector("img")) return false;
+    const t = el.tagName;
+    const dt = el.getAttribute && el.getAttribute("data-type");
+    if (t === "PRE" || dt === "code-block" || dt === "math-block") return false;
+    if (t === "UL" || t === "OL") {
+      const lis = [...el.querySelectorAll(":scope > li")];
+      if (!lis.length) return (el.textContent || "").replace(/\u200b/g, "").trim() === "";
+      return lis.every((li) => liIsEmpty(li));
     }
+    const raw = (el.textContent || "").replace(/\u200b/g, "");
+    if (/^H[1-6]$/.test(t)) return raw.replace(/^#{1,6}\s*/, "").trim() === "";
+    if (t === "BLOCKQUOTE") return raw.replace(/^>\s*/gm, "").trim() === "";
     return raw.trim() === "";
   }
 
@@ -384,32 +425,57 @@
   }
 
   /* 斜杠/转换刚造出空标题、列表、引用后调用：光标放到标记后。
-     按住回车用「当前选区所在空前缀块」判断，不捏 DOM 节点——IR spin 会换掉元素。
-     有内容或光标离开前缀块后自动解除。 */
+     用「当前选区所在空前缀块」判断，不捏 DOM 节点——IR spin 会换掉元素。 */
   function settleEmptyFormat() {
-    const now = caretPrefixBlock();
-    if (!now || !isVisuallyEmpty(now)) {
-      holdingEmptyFormat = false;
-      return;
-    }
     const go = () => {
       const block = caretPrefixBlock();
-      if (!block || !isVisuallyEmpty(block)) { holdingEmptyFormat = false; return; }
+      if (!block || !isVisuallyEmpty(block)) return;
       placeCaretAfterMarker(block);
-      holdingEmptyFormat = true;
     };
     requestAnimationFrame(() => setTimeout(go, 0));
   }
 
-  function holdEmptyEnter(e) {
+  /* 光标所在的语义为空前缀块（仅 IR 模式）；否则 null */
+  function emptyPrefixBlock() {
+    if (!window.Editor || window.Editor.getMode() === "sv") return null;
+    const block = caretPrefixBlock();
+    if (!block || !isVisuallyEmpty(block)) return null;
+    return block;
+  }
+
+  /* 空标题 → 空段落：Blocks 区间替换（一次事务、独立撤销边界），光标留在原行 */
+  function exitEmptyHeading(block) {
+    if (!window.Blocks) return false;
+    const loc = window.Blocks.locate(block);
+    if (!loc) return false;
+    return window.Blocks.replaceEl(block, "", null, { caretLine: loc.start });
+  }
+
+  /* 空标题按 Enter：退出标题格式为普通段落。
+     斜杠菜单打开时的 Enter 由菜单消费，不会到达这里；组词期（isComposing）放行。
+     空列表项/空引用返回 false，交还 Vditor 原生（退出列表层级/引用）。 */
+  function handleEmptyEnter(e) {
     if (!e || e.key !== "Enter" || e.isComposing) return false;
     if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return false;
-    if (!holdingEmptyFormat) return false;
-    const block = caretPrefixBlock();
-    if (!block || !isVisuallyEmpty(block)) { holdingEmptyFormat = false; return false; }
+    const block = emptyPrefixBlock();
+    if (!block || !/^H[1-6]$/.test(block.tagName)) return false;
+    if (!exitEmptyHeading(block)) return false;
     e.preventDefault();
     e.stopPropagation();
-    placeCaretAfterMarker(block);
+    return true;
+  }
+
+  /* 空标题按 Backspace：一次退出标题格式。
+     （placeCaretAfterMarker 在标记后补了零宽占位符，原生 Backspace 会先吃掉
+     不可见字符而保留标题壳，因此这里显式处理。） */
+  function handleEmptyBackspace(e) {
+    if (!e || e.key !== "Backspace" || e.isComposing) return false;
+    if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return false;
+    const block = emptyPrefixBlock();
+    if (!block || !/^H[1-6]$/.test(block.tagName)) return false;
+    if (!exitEmptyHeading(block)) return false;
+    e.preventDefault();
+    e.stopPropagation();
     return true;
   }
 
@@ -418,11 +484,8 @@
   //
   // 容器块不走 DOM 手术：实测 Vditor 会拦截/重建——execCommand delete 对
   // table/math-block 只删内容、块壳残留（并复活为空块），insertText 被
-  // beforeinput 吞掉。因此容器块统一走「全文文本替换」：
-  //   定位该块在 md 全文中的行区间（同类块第 N 个，DOM 序 ↔ 全文序对齐）
-  //   → 替换/删除区间 → Editor.setValue 重载（保滚动）→ notifyChange 补脏标记。
-  // 代价：Ctrl+Z 撤销栈被 setValue 重置、光标回滚到滚动比例位置——容器块操作
-  // 低频，用撤销能力换可靠性（段落转换仍走 DOM 路径，不受影响）。
+  // beforeinput 吞掉。统一走 Blocks 结构通道：locate(el) 出源码行区间 →
+  // probe 校验 → commit 一次 setValue 提交（独立撤销边界、保滚动、补脏标记）。
   // ---------------------------------------------------------------
 
   /* 光标处的特殊块：table 元素 或 div[data-type=code-block|math-block]；否则 null */
@@ -460,86 +523,7 @@
     return ok;
   }
 
-  // —— md 全文区间定位（同类块第 N 个，与 DOM 顶层块序对齐）——
-
-  /* 全文表格区间：[start, end) 行号。判定比「连续 | 行」更严：首行是 | 行、
-     次行必须是对齐行（|:---|---:| 形态），与 md 表格语法（表头+分隔行必需）一致，
-     防止正文中形如 | 的伪表格行造成 DOM 序 ↔ 全文序错位（错位会误改其他内容）。 */
-  function mdTableRanges(lines) {
-    const ROW = /^\s*\|.*\|\s*$/;
-    const ALIGN = /^\s*\|[\s:|-]*-[\s:|-]*\|\s*$/; // 只含 | : - 空格且至少一个 -
-    const ranges = [];
-    let inFence = false;
-    let i = 0;
-    while (i < lines.length) {
-      if (/^\s*(```|~~~)/.test(lines[i])) { inFence = !inFence; i++; continue; }
-      if (!inFence && ROW.test(lines[i]) && i + 1 < lines.length && ALIGN.test(lines[i + 1])) {
-        let j = i + 2;
-        while (j < lines.length && ROW.test(lines[j])) j++;
-        ranges.push([i, j]);
-        i = j;
-        continue;
-      }
-      i++;
-    }
-    return ranges;
-  }
-
-  /* 全文 fence 块区间：``` 配对（代码块）或 $$ 独占行配对（数学块）。
-     数学块扫描跳过 ``` 围栏内部（代码里的 $$ 行不算）。 */
-  function mdFenceRanges(lines, kind) {
-    const ranges = [];
-    let open = -1;
-    let inCode = false;
-    lines.forEach((l, i) => {
-      if (/^\s*(```|~~~)/.test(l)) {
-        if (kind === "code") {
-          if (open < 0) open = i;
-          else { ranges.push([open, i + 1]); open = -1; }
-        } else {
-          inCode = !inCode; // 数学扫描只维护代码围栏状态
-        }
-        return;
-      }
-      if (kind === "math" && !inCode && /^\s*\$\$\s*$/.test(l)) {
-        if (open < 0) open = i;
-        else { ranges.push([open, i + 1]); open = -1; }
-      }
-    });
-    return ranges;
-  }
-
-  /* 目标块在同类块中的序号（DOM 顶层块序） */
-  function siblingIndex(kind, el) {
-    const panel = irPanel();
-    if (!panel) return -1;
-    const same = [...panel.children].filter((c) => {
-      if (kind === "table") return c.tagName === "TABLE";
-      return c.getAttribute && c.getAttribute("data-type") === (kind === "code" ? "code-block" : "math-block");
-    });
-    return same.indexOf(el);
-  }
-
-  /* 全文替换目标块区间：newText=null 表示删除整块。保滚动比例、补脏标记。
-     probe(lines 区间) 可选：替换前校验 md 区间与 DOM 块确实是同一块
-     （DOM 序 ↔ 全文序错位时宁可放弃，也不能误删其他内容）。 */
-  function replaceBlockMd(kind, el, newText, probe) {
-    const k = siblingIndex(kind, el);
-    if (k < 0) return false;
-    const lines = window.Editor.getValue().split("\n");
-    const ranges = kind === "table" ? mdTableRanges(lines) : mdFenceRanges(lines, kind);
-    if (k >= ranges.length) return false;
-    const [s, e] = ranges[k];
-    if (probe && !probe(lines.slice(s, e))) return false;
-    const repl = newText == null ? [] : newText.replace(/\n+$/, "").split("\n");
-    const ratio = window.Editor.getScrollRatio();
-    lines.splice(s, e - s, ...repl);
-    window.Editor.setValue(lines.join("\n"));
-    window.Editor.notifyChange();
-    // 渲染异步撑高内容，滚动比例延迟恢复
-    setTimeout(() => window.Editor.setScrollRatio(ratio), 120);
-    return true;
-  }
+  // —— md 区间替换由 Blocks.replaceEl 承载（locate + probe + commit）——
 
   // —— 表格 ——
 
@@ -652,7 +636,7 @@
       if (cells.length !== origHeader.length) return false;
       return !origHeader[0] || seg[0].indexOf(origHeader[0]) >= 0;
     };
-    return replaceBlockMd("table", table, newText, probe) ? 1 : 0;
+    return window.Blocks && window.Blocks.replaceEl(table, newText, probe) ? 1 : 0;
   }
 
   // —— 代码块 / 数学块 ——
@@ -692,9 +676,9 @@
           return copyText(src) ? 1 : 0;
         case "to-text":
           if (!src.trim()) return 0;
-          return replaceBlockMd(kind, el, sourceToParagraphs(src), probe) ? 1 : 0;
+          return window.Blocks && window.Blocks.replaceEl(el, sourceToParagraphs(src), probe) ? 1 : 0;
         case "del":
-          return replaceBlockMd(kind, el, null, probe) ? 1 : 0;
+          return window.Blocks && window.Blocks.replaceEl(el, null, probe) ? 1 : 0;
         default:
           return 0;
       }
@@ -776,6 +760,7 @@
 
   window.Convert = {
     apply, itemsForContext, blockItemsForContext, applyBlockOp,
-    settleEmptyFormat, holdEmptyEnter,
+    settleEmptyFormat, handleEmptyEnter, handleEmptyBackspace, isVisuallyEmpty,
+    targets: () => TARGETS,
   };
 })();

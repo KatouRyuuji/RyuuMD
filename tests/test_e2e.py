@@ -1525,19 +1525,21 @@ CASES = [
              "?true:'val='+v.slice(0,80);})()"),
          timeout=12),
 
-    dict(name="T87 段落转换:嵌套列表→标题(子项平铺为独立行,不并入父项)",
+    dict(name="T87 段落转换:嵌套列表→待办(保留嵌套不展平)",
          setup=("window.Editor.setValue(" + JV('- parentA\n  - childB\n- parentC\n') + ");"
                 "setTimeout(function(){"
                 "var ul=document.querySelector('.vditor-ir .vditor-reset > ul');"
                 "var r=document.createRange();r.selectNodeContents(ul);r.collapse(true);"
                 "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
-                "window.Convert.apply('h2', window.Editor);},600);"),
+                "window.Convert.apply('todo', window.Editor);},600);"),
          sleep=2.0,
          js=("(function(){var v=window.Editor.getValue();"
              "var ls=v.split('\\n').filter(function(l){return l.trim()!=='';});"
              "if(ls.length!==3)return 'lines:'+JSON.stringify(v);"
-             "if(ls[0]!=='## parentA'||ls[1]!=='## childB'||ls[2]!=='## parentC')"
-             "return 'bad:'+JSON.stringify(v);"
+             "if(ls[0].indexOf('- [ ]')!==0||ls[0].indexOf('parentA')<0)return 'l0:'+JSON.stringify(v);"
+             "if(!/^\\s+/.test(ls[1])||ls[1].indexOf('- [ ]')<0||ls[1].indexOf('childB')<0)"
+             "return 'l1 not nested:'+JSON.stringify(v);"
+             "if(ls[2].indexOf('- [ ]')!==0||ls[2].indexOf('parentC')<0)return 'l2:'+JSON.stringify(v);"
              "return true;})()"),
          timeout=12),
 
@@ -1715,7 +1717,7 @@ CASES = [
              "return true;})()"),
          timeout=12),
 
-    dict(name="T100 斜杠:空行选标题后回车再输入仍在标题",
+    dict(name="T100 斜杠:空行选标题后回车退出为普通段落",
          setup=("window.Editor.setValue('');"
                 "setTimeout(function(){"
                 "window.Editor.focus();"
@@ -1730,16 +1732,19 @@ CASES = [
                 + JV("一级标题") + ";});"
                 "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
                 "setTimeout(function(){"
-                "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                "var h=document.querySelector('#editor .vditor-ir .vditor-reset > h1');"
+                "(h||document.querySelector('#editor .vditor-ir .vditor-reset'))"
+                ".dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
                 "keyCode:13,which:13,bubbles:true,cancelable:true}));"
                 "setTimeout(function(){document.execCommand('insertText',false,"
-                + JV("回车后标题DEF") + ");},200);"
+                + JV("回车后标题DEF") + ");},400);"
                 "},400);"
                 "},300);},400);"),
-         sleep=2.4,
+         sleep=2.6,
          js=("(function(){var v=window.Editor.getValue();"
-             "if(v.indexOf('# 回车后标题DEF')>=0||v.indexOf('#回车后标题DEF')>=0)return true;"
-             "return 'v='+JSON.stringify(v);})()"),
+             "if(v.indexOf(" + JV("回车后标题DEF") + ")<0)return 'lost='+JSON.stringify(v);"
+             "if(v.indexOf('#')>=0)return 'still heading='+JSON.stringify(v);"
+             "return true;})()"),
          timeout=12),
 
     # —— 工作副本全量（T98 已切到 workdir；夹具独立于 e2e-repo）——
@@ -2095,6 +2100,971 @@ CASES = [
               "return true;})()")),
 ]
 
+# —— 空格式键盘行为与基础编辑回归（convert.js handleEmptyEnter/Backspace）——
+CASES += [
+    dict(name="T121 空格式:空标题按一次Backspace退格式且可继续输入",
+         setup=("if(window.Editor.getMode()!=='ir')window.Editor.setMode('ir');"
+                "window.Home.hide();window.Editor.setValue(" + JV('## \n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var h=document.querySelector('#editor .vditor-ir .vditor-reset > h2');"
+                "if(!h)return;"
+                "var r=document.createRange();r.selectNodeContents(h);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "h.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',code:'Backspace',"
+                "keyCode:8,which:8,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){document.execCommand('insertText',false,"
+                + JV("退格后文字Q") + ");},500);"
+                "},600);"),
+         sleep=2.4,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf(" + JV("退格后文字Q") + ")<0)return 'lost='+JSON.stringify(v);"
+             "if(v.indexOf('#')>=0)return 'still heading='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T122 空格式:空标题转换为正文不再失败",
+         setup=("window.Editor.setValue(" + JV('## \n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var h=document.querySelector('#editor .vditor-ir .vditor-reset > h2');"
+                "if(!h)return;"
+                "var r=document.createRange();r.selectNodeContents(h);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.__t122=window.Convert.apply('paragraph',window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(window.__t122===0)return 'apply returned 0';"
+             "if(v.indexOf('##')>=0)return 'still heading='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T123 空格式:空列表项按Enter退出列表层级",
+         setup=("window.Editor.setValue(" + JV('- 项目甲\n- \n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var lis=document.querySelectorAll('#editor .vditor-ir .vditor-reset > ul > li');"
+                "if(lis.length<2)return;"
+                "var li=lis[lis.length-1];"
+                "var r=document.createRange();r.selectNodeContents(li);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "li.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                "keyCode:13,which:13,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){document.execCommand('insertText',false,"
+                + JV("出列表W") + ");},400);"
+                "},600);"),
+         sleep=2.4,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf(" + JV("出列表W") + ")<0)return 'lost='+JSON.stringify(v);"
+             "if(v.indexOf('- " + JV("出列表W") + "')>=0)return 'still in list='+JSON.stringify(v);"
+             "if(v.indexOf(" + JV("项目甲") + ")<0)return 'item lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T124 空格式:有子内容的项不误判为空",
+         setup=("window.Editor.setValue(" + JV('- \n  - 子内容X\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var ul=document.querySelector('#editor .vditor-ir .vditor-reset > ul');"
+                "if(!ul)return;"
+                "var li=ul.querySelector(':scope > li');"
+                "var r=document.createRange();r.selectNodeContents(li);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.__t124empty=window.Convert.isVisuallyEmpty(ul);"
+                "li.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                "keyCode:13,which:13,bubbles:true,cancelable:true}));"
+                "},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(window.__t124empty!==false)return 'ul misjudged empty';"
+             "if(v.indexOf(" + JV("子内容X") + ")<0)return 'child lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T125 空格式:含图片的段落不是空段落",
+         setup=("window.Editor.setValue(" + JV('![图](x.png)\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var p=document.querySelector('#editor .vditor-ir .vditor-reset > p');"
+                "if(!p)return;"
+                "var r=document.createRange();r.selectNodeContents(p);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.__t125empty=window.Convert.isVisuallyEmpty(p);"
+                "window.__t125bs=window.Convert.handleEmptyBackspace({key:'Backspace'});"
+                "},600);"),
+         sleep=1.6,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(window.__t125empty!==false)return 'img paragraph misjudged empty';"
+             "if(window.__t125bs!==false)return 'backspace path triggered';"
+             "if(v.indexOf('![')<0)return 'img lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T126 空格式:组词期间Enter不触发结构转换",
+         setup=("window.Editor.setValue(" + JV('## \n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var h=document.querySelector('#editor .vditor-ir .vditor-reset > h2');"
+                "if(!h)return;"
+                "var r=document.createRange();r.selectNodeContents(h);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "h.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                "keyCode:13,which:13,bubbles:true,cancelable:true,isComposing:true}));"
+                "},600);"),
+         sleep=1.6,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf('##')<0)return 'converted during composition='+JSON.stringify(v);"
+             "return true;})()"),
+         setup2=("var h=document.querySelector('#editor .vditor-ir .vditor-reset > h2');"
+                 "if(h){var r=document.createRange();r.selectNodeContents(h);r.collapse(true);"
+                 "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                 "h.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                 "keyCode:13,which:13,bubbles:true,cancelable:true}));}"),
+         sleep2=1.6,
+         js2=("(function(){var v=window.Editor.getValue();"
+              "if(v.indexOf('##')>=0)return 'not exited after composition='+JSON.stringify(v);"
+              "return true;})()"),
+         timeout=12, timeout2=12),
+
+    dict(name="T127 基础编辑:跨段选字删除精确且中文输入正常",
+         setup=("window.Editor.setValue(" + JV('第一段ABC\n\n第二段DEF\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var ps=document.querySelectorAll('#editor .vditor-ir .vditor-reset > p');"
+                "if(ps.length<2)return;"
+                "var t=ps[0].firstChild;"
+                "while(t&&t.nodeType!==3)t=t.firstChild||t.nextSibling;"
+                "if(!t)return;"
+                "var r=document.createRange();"
+                "r.setStart(t,t.nodeValue.length-3);r.setEnd(t,t.nodeValue.length);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "document.execCommand('delete');"
+                "setTimeout(function(){document.execCommand('insertText',false,"
+                + JV("中文输入Z") + ");},300);"
+                "},600);"),
+         sleep=2.2,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf('ABC')>=0)return 'selection delete imprecise='+JSON.stringify(v);"
+             "if(v.indexOf(" + JV("第一段") + ")<0||v.indexOf(" + JV("第二段DEF") + ")<0)"
+             "return 'content damaged='+JSON.stringify(v);"
+             "if(v.indexOf(" + JV("中文输入Z") + ")<0)return 'ime insert lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+]
+
+# —— 操作柄交互层（blockui.js）：柄/菜单/高亮/拖拽/键盘替代 ——
+CASES += [
+    dict(name="T133 操作柄:悬停只显示一个柄且不推挤正文",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "window.__t133w=r.width;"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "window.__t133w2=p.getBoundingClientRect().width;"
+                "},300);},700);"),
+         sleep=2.0,
+         js=("(function(){"
+             "var hs=[].slice.call(document.querySelectorAll('.block-handle.on'));"
+             "if(hs.length!==1)return 'handles='+hs.length;"
+             "if(window.__t133w!==window.__t133w2)return 'layout shifted';"
+             "var r=hs[0].getBoundingClientRect();"
+             "if(r.width===0)return 'not visible';"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T134 操作柄:点击开菜单并高亮完整范围",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(h)h.click();"
+                "},300);},700);"),
+         sleep=2.0,
+         js=("(function(){"
+             "var m=document.getElementById('slash-menu');"
+             "if(!m.classList.contains('open'))return 'menu closed';"
+             "var t=m.textContent;"
+             "if(t.indexOf(" + JV("上移") + ")<0||t.indexOf(" + JV("下移") + ")<0||t.indexOf(" + JV("删除") + ")<0)"
+             "return 'items='+t.slice(0,60);"
+             "if(!document.querySelector('.ryuu-block-hl'))return 'no highlight';"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('ryuu-block-hl')>=0)return 'hl leaked to md';"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T135 操作柄:菜单下移生效且一次撤销回位",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(h)h.click();"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("下移") + ";});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v0=window.Editor.getValue();"
+                "window.__t135m=v0.indexOf('段落二')<v0.indexOf('段落一');"
+                "var panel=document.querySelector('.vditor-ir .vditor-reset');"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v1=window.Editor.getValue();"
+                "window.__t135u=v1.indexOf('段落一')<v1.indexOf('段落二');"
+                "},400);},400);},300);},300);},700);"),
+         sleep=3.6,
+         js=("(function(){"
+             "if(!window.__t135m)return 'not moved';"
+             "if(!window.__t135u)return 'undo failed';"
+             "return true;})()"),
+         timeout=14),
+
+    dict(name="T136 操作柄:嵌套位置可切换为操作整个列表",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('- 父项A\n  - 子项B\n- 父项C\n') + ");"
+                "setTimeout(function(){"
+                "var li=document.querySelector('.vditor-ir .vditor-reset > ul > li > ul > li');"
+                "var r=li.getBoundingClientRect();"
+                "li.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(h)h.click();"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');"
+                "return t&&t.textContent.indexOf(" + JV("整个列表") + ")>=0;});"
+                "window.__t136has=!!it;"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "},300);},300);},700);"),
+         sleep=2.4,
+         js=("(function(){"
+             "if(!window.__t136has)return 'no scope item in menu';"
+             "var hl=document.querySelector('.ryuu-block-hl');"
+             "if(!hl||hl.tagName!=='UL')return 'hl not list';"
+             "if(!hl.parentElement||!hl.parentElement.classList.contains('vditor-reset'))return 'hl not TOP list';"
+             "var m=document.getElementById('slash-menu');"
+             "if(!m.classList.contains('open'))return 'menu not reopened';"
+             "if(m.textContent.indexOf(" + JV("删除整个列表") + ")<0)return 'menu='+m.textContent.slice(0,80);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T137 操作柄:拖拽落点显示位置与归属且可撤销",
+         setup=("window.SlashMenu.close();window.Home.hide();"
+                "window.Editor.setValue(" + JV('段落一\n\n段落二\n\n段落三\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(!h)return;"
+                "var hr=h.getBoundingClientRect();"
+                "var ps=document.querySelectorAll('.vditor-ir .vditor-reset > p');"
+                "var t=ps[2].getBoundingClientRect();"
+                "h.dispatchEvent(new MouseEvent('mousedown',{clientX:hr.left+5,clientY:hr.top+5,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:t.left+30,clientY:t.top+t.height*0.8,bubbles:true}));"
+                "setTimeout(function(){"
+                "var line=document.querySelector('.block-drop-line.on');"
+                "var badge=document.querySelector('.block-drop-badge.on');"
+                "window.__t137line=!!line;"
+                "window.__t137badge=badge?badge.textContent:'';"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:t.left+30,clientY:t.top+t.height*0.8,bubbles:true}));"
+                "setTimeout(function(){"
+                "var v=window.Editor.getValue();"
+                "window.__t137moved=v.indexOf('段落一')>v.indexOf('段落三');"
+                "},400);},300);},300);},700);"),
+         sleep=3.2,
+         js=("(function(){"
+             "if(!window.__t137line)return 'no drop line';"
+             "if(window.__t137badge.indexOf(" + JV("放在") + ")<0||window.__t137badge.indexOf(" + JV("后") + ")<0)"
+             "return 'badge='+window.__t137badge;"
+             "if(!window.__t137moved)return 'not moved';"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T138 操作柄:正文拖动不进入结构移动",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousedown',{clientX:r.left+10,clientY:r.top+5,bubbles:true}));"
+                "var ps=document.querySelectorAll('.vditor-ir .vditor-reset > p');"
+                "var t=ps[1].getBoundingClientRect();"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:t.left+30,clientY:t.top+5,bubbles:true}));"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:t.left+30,clientY:t.top+5,bubbles:true}));"
+                "},700);"),
+         sleep=1.6,
+         js=("(function(){"
+             "if(document.querySelector('.block-drop-line.on'))return 'drop line shown';"
+             "if(window.BlockUI._debug().drag)return 'drag started';"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('段落一')>v.indexOf('段落二'))return 'order changed='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T139 操作柄:键盘可达(柄焦点Enter开菜单,Ctrl+Alt+↓移动)",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(!h)return;"
+                "h.focus();"
+                "h.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',"
+                "keyCode:13,which:13,bubbles:true,cancelable:true}));"
+                "window.__t139menu=document.getElementById('slash-menu').classList.contains('open');"
+                "window.SlashMenu.close();"
+                "var sel=window.getSelection();"
+                "var rr=document.createRange();rr.selectNodeContents(p);rr.collapse(true);"
+                "sel.removeAllRanges();sel.addRange(rr);"
+                "p.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',code:'ArrowDown',"
+                "ctrlKey:true,altKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v=window.Editor.getValue();"
+                "window.__t139moved=v.indexOf('段落二')<v.indexOf('段落一');"
+                "},400);"
+                "},300);},700);"),
+         sleep=2.6,
+         js=("(function(){"
+             "if(!window.__t139menu)return 'menu not opened by Enter;handle='+!!document.querySelector('.block-handle.on')"
+             "+',home='+(window.Home&&window.Home.isOpen?window.Home.isOpen():'?')"
+             "+',cur='+JSON.stringify(window.BlockUI._debug().cur?1:0);"
+             "if(!window.__t139moved)return 'not moved by Ctrl+Alt+Down';"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T140 操作柄:拖拽中Esc取消移动",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n\n段落三\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(!h)return;"
+                "var hr=h.getBoundingClientRect();"
+                "var ps=document.querySelectorAll('.vditor-ir .vditor-reset > p');"
+                "var t=ps[2].getBoundingClientRect();"
+                "h.dispatchEvent(new MouseEvent('mousedown',{clientX:hr.left+5,clientY:hr.top+5,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:t.left+30,clientY:t.top+t.height*0.8,bubbles:true}));"
+                "setTimeout(function(){"
+                "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',"
+                "keyCode:27,which:27,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:t.left+30,clientY:t.top+t.height*0.8,bubbles:true}));"
+                "setTimeout(function(){"
+                "var v=window.Editor.getValue();"
+                "window.__t140ok=v.indexOf('段落一')<v.indexOf('段落三')"
+                "&&!document.querySelector('.block-drop-line.on');"
+                "},300);},300);},300);},700);"),
+         sleep=2.8,
+         js=("(function(){return window.__t140ok?true:'not cancelled';})()"),
+         timeout=12),
+
+    dict(name="T141 操作柄:图片段落有柄且菜单可删除",
+         setup=("window.Home.hide();window.Editor.setValue(" + JV('![图](x.png)\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "window.__t141handle=!!h;"
+                "if(h)h.click();"
+                "},300);},700);"),
+         sleep=2.0,
+         js=("(function(){"
+             "if(!window.__t141handle)return 'no handle on image paragraph';"
+             "var m=document.getElementById('slash-menu');"
+             "if(!m.classList.contains('open'))return 'menu closed';"
+             "if(m.textContent.indexOf(" + JV("删除") + ")<0)return 'no delete';"
+             "return true;})()"),
+         timeout=12),
+]
+
+# —— 结构操作事务（Blocks.moveBlock/deleteBlock）：嵌套转换、独立撤销边界 ——
+CASES += [
+    dict(name="T128 段落转换:整列表→标题按深度优先输出",
+         setup=("window.Editor.setValue(" + JV('- parentA\n  - childB\n- parentC\n') + ");"
+                "setTimeout(function(){"
+                "var ul=document.querySelector('.vditor-ir .vditor-reset > ul');"
+                "var r=document.createRange();r.selectNodeContents(ul);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.Convert.apply('h2', window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "var ls=v.split('\\n').filter(function(l){return l.trim()!=='';});"
+             "if(ls.length!==3)return 'lines:'+JSON.stringify(v);"
+             "if(ls[0]!=='## parentA'||ls[1]!=='## childB'||ls[2]!=='## parentC')"
+             "return 'bad:'+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T129 段落转换:光标在嵌套项内只转该项",
+         setup=("window.Editor.setValue(" + JV('- 父项A\n  - 子项B\n- 父项C\n') + ");"
+                "setTimeout(function(){"
+                "var li=document.querySelector('.vditor-ir .vditor-reset > ul > li > ul > li');"
+                "if(!li)return;"
+                "var r=document.createRange();r.selectNodeContents(li);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "window.Convert.apply('h2', window.Editor);},600);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf('## 子项B')<0)return 'not converted='+JSON.stringify(v);"
+             "if(v.indexOf('- 父项A')<0||v.indexOf('- 父项C')<0)return 'siblings damaged='+JSON.stringify(v);"
+             "if(v.indexOf('- 子项B')>=0)return 'still item='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T130 结构事务:移动与输入各有独立撤销边界",
+         setup=("window.Editor.setValue(" + JV('段一\n\n段二\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=document.createRange();r.selectNodeContents(p);r.collapse(false);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "document.execCommand('insertText',false," + JV('输入X') + ");"
+                "setTimeout(function(){"
+                "var loc=window.Blocks.locateLine(2);"
+                "window.__t130m=window.Blocks.moveBlock(loc,-1);"
+                "setTimeout(function(){"
+                "var v0=window.Editor.getValue();"
+                "window.__t130after=v0.indexOf('段二')<v0.indexOf('段一');"
+                "var panel=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v1=window.Editor.getValue();"
+                "window.__t130u1=v1.indexOf('段二')>v1.indexOf('段一')&&v1.indexOf('输入X')>=0;"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v2=window.Editor.getValue();"
+                "window.__t130u2=v2.indexOf('输入X')<0&&v2.indexOf('段一')>=0&&v2.indexOf('段二')>=0;"
+                "},400);},400);},300);},150);},600);"),
+         sleep=3.4,
+         js=("(function(){"
+             "if(!window.__t130m)return 'move failed';"
+             "if(!window.__t130after)return 'order not swapped';"
+             "if(!window.__t130u1)return 'undo1 not move-only';"
+             "if(!window.__t130u2)return 'undo2 not typing';"
+             "return true;})()"),
+         timeout=14),
+
+    dict(name="T131 结构事务:800ms内两次移动各自可撤销",
+         setup=("window.Editor.setValue(" + JV('段一\n\n段二\n\n段三\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var m1=window.Blocks.moveBlock(window.Blocks.locateLine(2),1);"
+                "setTimeout(function(){"
+                "var m2=window.Blocks.moveBlock(window.Blocks.locateLine(0),1);"
+                "window.__t131m=m1&&m2;"
+                "var panel=document.querySelector('#editor .vditor-ir .vditor-reset');"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v1=window.Editor.getValue();"
+                "window.__t131u1=v1.indexOf('段一')<v1.indexOf('段三')&&v1.indexOf('段三')<v1.indexOf('段二');"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v2=window.Editor.getValue();"
+                "window.__t131u2=v2.indexOf('段一')<v2.indexOf('段二')&&v2.indexOf('段二')<v2.indexOf('段三');"
+                "},400);},400);},250);},600);"),
+         sleep=3.4,
+         js=("(function(){"
+             "if(!window.__t131m)return 'moves failed';"
+             "if(!window.__t131u1)return 'undo1 wrong order';"
+             "if(!window.__t131u2)return 'undo2 wrong order';"
+             "return true;})()"),
+         timeout=14),
+
+    dict(name="T132 结构事务:删除段落置脏标记且滚动保持",
+         setup=("window.Editor.setValue(" + JV('# 大纲甲\n\n段一\n\n段二\n\n段三\n') + ");"
+                "window.App.save({silent:true});"
+                "setTimeout(function(){"
+                "window.Editor.setScrollRatio(0);"
+                "window.__t132=window.Blocks.deleteBlock(window.Blocks.locateLine(4));"
+                "},800);"),
+         sleep=2.2,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(!window.__t132)return 'delete failed';"
+             "if(v.indexOf('段二')>=0)return 'not deleted='+JSON.stringify(v);"
+             "if(v.indexOf('段一')<0||v.indexOf('段三')<0)return 'others damaged='+JSON.stringify(v);"
+             "if(!document.querySelector('#doc-name .dirty'))return 'no dirty mark';"
+             "var ol=document.querySelectorAll('#outline-list .outline-item');"
+             "if(ol.length!==1)return 'outline='+ol.length;"
+             "return true;})()"),
+         timeout=12),
+]
+
+# —— 章节操作与大纲拖拽 ——
+CASES += [
+    dict(name="T148 章节:整节范围不被容器内标题截断",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('# A\n\n```\n# 注释\n```\n\n> ## 引用内\n\n# B\n\n尾\n') + ");"
+                "setTimeout(function(){"
+                "var lines=window.Editor.getValue().split('\\n');"
+                "window.__t148b=lines.findIndex(function(l){return /^# B/.test(l);});"
+                "window.__t148s=window.Blocks.sectionAt(0);"
+                "},700);"),
+         sleep=2.0,
+         js=("(function(){"
+             "var s=window.__t148s;"
+             "if(!s)return 'no section';"
+             "if(s.start!==0||s.end!==window.__t148b)return 'range='+JSON.stringify(s)+' want end='+window.__t148b;"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T149 章节:标题柄选择整节后删除只清该节",
+         setup=("window.Home.hide();window.SlashMenu.close();"
+                "window.Editor.setValue(" + JV('# 甲\n\n正文甲\n\n## 甲一\n\n子文\n\n# 乙\n\n正文乙\n') + ");"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.vditor-ir .vditor-reset > h1');"
+                "var r=h.getBoundingClientRect();"
+                "h.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var hd=document.querySelector('.block-handle.on');"
+                "if(!hd)return;"
+                "hd.click();"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("选择整节") + ";});"
+                "window.__t149has=!!it;"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "window.__t149hl=document.querySelectorAll('.ryuu-block-hl').length;"
+                "var del=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("删除整节") + ";});"
+                "window.__t149hasdel=!!del;"
+                "if(del)del.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "},400);},300);},300);},700);"),
+         sleep=3.2,
+         js=("(function(){"
+             "if(!window.__t149has)return 'no 选择整节';"
+             "if(window.__t149hl<2)return 'hl='+window.__t149hl;"
+             "if(!window.__t149hasdel)return 'no 删除整节';"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('正文甲')>=0||v.indexOf('甲一')>=0||v.indexOf('子文')>=0)"
+             "return 'section remains='+JSON.stringify(v);"
+             "if(v.indexOf('# 乙')<0||v.indexOf('正文乙')<0)return 'B damaged='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T150 章节:整节降级保持相对等级且越界阻止",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('## 甲\n\n### 甲一\n\n正文\n') + ");"
+                "setTimeout(function(){"
+                "var r1=window.Blocks.shiftSectionLevel(window.Blocks.sectionAt(0),1);"
+                "window.__t150a=r1.ok;"
+                "setTimeout(function(){"
+                "window.Editor.setValue(" + JV('##### 甲\n\n###### 甲一\n') + ");"
+                "setTimeout(function(){"
+                "var r2=window.Blocks.shiftSectionLevel(window.Blocks.sectionAt(0),1);"
+                "window.__t150b=r2;"
+                "},600);},800);},700);"),
+         sleep=2.8,
+         js=("(function(){"
+             "if(!window.__t150a)return 'shift failed';"
+             "var v0=window.Editor.getValue();"
+             "var r2=window.__t150b||{};"
+             "if(r2.ok!==false)return 'overflow not blocked';"
+             "if(!r2.reason||r2.reason.indexOf('H1')<0)return 'no reason='+r2.reason;"
+             "if(v0.indexOf('##### 甲')<0||v0.indexOf('###### 甲一')<0)return 'doc changed='+JSON.stringify(v0);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T151 章节:大纲拖动整节且大纲一致",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('# 甲\n\n正文甲\n\n# 乙\n\n正文乙\n') + ");"
+                "setTimeout(function(){"
+                "document.querySelector('.side-tab[data-panel=outline]').click();"
+                "setTimeout(function(){"
+                "var items=document.querySelectorAll('#outline-list .outline-item');"
+                "if(items.length<2)return;"
+                "var r0=items[0].getBoundingClientRect();"
+                "var r1=items[1].getBoundingClientRect();"
+                "items[0].dispatchEvent(new MouseEvent('mousedown',{clientX:r0.left+20,clientY:r0.top+r0.height/2,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:r1.left+20,clientY:r1.top+r1.height*0.8,bubbles:true}));"
+                "setTimeout(function(){"
+                "var badge=document.querySelector('.block-drop-badge.on');"
+                "window.__t151badge=badge?badge.textContent:'';"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:r1.left+20,clientY:r1.top+r1.height*0.8,bubbles:true}));"
+                "},300);},400);},700);"),
+         sleep=2.6,
+         js=("(function(){"
+             "if(window.__t151badge.indexOf(" + JV("放在") + ")<0)return 'badge='+window.__t151badge;"
+             "var v=window.Editor.getValue();"
+             "var ia=v.indexOf('# 甲'),ib=v.indexOf('# 乙');"
+             "if(!(ib<ia))return 'not moved='+JSON.stringify(v);"
+             "if(v.indexOf('正文甲')<0||v.indexOf('正文乙')<0)return 'content lost='+JSON.stringify(v);"
+             "if(v.indexOf('正文乙')>v.indexOf('# 甲'))return 'body not with section='+JSON.stringify(v);"
+             "var items=document.querySelectorAll('#outline-list .outline-item');"
+             "if(items.length!==2||items[0].textContent!=='乙')return 'outline stale';"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T152 章节:大纲拖为子节且越H6阻止",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('# 甲\n\n正文\n\n# 乙\n\n## 乙一\n') + ");"
+                "setTimeout(function(){"
+                "document.querySelector('.side-tab[data-panel=outline]').click();"
+                "setTimeout(function(){"
+                "var items=document.querySelectorAll('#outline-list .outline-item');"
+                "if(items.length<3)return;"
+                "var r0=items[1].getBoundingClientRect();"
+                "var r1=items[0].getBoundingClientRect();"
+                "items[1].dispatchEvent(new MouseEvent('mousedown',{clientX:r0.left+20,clientY:r0.top+r0.height/2,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:r1.left+20,clientY:r1.top+r1.height*0.5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var badge=document.querySelector('.block-drop-badge.on');"
+                "window.__t152badge=badge?badge.textContent:'';"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:r1.left+20,clientY:r1.top+r1.height*0.5,bubbles:true}));"
+                "},300);},400);},700);"),
+         sleep=2.6,
+         js=("(function(){"
+             "if(window.__t152badge.indexOf(" + JV("子节") + ")<0)return 'badge='+window.__t152badge;"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('## 乙')<0||v.indexOf('### 乙一')<0)return 'not subsection='+JSON.stringify(v);"
+             "if(v.indexOf('## 乙')<v.indexOf('正文'))return 'moved out of section='+JSON.stringify(v);"
+             "return true;})()"),
+         setup2=("window.Editor.setValue(" + JV('###### 顶\n\n# 丙\n\n## 丙一\n') + ");"
+                 "setTimeout(function(){"
+                 "var items=document.querySelectorAll('#outline-list .outline-item');"
+                 "var r0=items[1].getBoundingClientRect();"
+                 "var r1=items[0].getBoundingClientRect();"
+                 "items[1].dispatchEvent(new MouseEvent('mousedown',{clientX:r0.left+20,clientY:r0.top+r0.height/2,bubbles:true,cancelable:true}));"
+                 "document.dispatchEvent(new MouseEvent('mousemove',{clientX:r1.left+20,clientY:r1.top+r1.height*0.5,bubbles:true}));"
+                 "setTimeout(function(){"
+                 "document.dispatchEvent(new MouseEvent('mouseup',{clientX:r1.left+20,clientY:r1.top+r1.height*0.5,bubbles:true}));"
+                 "},300);},700);"),
+         sleep2=2.0,
+         js2=("(function(){var v=window.Editor.getValue();"
+              "if(v.indexOf('# 丙')<0||v.indexOf('## 丙一')<0)return 'overflow applied='+JSON.stringify(v);"
+              "return true;})()"),
+         timeout=12, timeout2=12),
+]
+
+# —— sv 补全与完整环境验证 ——
+CASES += [
+    dict(name="T153 sv:光标跟踪柄与菜单移动",
+         setup=("window.Home.hide();window.SlashMenu.close();"
+                "window.Editor.setMode('sv');"
+                "setTimeout(function(){"
+                "window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('#editor .vditor-sv');"
+                "var w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);"
+                "var n=w.nextNode();"
+                "if(n){var r=document.createRange();r.setStart(n,1);r.collapse(true);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "document.dispatchEvent(new Event('selectionchange'));"
+                "p.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));}"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "window.__t153handle=!!h;"
+                "if(h)h.click();"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("下移") + ";});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "},400);},400);},800);},1200);"),
+         sleep=4.0,
+         js=("(function(){"
+             "if(!window.__t153handle)return 'no sv handle';"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('段落二')>v.indexOf('段落一'))return 'not moved='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=16),
+
+    dict(name="T154 大文档:>512KB自动sv下结构移动正确",
+         setup=("window.Sidebar.renderTree([{type:'file',name:'big.md',path:'" + BIG_JS + "'}],'tmp');"
+                "document.querySelectorAll('#file-tree .tree-item.file')[0].click();"),
+         sleep=1.0,
+         js=("(function(){if(!window.Editor.isReady())return 'not ready';"
+             "if(window.Editor.getMode()!=='sv')return 'mode='+window.Editor.getMode();"
+             "if(window.Editor.getValue().length<400000)return 'len='+window.Editor.getValue().length;"
+             "return true;})()"),
+         timeout=25,
+         setup2=("var t0=performance.now();"
+                 "window.__t154=window.Blocks.moveBlock(window.Blocks.locateLine(4),1);"
+                 "window.__t154ms=Math.round(performance.now()-t0);"),
+         sleep2=2.0,
+         js2=("(function(){"
+              "if(!window.__t154)return 'move failed';"
+              "var v=window.Editor.getValue();"
+              "var ia=v.indexOf('这是第 0 段'),ib=v.indexOf('- 列表项二');"
+              "if(!(ib>=0&&ia>ib))return 'order='+ia+'/'+ib;"
+              "return true;})()"),
+         timeout2=25),
+
+    dict(name="T155 模式切换:ir→sv→ir后柄恢复且内容不丢",
+         setup=("window.Home.hide();window.SlashMenu.close();"
+                "window.Editor.setMode('ir');"
+                "setTimeout(function(){"
+                "window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.setMode('sv');"
+                "setTimeout(function(){"
+                "window.Editor.setMode('ir');"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "if(!p)return;"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "window.__t155handle=!!h;"
+                "if(h)h.click();"
+                "setTimeout(function(){"
+                "var it=[].slice.call(document.querySelectorAll('#slash-menu .slash-item'))"
+                ".find(function(el){var t=el.querySelector('.si-title');return t&&t.textContent==="
+                + JV("下移") + ";});"
+                "if(it)it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"
+                "},400);},400);},1400);},1200);},800);},700);"),
+         sleep=6.0,
+         js=("(function(){"
+             "if(!window.__t155handle)return 'no handle after mode switch';"
+             "var v=window.Editor.getValue();"
+             "if(v.indexOf('段落一')<0||v.indexOf('段落二')<0)return 'content lost='+JSON.stringify(v);"
+             "if(v.indexOf('段落二')>v.indexOf('段落一'))return 'not moved='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=20),
+
+    dict(name="T156 扩展语法:[toc]/mermaid/$$/脚注对齐与移动",
+         setup=("window.Home.hide();"
+                "window.Editor.setMode('ir');"
+                "setTimeout(function(){"
+                "window.Editor.setValue(" + JV('[toc]\n\n# A\n\n```mermaid\ngraph TD;\n  X-->Y;\n```\n\n$$\nx^2\n$$\n\n脚注[^1]\n\n[^1]: 注\n') + ");"
+                "setTimeout(function(){"
+                "window.__t156=window.Blocks.moveBlock(window.Blocks.locateLine(4),1);"
+                "},700);},700);"),
+         sleep=2.6,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(!window.__t156)return 'move failed(alignment aborted)';"
+             "if(v.indexOf('```mermaid')<0||v.indexOf('X-->Y;')<0)return 'mermaid damaged='+JSON.stringify(v);"
+             "if(v.indexOf('$$')<0||v.indexOf('x^2')<0)return 'math damaged='+JSON.stringify(v);"
+             "if(v.indexOf('x^2')>v.indexOf('mermaid'))return 'not moved='+JSON.stringify(v);"
+             "if(v.indexOf('[^1]: 注')<0)return 'footnote lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T157 模式切换后快速连续操作各自可撤销",
+         setup=("window.Home.hide();"
+                "window.Editor.setMode('ir');"
+                "setTimeout(function(){"
+                "window.Editor.setValue(" + JV('段一\n\n段二\n\n段三\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.setMode('sv');"
+                "setTimeout(function(){"
+                "window.Editor.setMode('ir');"
+                "setTimeout(function(){"
+                "var m1=window.Blocks.moveBlock(window.Blocks.locateLine(2),1);"
+                "setTimeout(function(){"
+                "var m2=window.Blocks.moveBlock(window.Blocks.locateLine(0),1);"
+                "window.__t157m=m1&&m2;"
+                "var panel=document.querySelector('.vditor-ir .vditor-reset');"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v1=window.Editor.getValue();"
+                "window.__t157u1=v1.indexOf('段一')<v1.indexOf('段三')&&v1.indexOf('段三')<v1.indexOf('段二');"
+                "panel.dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',"
+                "ctrlKey:true,bubbles:true,cancelable:true}));"
+                "setTimeout(function(){"
+                "var v2=window.Editor.getValue();"
+                "window.__t157u2=v2.indexOf('段一')<v2.indexOf('段二')&&v2.indexOf('段二')<v2.indexOf('段三');"
+                "},400);},400);},250);},1400);},1200);},800);},700);"),
+         sleep=6.2,
+         js=("(function(){"
+             "if(!window.__t157m)return 'moves failed';"
+             "if(!window.__t157u1)return 'undo1 wrong';"
+             "if(!window.__t157u2)return 'undo2 wrong';"
+             "return true;})()"),
+         timeout=20),
+
+    dict(name="T158 终态回归:中文输入与跨段选字精确删除",
+         setup=("window.Home.hide();"
+                "window.Editor.setMode('ir');"
+                "setTimeout(function(){"
+                "window.Editor.setValue(" + JV('第一段ABC\n\n第二段DEF\n') + ");"
+                "setTimeout(function(){"
+                "window.Editor.focus();"
+                "var ps=document.querySelectorAll('#editor .vditor-ir .vditor-reset > p');"
+                "if(ps.length<2)return;"
+                "var t=ps[0].firstChild;"
+                "while(t&&t.nodeType!==3)t=t.firstChild||t.nextSibling;"
+                "if(!t)return;"
+                "var r=document.createRange();"
+                "r.setStart(t,t.nodeValue.length-3);r.setEnd(t,t.nodeValue.length);"
+                "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                "document.execCommand('delete');"
+                "setTimeout(function(){document.execCommand('insertText',false,"
+                + JV("终态中文Y") + ");},300);"
+                "},700);},700);"),
+         sleep=2.6,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(v.indexOf('ABC')>=0)return 'selection delete imprecise='+JSON.stringify(v);"
+             "if(v.indexOf(" + JV("第一段") + ")<0||v.indexOf(" + JV("第二段DEF") + ")<0)"
+             "return 'content damaged='+JSON.stringify(v);"
+             "if(v.indexOf(" + JV("终态中文Y") + ")<0)return 'ime insert lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+]
+
+# —— 嵌套结构操作：携子树移动、成为子项、移入/移出引用 ——
+CASES += [
+    dict(name="T142 嵌套:列表项携续段与子列表整体移动",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('- 项A\n  续段A\n  - 子1\n- 项B\n') + ");"
+                "setTimeout(function(){"
+                "var li=document.querySelector('.vditor-ir .vditor-reset > ul > li');"
+                "window.__t142=window.Blocks.moveItem(window.Blocks.locate(li),1);"
+                "},700);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(!window.__t142)return 'move failed';"
+             "var ia=v.indexOf('项A'),ib=v.indexOf('项B'),ic=v.indexOf('续段A'),id=v.indexOf('子1');"
+             "if(!(ib<ia&&ia<ic&&ic<id))return 'order='+JSON.stringify(v);"
+             "var sub=v.split('\\n').find(function(l){return l.indexOf('子1')>=0;});"
+             "if(!/^ +[-*+]/.test(sub))return 'child flattened='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T143 嵌套:拖到列表项中段成为其子项",
+         setup=("window.Home.hide();window.SlashMenu.close();"
+                "window.Editor.setValue(" + JV('- 项A\n- 项B\n- 项C\n') + ");"
+                "setTimeout(function(){"
+                "var lis=document.querySelectorAll('.vditor-ir .vditor-reset > ul > li');"
+                "var li=lis[2];"
+                "var r=li.getBoundingClientRect();"
+                "li.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(!h)return;"
+                "var hr=h.getBoundingClientRect();"
+                "var t=lis[0].getBoundingClientRect();"
+                "h.dispatchEvent(new MouseEvent('mousedown',{clientX:hr.left+5,clientY:hr.top+5,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:t.left+30,clientY:t.top+t.height*0.5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var badge=document.querySelector('.block-drop-badge.on');"
+                "window.__t143badge=badge?badge.textContent:'';"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:t.left+30,clientY:t.top+t.height*0.5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var v=window.Editor.getValue();"
+                "var ls=v.split('\\n').filter(function(l){return l.trim()!=='';});"
+                "window.__t143lines=ls;"
+                "},400);},300);},300);},700);"),
+         sleep=3.2,
+         js=("(function(){"
+             "if(window.__t143badge.indexOf(" + JV("成为") + ")<0||window.__t143badge.indexOf(" + JV("子项") + ")<0)"
+             "return 'badge='+window.__t143badge;"
+             "var ls=window.__t143lines||[];"
+             "if(ls.length!==3)return 'lines='+JSON.stringify(ls);"
+             "if(ls[0].indexOf('项A')<0)return 'l0='+JSON.stringify(ls);"
+             "if(!/^ +[-*+]/.test(ls[1])||ls[1].indexOf('项C')<0)return 'not child='+JSON.stringify(ls);"
+             "if(ls[2].indexOf('项B')<0||/^ +/.test(ls[2]))return 'l2='+JSON.stringify(ls);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T144 嵌套:移出提升一级且子项随动",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('- 项A\n  - 子B\n    - 孙D\n- 项C\n') + ");"
+                "setTimeout(function(){"
+                "var li=document.querySelector('.vditor-ir .vditor-reset > ul > li > ul > li');"
+                "window.__t144=window.Blocks.outdentItem(window.Blocks.locate(li));"
+                "},700);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(!window.__t144)return 'outdent failed';"
+             "var ls=v.split('\\n').filter(function(l){return l.trim()!=='';});"
+             "var sub=ls.find(function(l){return l.indexOf('子B')>=0;});"
+             "if(!sub||/^ +/.test(sub))return 'not promoted='+JSON.stringify(v);"
+             "var gr=ls.find(function(l){return l.indexOf('孙D')>=0;});"
+             "if(!gr||!/^ +[-*+]/.test(gr))return 'grandchild lost='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T145 嵌套:段落移入引用再移出",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('段落X\n\n> 引用内容\n') + ");"
+                "setTimeout(function(){"
+                "window.__t145in=window.Blocks.moveIntoQuote(window.Blocks.locateLine(0),window.Blocks.locateLine(2));"
+                "setTimeout(function(){"
+                "var v0=window.Editor.getValue();"
+                "window.__t145v0=v0.split('\\n').filter(function(l){return l.indexOf('段落X')>=0;})[0];"
+                "var qp=document.querySelector('.vditor-ir .vditor-reset > blockquote');"
+                "var inner=qp&&qp.querySelectorAll('p')[1];"
+                "if(!inner)return;"
+                "window.__t145out=window.Blocks.moveOutOfQuote(window.Blocks.locate(inner),window.Blocks.locate(qp));"
+                "},700);},700);"),
+         sleep=2.6,
+         js=("(function(){"
+             "if(!window.__t145in)return 'move in failed';"
+             "if(!window.__t145v0||window.__t145v0.indexOf('>')!==0)return 'not in quote='+window.__t145v0;"
+             "if(!window.__t145out)return 'move out failed';"
+             "var v=window.Editor.getValue();"
+             "var lx=v.split('\\n').filter(function(l){return l.indexOf('段落X')>=0;})[0];"
+             "if(!lx||lx.indexOf('>')===0)return 'still in quote='+JSON.stringify(v);"
+             "if(v.indexOf('> 引用内容')<0)return 'quote damaged='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T146 嵌套:引用整体移动后内部结构原样",
+         setup=("window.Home.hide();"
+                "window.Editor.setValue(" + JV('> ## 内标题\n>\n> - 内项\n\n段落P\n') + ");"
+                "setTimeout(function(){"
+                "window.__t146=window.Blocks.moveBlock(window.Blocks.locateLine(0),1);"
+                "},700);"),
+         sleep=2.0,
+         js=("(function(){var v=window.Editor.getValue();"
+             "if(!window.__t146)return 'move failed';"
+             "if(v.indexOf('段落P')>v.indexOf('## 内标题'))return 'not moved='+JSON.stringify(v);"
+             "if(v.indexOf('> ## 内标题')<0||v.indexOf('> - 内项')<0)return 'inner damaged='+JSON.stringify(v);"
+             "return true;})()"),
+         timeout=12),
+
+    dict(name="T147 嵌套:代码块不接收成为子项落点",
+         setup=("window.Home.hide();window.SlashMenu.close();"
+                "window.Editor.setValue(" + JV('段落一\n\n```js\ncode\n```\n') + ");"
+                "setTimeout(function(){"
+                "var p=document.querySelector('.vditor-ir .vditor-reset > p');"
+                "var r=p.getBoundingClientRect();"
+                "p.dispatchEvent(new MouseEvent('mousemove',{clientX:r.left+20,clientY:r.top+5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var h=document.querySelector('.block-handle.on');"
+                "if(!h)return;"
+                "var hr=h.getBoundingClientRect();"
+                "var cb=document.querySelector('.vditor-ir .vditor-reset div[data-type=code-block]');"
+                "var t=cb.getBoundingClientRect();"
+                "h.dispatchEvent(new MouseEvent('mousedown',{clientX:hr.left+5,clientY:hr.top+5,bubbles:true,cancelable:true}));"
+                "document.dispatchEvent(new MouseEvent('mousemove',{clientX:t.left+40,clientY:t.top+t.height*0.5,bubbles:true}));"
+                "setTimeout(function(){"
+                "var badge=document.querySelector('.block-drop-badge.on');"
+                "window.__t147badge=badge?badge.textContent:'';"
+                "document.dispatchEvent(new MouseEvent('mouseup',{clientX:t.left+40,clientY:t.top+t.height*0.5,bubbles:true}));"
+                "},300);},300);},700);"),
+         sleep=2.6,
+         js=("(function(){"
+             "var b=window.__t147badge;"
+             "if(b.indexOf(" + JV("成为") + ")>=0)return 'child-of offered on code block: '+b;"
+             "if(b.indexOf(" + JV("放在") + ")<0)return 'badge='+b;"
+             "return true;})()"),
+         timeout=12),
+]
+
 
 # ----------------------------------------------------------------------------
 # 执行器
@@ -2136,7 +3106,11 @@ def _run(window, api):
        "if(w.classList.contains('open')){var b=document.getElementById('welcome-start');if(b)b.click();}})()")
     time.sleep(0.5)
 
+    only = os.environ.get("E2E_ONLY", "").strip()
+    prefixes = [p.strip() for p in only.split(",") if p.strip()]
     for c in CASES:
+        if prefixes and not any(c["name"].startswith(p) for p in prefixes):
+            continue
         try:
             # 用例间留空闲:dbg 取证表明,连续无间隔 evaluate_js 注入(setValue→setMode→setValue
             # 连发)会撞上 Vditor 内部异步任务未 settle 的竞态;真实用户操作间隔天然 >100ms。

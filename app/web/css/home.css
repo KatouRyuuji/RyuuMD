@@ -52,6 +52,16 @@
   gap: 14px;
   max-width: 560px;
 }
+
+/* 随手记保存：主色描边的轻量按钮，与全局描边体系一致 */
+#home-scratch-save {
+  border-color: var(--primary);
+  background: transparent;
+  color: var(--primary);
+}
+#home-scratch-save:hover {
+  background: var(--primary-bg);
+}
 .quick-card {
   display: flex;
   align-items: center;
@@ -204,6 +214,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 8px;
   padding: 16px;
   border: 1px solid var(--sys-edge-a, var(--border));
@@ -348,13 +359,13 @@
 
 /* —— 空态 —— */
 .home-empty {
-  padding: 36px 20px;
+  padding: 18px 20px;
   border: 1.5px dashed var(--border);
   border-radius: var(--radius);
   text-align: center;
   color: var(--text-muted);
   font-size: 13.5px;
-  line-height: 2;
+  line-height: 1.8;
 }
 .home-empty .btn { margin-top: 8px; }
 

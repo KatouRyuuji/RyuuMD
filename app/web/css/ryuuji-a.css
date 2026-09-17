@@ -324,11 +324,12 @@ html[data-theme="dark"] .tb-title .logo {
 }
 
 .tree-item.active {
-  /* v5 实心选中行：实心主色 + on-primary 白字 + 顶沿高光唇 */
+  /* 常驻选中态从轻量处理：主色浅染底 + 主色字 + 左侧 2px 指示条，
+     不用实心大色块（长盯编辑器时余光不抢注意力） */
   border-color: transparent;
-  background: var(--primary);
-  color: var(--active-fg);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
+  background: var(--primary-bg);
+  color: var(--primary);
+  box-shadow: inset 2px 0 0 var(--primary);
   font-weight: 600;
 }
 
@@ -339,7 +340,7 @@ html[data-theme="dark"] .tb-title .logo {
 
 .tree-item.active .caret,
 .tree-item.active .tw-icon {
-  color: color-mix(in srgb, var(--active-fg), transparent 28%);
+  color: var(--primary);
 }
 
 .tree-item:hover .caret,
@@ -469,11 +470,12 @@ button.sb-item:hover,
 }
 
 .btn--primary:hover {
-  /* hover 明度 -4% + lift 影 + 顶唇；active +1px 由全局按压规则供给 */
+  /* hover 明度 -4% + lift 影（不叠顶唇：色钮上的白内线会读成双描边）；
+     active +1px 由全局按压规则供给 */
   border-color: var(--primary-deep);
   background: color-mix(in srgb, var(--primary), #000000 4%);
   color: var(--active-fg);
-  box-shadow: var(--sys-shadow-lift), var(--sys-paper-lip);
+  box-shadow: var(--sys-shadow-lift);
   transform: translateY(-1px);
 }
 
@@ -1354,8 +1356,7 @@ select:focus {
   box-shadow: none !important;
 }
 
-/* 档次：h1 章题短条 > h2 节题左竖 > h3–h6 只靠字号。
-   六级同一 padding-left，IR 侧标对齐；左竖画在内边距里，不挤正文。 */
+/* 档次全靠字号与字重，不加下划线/竖条等额外装饰。 */
 .vditor-reset h1 {
   margin: 1.55em 0 0.65em !important;
   padding-bottom: 0 !important;
@@ -1363,22 +1364,12 @@ select:focus {
   font-weight: 700 !important;
   text-align: left !important;
 }
-.vditor-reset h1::after {
-  content: "";
-  display: block;
-  width: 2.2em;
-  height: 3px;
-  margin-top: 0.32em;
-  border-radius: 2px;
-  background: var(--primary);
-}
 
 .vditor-reset h2 {
   margin: 1.4em 0 0.5em !important;
   padding-bottom: 0 !important;
   font-size: 1.5em !important;
   font-weight: 700 !important;
-  box-shadow: inset 3px 0 0 var(--primary) !important;
 }
 
 .vditor-reset h3 {
@@ -1410,8 +1401,8 @@ select:focus {
   color: var(--text-secondary) !important;
 }
 
-/* H 侧标（Vditor IR 的 hN:before 原生机制）：与标题文字拉开边距
-   （原生 padding-right 仅 4px，侧标几乎贴着文字）；此槽位不可另作装饰。 */
+/* H 侧标（Vditor IR 的 hN:before 原生机制）：弱化存在感的小字标注，
+   与标题文字拉开边距；此槽位不可另作装饰。 */
 .vditor-ir .vditor-reset > h1:before,
 .vditor-ir .vditor-reset > h2:before,
 .vditor-ir .vditor-reset > h3:before,
@@ -1421,6 +1412,8 @@ select:focus {
   margin-left: -48px !important;
   padding-right: 12px !important;
   color: var(--text-muted) !important;
+  font-size: 0.7em !important;
+  opacity: 0.5 !important;
 }
 
 .vditor-reset h2:hover,

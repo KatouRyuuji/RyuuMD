@@ -35,6 +35,27 @@
   let seq = 0;
   let handlers = {};
   let debounceTimer = null;
+  let askChip = false; // ask 前缀已 chip 化，输入框里只剩问题本体
+
+  const chipEl = document.getElementById("pal-ask-chip");
+
+  /* 查询原文：chip 态下补回 ask 前缀，其余消费方无需关心 chip */
+  function rawQuery() {
+    return askChip ? "ask " + input.value : input.value;
+  }
+
+  /* 「ask 」前缀 → chip：输入框只留问题本体；空输入按 Backspace 弹出还原 */
+  function syncAskChip(e) {
+    if (!askChip && /^ask\s+/i.test(input.value)) {
+      askChip = true;
+      input.value = input.value.replace(/^ask\s+/i, "");
+    } else if (askChip && e && e.type === "keydown" && e.key === "Backspace" && input.value === "") {
+      askChip = false;
+      input.value = "ask ";
+      e.preventDefault();
+    }
+    if (chipEl) chipEl.hidden = !askChip;
+  }
 
   function isAskQuery(q) {
     return /^ask\s+\S/i.test(String(q || "").trim());
@@ -57,8 +78,8 @@
         btn.setAttribute("aria-pressed", on ? "true" : "false");
       });
     }
-    const asking = searching && isAskQuery(input.value);
-    const enterOnly = searching && !searchFiresOnInput(input.value, searchMode);
+    const asking = searching && isAskQuery(rawQuery());
+    const enterOnly = searching && !searchFiresOnInput(rawQuery(), searchMode);
     if (palBox) {
       palBox.classList.toggle("is-ask", asking);
       palBox.classList.toggle("is-enter-search", enterOnly);
@@ -96,6 +117,8 @@
     hintEl.textContent = HINTS[mode] || "";
     iconEl.setAttribute("data-kind", mode === "command" || mode === "search" || INDEX_MODES[mode] ? (INDEX_MODES[mode] ? "search" : mode) : "file");
     input.value = "";
+    askChip = false;
+    if (chipEl) chipEl.hidden = true;
     input.placeholder = HINTS[mode] + "…";
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
     syncSearchChrome();
@@ -108,6 +131,8 @@
     mask.classList.remove("open");
     items = [];
     input.value = "";
+    askChip = false;
+    if (chipEl) chipEl.hidden = true;
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
     if (palBox) {
       palBox.classList.remove("is-ask");
@@ -197,7 +222,7 @@
   }
 
   async function refresh() {
-    const q = input.value;
+    const q = rawQuery();
     const my = ++seq;
     if (mode === "command") {
       const src = (handlers.commands && handlers.commands()) || [];
@@ -409,7 +434,7 @@
     syncSearchChrome();
     if (!answerEl) return;
     answerEl.hidden = false;
-    const qtext = (res && res.question) || String(input.value || "").trim().replace(/^ask\s+/i, "");
+    const qtext = (res && res.question) || String(rawQuery() || "").trim().replace(/^ask\s+/i, "");
     const err = res && !res.ok ? (res.error || "提问失败") : "";
     const answer = (res && (res.answer || res.text)) || "";
     const body = err
@@ -461,8 +486,8 @@
     } else if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      if (mode === "search" && isAskQuery(input.value)) {
-        const q = String(input.value || "").trim().replace(/^ask\s+/i, "");
+      if (mode === "search" && isAskQuery(rawQuery())) {
+        const q = String(rawQuery() || "").trim().replace(/^ask\s+/i, "");
         close();
         if (window.AiPanel) {
           window.AiPanel.open();
@@ -474,7 +499,7 @@
         runPaidSearch();
         return;
       }
-      if (mode === "search" && !items.length && String(input.value || "").trim()) {
+      if (mode === "search" && !items.length && String(rawQuery() || "").trim()) {
         refresh();
         return;
       }
@@ -484,7 +509,8 @@
 
   input.addEventListener("input", () => {
     clearTimeout(debounceTimer);
-    const q = input.value;
+    syncAskChip();
+    const q = rawQuery();
     syncSearchChrome();
     if (mode === "search" && isAskQuery(q)) {
       renderAskDraft(q);
@@ -504,7 +530,7 @@
         e.preventDefault();
         searchMode = btn.dataset.mode || "title";
         syncSearchChrome();
-        const q = input.value;
+        const q = rawQuery();
         if (mode === "search" && isAskQuery(q)) {
           renderAskDraft(q);
           return;
@@ -517,7 +543,7 @@
       });
     });
   }
-  input.addEventListener("keydown", onKey);
+  input.addEventListener("keydown", (e) => { syncAskChip(e); onKey(e); });
   document.addEventListener("keydown", (e) => {
     if (isOpen()) onKey(e);
   }, true);
@@ -540,7 +566,7 @@
       searchMode = m || "title";
       syncSearchChrome();
       if (!isOpen()) return;
-      const q = input.value;
+      const q = rawQuery();
       if (isAskQuery(q)) renderAskDraft(q);
       else if (!searchFiresOnInput(q, searchMode)) renderSemanticHint(q);
       else refresh();

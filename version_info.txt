@@ -22,12 +22,12 @@ VSVersionInfo(
         [
           StringStruct('CompanyName', 'RyuuMD'),
           StringStruct('FileDescription', 'RyuuMD - 轻量本地 Markdown 编辑器'),
-          StringStruct('FileVersion', '1.6.2.0'),
+          StringStruct('FileVersion', '1.7.0.0'),
           StringStruct('InternalName', 'RyuuMD'),
           StringStruct('LegalCopyright', 'Copyright (C) 2026 RyuuMD'),
           StringStruct('OriginalFilename', 'RyuuMD.exe'),
           StringStruct('ProductName', 'RyuuMD'),
-          StringStruct('ProductVersion', '1.6.2.0'),
+          StringStruct('ProductVersion', '1.7.0.0'),
         ])
     ]),
     VarFileInfo([VarStruct('Translation', [2052, 1200])])  # 2052=zh-CN, 1200=Unicode

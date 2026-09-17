@@ -111,6 +111,10 @@ class WindowManager:
                 text_select=True,
             )
             api.bind_window(window)
+            # 原生标题栏随应用主题（Windows DWM 沉浸式深色，其他平台空操作）
+            from app.core.titlebar import set_dark_titlebar
+
+            set_dark_titlebar(self.config.get("theme") == "dark")
             self._bind_drop(window)
             self._bind_size_memory(window)
             return window

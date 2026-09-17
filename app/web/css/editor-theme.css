@@ -129,10 +129,20 @@
 /* ===========================================================
    代码块（phycat：顶部 macOS 三色点 + 语言名 / 圆角）
    =========================================================== */
+/* 暗色正文提亮一档：长文阅读不发灰 */
+:root[data-theme="dark"] .vditor-reset {
+  color: color-mix(in srgb, var(--text), #ffffff 10%) !important;
+}
+
 .vditor-reset pre {
   border-radius: 10px !important;
   border: 1px solid var(--border) !important;
-  background: var(--code-body-bg) !important;
+  /* 亮色下也要有可读底色，不只靠细边框 */
+  background: color-mix(in srgb, var(--text) 4%, var(--code-body-bg)) !important;
+}
+:root[data-theme="dark"] .vditor-reset pre {
+  background: color-mix(in srgb, var(--text) 7%, var(--code-body-bg)) !important;
+  border-color: color-mix(in srgb, var(--text) 18%, transparent) !important;
 }
 .vditor-reset pre > code {
   font-family: var(--font-mono) !important;
@@ -150,29 +160,31 @@
 }
 
 /* ===========================================================
-   引用（phycat：圆角气泡 + 角标 emoji，悬停放大）
+   引用（圆角气泡 + 角标 emoji，悬停放大）
    =========================================================== */
 .vditor-reset blockquote {
   position: relative;
-  margin: 1.2em 0 !important;
-  padding: 14px 18px 14px 44px !important;
+  margin: 1em 0 !important;
+  padding: 9px 16px 9px 40px !important;
   background: var(--el-soo-shallow) !important;
   border: none !important;
   border-left: none !important;
-  border-radius: 14px !important;
+  border-radius: 12px !important;
   color: var(--text-secondary) !important;
   transition: transform .3s cubic-bezier(.34,1.56,.64,1);
 }
 .vditor-reset blockquote::before {
   content: var(--quote-emoji);
   position: absolute;
-  left: 14px; top: 12px;
-  font-size: 18px; line-height: 1.4;
+  left: 13px; top: 8px;
+  font-size: 16px; line-height: 1.4;
   font-family: "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
 }
 .vditor-reset blockquote:hover { transform: scale(1.01); }
+/* 暗色：块的边界要在底色上看得出来 */
 :root[data-theme="dark"] .vditor-reset blockquote {
-  box-shadow: 0 0 0 1px rgba(255,255,255,.05);
+  background: color-mix(in srgb, var(--el) 13%, var(--bg)) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--el) 28%, transparent);
 }
 
 /* ===========================================================
@@ -437,3 +449,81 @@
 :root[data-theme="dark"] .vditor-reset code.hljs *::selection {
   background: var(--code-selected-bg) !important;
 }
+
+/* —— 结构操作交互层（blockui.js）：overlay 全部挂 body、fixed 定位，不推挤正文 —— */
+.block-handle {
+  position: fixed;
+  z-index: 30;
+  width: 18px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted, #8aa);
+  cursor: grab;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+.block-handle.on { display: inline-flex; }
+.block-handle:hover, .block-handle:focus-visible {
+  opacity: 1;
+  background: var(--hover-bg);
+  color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.block-handle svg { width: 14px; height: 14px; }
+
+/* 范围高亮：背景 tint，无 border/宽度变化，不进 md 序列化 */
+.ryuu-block-hl {
+  background: color-mix(in srgb, var(--primary) 8%, transparent) !important;
+  border-radius: 4px;
+}
+
+.block-drop-line {
+  position: fixed;
+  z-index: 30;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--primary);
+  pointer-events: none;
+  display: none;
+}
+.block-drop-line.on { display: block; }
+.block-drop-badge {
+  position: fixed;
+  z-index: 31;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: var(--sys-on-primary, #fff);
+  font-size: 11px;
+  line-height: 1.6;
+  pointer-events: none;
+  display: none;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.block-drop-badge.on { display: block; }
+.block-drag-ghost {
+  position: fixed;
+  z-index: 31;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.ryuu-block-dragging #editor { user-select: none; }

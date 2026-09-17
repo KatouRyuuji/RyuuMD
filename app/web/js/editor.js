@@ -293,6 +293,34 @@
 
   function getMode() { return curMode; }
 
+  /* 立刻记一条撤销记录：addToUndoStack 本体不防抖（800ms 合并防抖在 input
+     管线外层），直接调用即把当前 DOM 与 lastText 的 diff 落为一条记录
+     （空 diff 且栈非空时 Vditor 自动跳过）。调用前先取消管线里挂起的
+     afterRenderTimeout——否则它会在 800ms 后醒来，把本边界之后的变化
+     （含撤销/重做）重复记为一条新记录。取消后内容新鲜度由本次手动记录
+     与随后的 notifyChange 共同保证。结构操作在 setValue 前后各调一次，
+     使一次操作拥有独立撤销边界，不被 800ms 窗口内的输入合并。
+     依赖 Vditor 内部路径 vditor.vditor.undo 与 <mode>.afterRenderTimeoutId
+     （vendor 锁定版本已取证；升级 Vditor 时需复核）。失败兜底为现状，不致错。 */
+  function recordUndoBoundary() {
+    try {
+      if (!vditor || !ready || !vditor.vditor || !vditor.vditor.undo) return;
+      const iv = vditor.vditor;
+      const modeObj = iv[iv.currentMode];
+      if (modeObj && modeObj.afterRenderTimeoutId) {
+        clearTimeout(modeObj.afterRenderTimeoutId);
+        modeObj.afterRenderTimeoutId = null;
+      }
+      iv.undo.addToUndoStack(iv);
+    } catch (e) { /* ignore */ }
+  }
+
+  function lute() {
+    try { return vditor && vditor.vditor ? vditor.vditor.lute : null; } catch (e) { return null; }
+  }
+
+  function panel() { return activePanel(); }
+
   /* 按内容长度调整防抖间隔：每次回调都要全文序列化+遍历（字数/大纲），
      超长文档必须限流，否则连续输入会持续卡顿 */
   function noteSize(len) {
@@ -382,6 +410,10 @@
     }
     noteSize((md || "").length);
     vditor.setValue(md || "");
+    // Vditor setValue 的撤销记录走 800ms 防抖管线，lastText 不会立即刷新；
+    // 同步落一条边界，使随后的结构操作边界以最新文本为 diff 基准
+    // （管线随后醒来算得空 diff，被 Vditor 自动跳过）。
+    recordUndoBoundary();
     // 阅读位置：纯模式切换（restoreScroll 有值）按比例还原；装载新文档一律回文首
     // （切换文件不得停留在上一篇的滚动位置）
     const applyPos = () => {
@@ -412,11 +444,11 @@
     if (curMode === "sv") {
       const lines = (md != null ? md : getValue()).split("\n");
       let inFence = false;
-      lines.forEach((line) => {
+      lines.forEach((line, idx) => {
         if (/^\s*```/.test(line)) { inFence = !inFence; return; }
         if (inFence) return;
         const m = line.match(/^(#{1,6})\s+(.*\S)\s*$/);
-        if (m) list.push({ id: "", level: m[1].length, text: m[2].trim() });
+        if (m) list.push({ id: "", level: m[1].length, text: m[2].trim(), line: idx });
       });
     } else {
       const el = activePanel();
@@ -701,8 +733,13 @@
     jumpToLine,
     getScrollRatio,
     setScrollRatio,
+    recordUndoBoundary,
+    lute,
+    panel,
     focus,
     isReady: () => ready,
     enhanceRendered,
+    refreshOutline: () => updateOutline(),
+    _iv: () => vditor, // 测试/调试探针：撤销栈等内部状态取证用
   };
 })();
