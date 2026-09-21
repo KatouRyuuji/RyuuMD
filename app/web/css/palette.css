@@ -45,7 +45,6 @@
 #pal-icon[data-kind="file"]::before { content: "P"; }
 #pal-icon[data-kind="command"]::before { content: ">"; }
 #pal-icon[data-kind="search"]::before { content: "F"; }
-#pal-icon[data-kind="ask"]::before { content: "A"; }
 
 /* ask 前缀 chip：模式词高亮为实体标签，输入框只留问题本体 */
 #pal-ask-chip {
@@ -197,9 +196,13 @@
 .pal-item.active { background: var(--primary-bg); }
 .pal-title {
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;   /* 列表主体用 medium，粗体只给匹配命中的字符 */
   color: var(--text);
   grid-column: 1;
+}
+.pal-hit {
+  color: var(--primary);
+  font-weight: 700;
 }
 .pal-sub {
   grid-column: 1;

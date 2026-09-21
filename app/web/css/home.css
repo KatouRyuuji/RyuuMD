@@ -240,14 +240,11 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: hsl(var(--repo-hue, 205) 62% 52%);
+  /* 底色由 ryuuji-a.css 统一为 --primary-bg：跨主题同色，不随路径哈希换色相 */
   color: var(--sys-on-primary, #fff);
   font-size: 17px;
   font-weight: 600;
   user-select: none;
-}
-:root[data-theme="dark"] .repo-avatar {
-  background: hsl(var(--repo-hue, 205) 48% 42%);
 }
 .repo-name {
   font-size: 15px;
@@ -269,9 +266,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;         /* 长路径显示尾部（盘符在前不重要，目录名重要） */
-  text-align: left;
-  unicode-bidi: plaintext;
+  /* 显示文本已在 JS 做中段折叠（dispPath），这里只兜底裁剪 */
 }
 .repo-meta {
   display: flex;

@@ -26,6 +26,11 @@
   let outlineCb = null;
   let onModeChange = null;
   let getDocDir = null;    // () => 当前文档目录，用于相对图片转 file://
+  let onOutlineActive = null; // 大纲当前位置回调（滚动跟随）
+  let lastOutline = [];    // 最近一次 updateOutline 的结果（sv 行号定位用）
+  let outlineRaf = 0;
+  let outlineScrollBound = false;
+  let docVer = 0;          // 文档版本：setValue / 真实输入递增，Blocks 树缓存的失效依据
 
   /* Vditor 默认 flowchart.htmlLabels=true：测量用 foreignObject 会继承编辑区
      width（约 980px），每个节点被当成近千像素，viewBox 变成 2000×2000，
@@ -94,16 +99,18 @@
     mo.observe(host, { childList: true, subtree: true });
   }
 
-  function init({ theme, change, outline, onReady, mode, modeChange, docDir, mathEngine }) {
+  function init({ theme, change, outline, onReady, mode, modeChange, docDir, mathEngine, outlineActive }) {
     onChange = change;
     onOutline = outline;
     changeCb = change;
     outlineCb = outline;
+    onOutlineActive = outlineActive || null;
     onModeChange = modeChange;
     getDocDir = docDir || null;
     curTheme = theme === "dark" ? "dark" : "light";
     curMode = mode === "sv" ? "sv" : "ir";
     curMathEngine = mathEngine === "mathjax" ? "MathJax" : "KaTeX";
+    bindOutlineScroll();
     if (vditor) {
       rebuild(onReady);
       return;
@@ -170,6 +177,7 @@
       after: () => { notifyReady(); },
       input: () => {
         editedSinceSet = true; // 真实编辑到达：Vditor model 已活，getValue 以它为准
+        docVer++; // 即时失效 Blocks 树缓存（不经 scheduleChange 防抖，悬停重定位即刻拿到新版本）
         if (window.SlashMenu) window.SlashMenu.attach();
         scheduleChange();
       },
@@ -403,6 +411,7 @@
   function setValue(md, restoreScroll) {
     cachedValue = md || "";
     editedSinceSet = false;
+    docVer++;
     if (!vditor || !ready) {
       // 编辑器正在重建（setMode 中）：先暂存，build 完成后由回调应用，不丢内容
       pendingValue = md || "";
@@ -462,6 +471,51 @@
       });
     }
     if (onOutline) onOutline(list);
+    lastOutline = list;
+    scheduleOutlineActive();
+  }
+
+  /* 大纲当前位置跟随：滚动后把「视口顶部所在的标题」经回调通知侧栏。
+     ir 取最后一个个顶缘越过面板顶部的标题；sv 按等行高折算行号。
+     滚动不冒泡，委托绑定挂 document 捕获阶段（编辑器重建免疫）。 */
+  function bindOutlineScroll() {
+    if (outlineScrollBound) return;
+    outlineScrollBound = true;
+    document.addEventListener("scroll", (e) => {
+      if (e.target && e.target === activePanel()) scheduleOutlineActive();
+    }, true);
+  }
+
+  function scheduleOutlineActive() {
+    if (outlineRaf) return;
+    outlineRaf = requestAnimationFrame(() => {
+      outlineRaf = 0;
+      if (!onOutlineActive) return;
+      onOutlineActive(currentOutlineKey());
+    });
+  }
+
+  function currentOutlineKey() {
+    const sc = activePanel();
+    if (!sc || !lastOutline.length) return null;
+    if (curMode === "sv") {
+      const cs = getComputedStyle(sc);
+      const lh = parseFloat(cs.lineHeight) || 20;
+      const padTop = parseFloat(cs.paddingTop) || 0;
+      const line = Math.max(0, Math.floor((sc.scrollTop - padTop + lh * 0.5) / lh));
+      let key = null;
+      lastOutline.forEach((it) => {
+        if (it.line != null && it.line <= line) key = "L" + it.line;
+      });
+      return key;
+    }
+    const scTop = sc.getBoundingClientRect().top;
+    // 阈值取面板顶部留白 + 一行：文档起始处（首标题落在 padding 内）也能命中
+    let key = null;
+    sc.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach((h) => {
+      if (h.getBoundingClientRect().top - scTop <= 88) key = h.getAttribute("data-ryuu-id");
+    });
+    return key;
   }
 
   function scrollPanelTo(node) {
@@ -737,6 +791,7 @@
     lute,
     panel,
     focus,
+    docVersion: () => docVer,
     isReady: () => ready,
     enhanceRendered,
     refreshOutline: () => updateOutline(),

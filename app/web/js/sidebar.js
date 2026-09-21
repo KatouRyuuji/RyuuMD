@@ -120,12 +120,15 @@
     menuKind = kind;
     menuPath = path;
     const ops = kind === "dir" ? DIR_OPS : FILE_OPS;
-    treeMenu.innerHTML = ops.map(
-      (op) => `
-        <div class="ctx-item${op.danger ? " danger" : ""}" data-act="${op.act}">
-          <span class="ci-icon">${window.ICONS[op.icon]}</span><span>${op.label}</span>
-        </div>`
-    ).join("");
+    // 与编辑器右键菜单同构：分组小标题 + 图标瓦片 + 标题；无快捷键不渲染芯片
+    treeMenu.innerHTML =
+      `<div class="slash-group-label">${kind === "dir" ? "文件夹" : "文件"}</div>` +
+      ops.map(
+        (op) => `
+          <div class="ctx-item${op.danger ? " danger" : ""}" data-act="${op.act}">
+            <span class="ci-icon">${window.ICONS[op.icon]}</span><span class="ci-title">${op.label}</span>
+          </div>`
+      ).join("");
     treeMenu.classList.add("open");
     const mw = treeMenu.offsetWidth || 190;
     const mh = treeMenu.offsetHeight || 170;
@@ -177,10 +180,13 @@
   }
 
   // —— 大纲 ——
+  let outlineKey = null; // 当前位置标题（ir: data-ryuu-id；sv: "L<行号>"）
+
   function renderOutline(headings) {
     if (!headings || !headings.length) {
       outlineEmpty.style.display = "block";
       outlineList.innerHTML = "";
+      outlineKey = null;
       return;
     }
     outlineEmpty.style.display = "none";
@@ -190,6 +196,21 @@
           `<div class="outline-item" data-level="${h.level}" data-id="${esc(h.id)}"${h.line != null ? ` data-line="${h.line}"` : ""} title="${esc(h.text)}">${esc(h.text)}</div>`
       )
       .join("");
+    applyOutlineActive();
+  }
+
+  /* 滚动跟随的当前标题：重渲染后也要恢复标记 */
+  function applyOutlineActive() {
+    outlineList.querySelectorAll(".outline-item").forEach((el) => {
+      const k = el.dataset.id || (el.dataset.line != null ? "L" + el.dataset.line : "");
+      el.classList.toggle("active", !!k && k === outlineKey);
+    });
+  }
+
+  function markOutlineActive(key) {
+    if (key === outlineKey) return;
+    outlineKey = key;
+    applyOutlineActive();
   }
 
   // 大纲点击（委托，仅绑定一次）：大纲会随编辑频繁重建，不逐项绑监听
@@ -311,6 +332,6 @@
 
   window.Sidebar = {
     setHandlers, renderTree, markActive, revealPath,
-    renderOutline, renderRecent, renderLinks, foldAll,
+    renderOutline, renderRecent, renderLinks, foldAll, markOutlineActive,
   };
 })();

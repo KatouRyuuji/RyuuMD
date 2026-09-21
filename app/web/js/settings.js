@@ -52,6 +52,7 @@
             <h2>设置</h2>
             <p>偏好将自动保存</p>
           </div>
+          <button type="button" class="icon-btn modal-x" id="set-x" title="关闭" aria-label="关闭">${window.ICONS.close}</button>
         </div>
         <div class="settings-tabs" role="tablist">
           <button type="button" class="settings-tab active" data-tab="general" role="tab">通用</button>
@@ -238,7 +239,7 @@
               <input class="field-input" id="ai-model" placeholder="claude-sonnet-4-20250514" spellcheck="false" />
             </div>
             <div class="cloud-actions ai-test-row">
-              <button class="btn" id="ai-test" type="button">测通</button>
+              <button class="btn" id="ai-test" type="button">测试连接</button>
               <span id="ai-test-status"></span>
             </div>
             <details class="ai-advanced" id="ai-advanced">
@@ -277,6 +278,7 @@
     bindFontSimple("set-font-ui", "font_ui", FONT_UI_PRESETS);
     bindFont("set-font-mono", "set-font-mono-custom", "font_mono", FONT_MONO_PRESETS);
     document.getElementById("set-close").addEventListener("click", close);
+    document.getElementById("set-x").addEventListener("click", close);
     // 重开欢迎页：关闭设置后走 App 的欢迎流程（含风格选择与持久化）
     document.getElementById("set-welcome").addEventListener("click", () => {
       close();

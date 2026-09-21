@@ -316,12 +316,36 @@
     return window.Editor && window.Editor.panel ? window.Editor.panel() : null;
   }
 
+  /* 扫描/对齐缓存：locate 是悬停（mousemove rAF）与拖拽帧的热点，未缓存时
+     每次调用都是「全文 Lute 序列化 + 行扫描 + DOM 镜像 + 逐层对齐」，长文档
+     下每次悬停换块都要付全量代价。缓存以 Editor.docVersion 为失效依据
+     （setValue / 真实输入即时递增）；Vditor 只在这两条路径重建 DOM，光标
+     展开标记不改顶层结构，缓存的 DOM 引用与区间在版本内有效。
+     结构操作（moveBlock/commit 等）始终实时取全文，不走缓存，正确性不依赖本层。 */
+  let treeCache = { ver: -1, md: null, tree: null, ok: false };
+
+  function editorVer() {
+    return window.Editor && window.Editor.docVersion ? window.Editor.docVersion() : -1;
+  }
+
+  function mdNodesCached() {
+    const ver = editorVer();
+    if (treeCache.ver === ver && treeCache.md) return treeCache.md;
+    const md = scanDoc(window.Editor.getValue().split("\n"));
+    treeCache = { ver, md, tree: null, ok: false };
+    return md;
+  }
+
   function alignedTree() {
     const p = panel();
     if (!p || !window.Editor || window.Editor.getMode() === "sv") return null;
-    const mdNodes = scanDoc(window.Editor.getValue().split("\n"));
+    const ver = editorVer();
+    if (treeCache.ver === ver && treeCache.ok) return treeCache.tree;
+    const mdNodes = mdNodesCached();
     const domNodes = domTree(p);
-    return align(domNodes, mdNodes) ? domNodes : null;
+    const ok = align(domNodes, mdNodes);
+    treeCache = { ver, md: mdNodes, tree: ok ? domNodes : null, ok };
+    return ok ? domNodes : null;
   }
 
   function findEl(nodes, el) {
@@ -351,8 +375,7 @@
 
   /* 行号 → 顶层块 {type, start, end, node?, md}（sv/ir 通用；ir 附带 DOM 节点） */
   function locateLine(lineIdx) {
-    const mdNodes = scanDoc(window.Editor.getValue().split("\n"));
-    const md = mdNodes.find((b) => b.start <= lineIdx && lineIdx < b.end);
+    const md = mdNodesCached().find((b) => b.start <= lineIdx && lineIdx < b.end);
     if (!md) return null;
     if (window.Editor.getMode() === "sv") return { type: md.type, start: md.start, end: md.end, md, node: null };
     const tree = alignedTree();
@@ -533,9 +556,9 @@
       if (mdNodes[k].type === "h" && mdNodes[k].level <= hNode.level) { end = mdNodes[k].start; break; }
     }
     if (end < 0) {
-      const total = window.Editor.getValue().split("\n").length;
-      end = total;
-      while (end > hNode.start && isBlank(window.Editor.getValue().split("\n")[end - 1])) end--;
+      const lines = window.Editor.getValue().split("\n");
+      end = lines.length;
+      while (end > hNode.start && isBlank(lines[end - 1])) end--;
     }
     return [hNode.start, end];
   }

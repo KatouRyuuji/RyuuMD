@@ -39,6 +39,12 @@ a:focus-visible,
   outline-offset: 2px;
 }
 
+/* 危险按钮焦点环随语义色：红按钮套靛蓝环是语义对撞。
+   :root 前缀压住 vendor themes/*.css 的 html[data-theme] :focus-visible（0,2,1） */
+:root .btn--danger:focus-visible {
+  outline-color: var(--sys-danger);
+}
+
 html[data-lang="a"] .icon-btn:hover:not(:disabled),
 html[data-lang="a"] .btn:hover:not(:disabled),
 html[data-lang="a"] .icon-btn.is-hover:not(:disabled),
@@ -333,6 +339,16 @@ html[data-theme="dark"] .tb-title .logo {
   font-weight: 600;
 }
 
+/* 大纲当前标题（滚动跟随）：与文件树选中态同族，放在本文件确保
+   覆盖 app.css 的 data-level 色阶 */
+.outline-item.active {
+  border-color: transparent;
+  background: var(--primary-bg);
+  color: var(--primary);
+  box-shadow: inset 2px 0 0 var(--primary);
+  font-weight: 600;
+}
+
 .tree-item .caret,
 .tree-item .tw-icon {
   color: var(--text-secondary);
@@ -461,8 +477,9 @@ button.sb-item:hover,
 }
 
 .btn--primary {
-  /* 主钮：实心主色 + 白字（色板对比度已锁） */
-  border-color: var(--primary-deep);
+  /* 主钮：实心主色 + 白字（色板对比度已锁）。
+     描边透明：实心钮再描深色边会与 focus outline 叠出双框 */
+  border-color: transparent;
   background: var(--primary);
   color: var(--active-fg);
   box-shadow: var(--shadow-contact);
@@ -472,7 +489,7 @@ button.sb-item:hover,
 .btn--primary:hover {
   /* hover 明度 -4% + lift 影（不叠顶唇：色钮上的白内线会读成双描边）；
      active +1px 由全局按压规则供给 */
-  border-color: var(--primary-deep);
+  border-color: transparent;
   background: color-mix(in srgb, var(--primary), #000000 4%);
   color: var(--active-fg);
   box-shadow: var(--sys-shadow-lift);
@@ -590,6 +607,12 @@ select:focus {
   border-bottom: 1px solid var(--edge-soft);
 }
 
+/* 弹窗头部右上角关闭 X（设置等无原生关闭路径的弹窗） */
+.modal-x {
+  margin-left: auto;
+  align-self: flex-start;
+}
+
 .modal-head h2 {
   font-size: 17px;
   font-weight: 600;
@@ -614,6 +637,11 @@ select:focus {
 
 .modal-body {
   padding: var(--space-5);
+}
+
+/* 确认/选择类小弹窗：收窄到对话尺度，标题/正文/按钮不被拉散 */
+.modal.mini-modal {
+  width: min(440px, calc(100vw - 48px));
 }
 
 .modal-foot {
@@ -768,8 +796,11 @@ select:focus {
   grid-column: 2;
   grid-row: 1 / span 2;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 只有两张操作卡：轨道数跟随卡片数，右侧不再留一条空轨 */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
+  /* 卡组在 hero 两行带内垂直居中：卡片下方不再悬空一块空白 */
+  align-self: center;
 }
 
 .quick-card {
@@ -874,7 +905,8 @@ select:focus {
 }
 
 .repo-grid {
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  /* auto-fill：空仓也保留轨道，单仓库时卡片只占一列而非通栏 */
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: var(--space-3);
 }
 
@@ -982,15 +1014,15 @@ select:focus {
 }
 
 .repo-list {
-  gap: 2px;
+  gap: 6px;
 }
 
 .repo-row,
 .recent-row {
   min-height: 46px;
-  border: 1px solid transparent;
+  border: 1px solid var(--edge-soft);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--surface-raised);
 }
 
 .repo-row {
@@ -1232,7 +1264,11 @@ select:focus {
   color: var(--active-fg) !important;
 }
 
-.pal-title,
+.pal-title {
+  color: var(--text);
+  font-weight: 500; /* 面板列表主体 medium：粗体只给匹配命中字符（.pal-hit） */
+}
+
 .slash-item .si-title,
 .hint-row .hint-tt {
   color: var(--text);
@@ -1368,49 +1404,55 @@ select:focus {
 .vditor-reset h2 {
   margin: 1.4em 0 0.5em !important;
   padding-bottom: 0 !important;
-  font-size: 1.5em !important;
+  font-size: 1.55em !important;
   font-weight: 700 !important;
 }
 
 .vditor-reset h3 {
   margin: 1.25em 0 0.45em !important;
   padding-bottom: 0 !important;
-  font-size: 1.28em !important;
+  font-size: 1.34em !important;
   font-weight: 600 !important;
 }
 
 .vditor-reset h4 {
   margin: 1.15em 0 0.4em !important;
   padding-bottom: 0 !important;
-  font-size: 1.14em !important;
+  font-size: 1.12em !important;
   font-weight: 600 !important;
 }
 
 .vditor-reset h5 {
   margin: 1.05em 0 0.35em !important;
   padding-bottom: 0 !important;
-  font-size: 1.05em !important;
+  font-size: 0.94em !important;
   font-weight: 600 !important;
+  color: var(--text-secondary) !important;
 }
 
 .vditor-reset h6 {
   margin: 1em 0 0.3em !important;
   padding-bottom: 0 !important;
-  font-size: 1em !important;
+  font-size: 0.81em !important;
   font-weight: 600 !important;
-  color: var(--text-secondary) !important;
+  color: var(--text-muted) !important;
 }
 
-/* H 侧标（Vditor IR 的 hN:before 原生机制）：弱化存在感的小字标注，
-   与标题文字拉开边距；此槽位不可另作装饰。 */
+/* H 侧标（Vditor IR 的 hN:before 原生机制）：弱化存在感的小字标注。
+   绝对定位到首行行高中心：内联 margin 负值挂法在小字号标题上会
+   因自身字号参与基线计算而漂浮错位。首行中心 = line-height(1.35)/2 × 标题字号，
+   而此处 em 以侧标自身 0.7em 字号为基准，故取 0.675/0.7 ≈ 0.96em。 */
 .vditor-ir .vditor-reset > h1:before,
 .vditor-ir .vditor-reset > h2:before,
 .vditor-ir .vditor-reset > h3:before,
 .vditor-ir .vditor-reset > h4:before,
 .vditor-ir .vditor-reset > h5:before,
 .vditor-ir .vditor-reset > h6:before {
-  margin-left: -48px !important;
-  padding-right: 12px !important;
+  position: absolute !important;
+  left: -40px !important;
+  top: 0.96em !important;
+  transform: translateY(-50%) !important;
+  margin-left: 0 !important;
   color: var(--text-muted) !important;
   font-size: 0.7em !important;
   opacity: 0.5 !important;

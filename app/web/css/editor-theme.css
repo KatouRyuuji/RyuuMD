@@ -288,8 +288,11 @@
   50% { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
-/* 完成项文字：渐隐 + 删除线 */
+/* 完成项文字：渐隐 + 删除线。
+   IR 面板 li 内的任务文本常是裸文本节点，~ * 选不中，用 :has 兜住整行；
+   限定直接子级 checkbox，嵌套子项勾选不会误划父项 */
 .vditor-reset li.vditor-task.vditor-task--done,
+.vditor-reset li.vditor-task:has(> input[type="checkbox"]:checked),
 .vditor-reset li.vditor-task input[type="checkbox"]:checked ~ * {
   color: var(--text-muted);
   text-decoration: line-through;
@@ -454,28 +457,28 @@
 .block-handle {
   position: fixed;
   z-index: 30;
-  width: 18px;
-  height: 24px;
+  width: 20px;
+  height: 26px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 5px;
   background: transparent;
-  color: var(--text-muted, #8aa);
+  color: var(--text-secondary, #8aa);
   cursor: grab;
   display: none;
   align-items: center;
   justify-content: center;
-  opacity: 0.7;
+  opacity: 0.9;
 }
 .block-handle.on { display: inline-flex; }
 .block-handle:hover, .block-handle:focus-visible {
   opacity: 1;
-  background: var(--hover-bg);
+  background: var(--primary-bg);
   color: var(--primary);
   outline: none;
   box-shadow: 0 0 0 1px var(--border);
 }
-.block-handle svg { width: 14px; height: 14px; }
+.block-handle svg { width: 15px; height: 15px; }
 
 /* 范围高亮：背景 tint，无 border/宽度变化，不进 md 序列化 */
 .ryuu-block-hl {
@@ -516,10 +519,10 @@
   padding: 3px 10px;
   border-radius: 6px;
   background: var(--sidebar-bg);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
   color: var(--text);
   font-size: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.10);
   pointer-events: none;
   max-width: 300px;
   white-space: nowrap;

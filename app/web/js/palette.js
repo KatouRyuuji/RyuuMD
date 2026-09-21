@@ -84,7 +84,8 @@
       palBox.classList.toggle("is-ask", asking);
       palBox.classList.toggle("is-enter-search", enterOnly);
     }
-    if (iconEl && searching) iconEl.setAttribute("data-kind", asking ? "ask" : "search");
+    // ask 态由 #pal-ask-chip 一个指示承担，图标不再切换成 "A"（双指示冗余）
+    if (iconEl && searching) iconEl.setAttribute("data-kind", "search");
     if (hintEl && searching) {
       hintEl.textContent = asking ? "Enter 提问" : (searchMode === "semantic" ? "Enter 搜索" : "即时搜索");
     }
@@ -167,12 +168,14 @@
       const p = String(it.path || raw).replace(/\\/g, "/");
       if (f && p.toLowerCase().indexOf(f.toLowerCase()) === 0) {
         const rel = p.slice(f.length).replace(/^\/+/, "");
-        return rel || title;
+        // 根目录文件的相对路径与标题同名：副行不重复显示
+        return rel === title ? "" : rel;
       }
     }
     if (looksAbs) {
       const parts = norm.split("/");
-      return parts[parts.length - 1] || title;
+      const leaf = parts[parts.length - 1] || "";
+      return leaf === title ? "" : leaf;
     }
     return norm === title ? "" : norm;
   }
@@ -183,6 +186,16 @@
     });
     const cur = listEl.querySelector(".pal-item.active");
     if (cur) cur.scrollIntoView({ block: "nearest" });
+  }
+
+  /* 标题中的首个命中片段加粗染色；无命中（如按路径/分组匹配）原样输出 */
+  function markTitle(title) {
+    const q = askChip ? "" : input.value.trim();
+    if (!q) return esc(title);
+    const i = String(title).toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return esc(title);
+    const t = String(title);
+    return esc(t.slice(0, i)) + '<b class="pal-hit">' + esc(t.slice(i, i + q.length)) + "</b>" + esc(t.slice(i + q.length));
   }
 
   function render() {
@@ -198,11 +211,12 @@
     emptyEl.style.display = "none";
     let html = "";
     items.forEach((it, i) => {
+      // displayRel 返回 "" 表示副行与标题重复，不再回落 it.sub 把重复内容显示出来
       const sub = (it.kind === "file" || it.kind === "create" || it.kind === "hit" || it.kind === "orphan")
-        ? (displayRel(it) || it.sub || "")
+        ? displayRel(it)
         : (it.sub || it.rel || it.keys || "");
       html += `<div class="pal-item${i === activeIdx ? " active" : ""}" data-idx="${i}">
-        <div class="pal-title">${esc(it.title)}</div>
+        <div class="pal-title">${markTitle(it.title)}</div>
         ${sub ? `<div class="pal-sub">${esc(sub)}</div>` : ""}
         ${it.badge ? `<span class="pal-badge">${esc(it.badge)}</span>` : ""}
       </div>`;
@@ -214,10 +228,7 @@
         activeIdx = parseInt(el.dataset.idx, 10);
         choose();
       });
-      el.addEventListener("mousemove", () => {
-        const i = parseInt(el.dataset.idx, 10);
-        if (i !== activeIdx) { activeIdx = i; highlight(); }
-      });
+      /* 同 slash 菜单：悬停由 CSS :hover 淡色承担，不写 activeIdx */
     });
   }
 
@@ -247,7 +258,12 @@
     if (mode === "file") {
       if (!handlers.listFiles) { items = []; render(); return; }
       const qtrim = (q || "").trim();
-      const res = await handlers.listFiles(q);
+      // 文件索引与最近记录并行：两次桥往返串行会把面板首开拖慢一倍
+      const wantRecent = !qtrim && handlers.recentFiles;
+      const [res, rec] = await Promise.all([
+        handlers.listFiles(q),
+        wantRecent ? handlers.recentFiles().catch(() => []) : Promise.resolve(null),
+      ]);
       if (my !== seq) return;
       const arr = (res && res.items) || [];
       items = arr.map((f) => ({
@@ -257,10 +273,7 @@
         path: f.path,
         badge: "",
       }));
-      if (!qtrim && handlers.recentFiles) {
-        let rec = [];
-        try { rec = await handlers.recentFiles(); } catch (e) { rec = []; }
-        if (my !== seq) return;
+      if (wantRecent) {
         const recentItems = (rec || [])
           .filter((r) => r.kind !== "folder" && r.exists !== false)
           .slice(0, 8)
@@ -642,8 +655,10 @@
     if (!q) { countEl.textContent = ""; findIdx = 0; return; }
     const n = countMatches();
     if (!n) { countEl.textContent = "0"; findIdx = 0; return; }
-    if (findIdx < 1) countEl.textContent = "0/" + (n > 999 ? "999+" : String(n));
-    else countEl.textContent = Math.min(findIdx, n) + "/" + (n > 999 ? "999+" : String(n));
+    const total = n > 999 ? "999+" : String(n);
+    // 未定位时不显示 0/N（用户读不出"当前在第几处"），改为总数
+    if (findIdx < 1) countEl.textContent = "共 " + total + " 处";
+    else countEl.textContent = Math.min(findIdx, n) + "/" + total;
   }
 
   function find(backward) {
@@ -704,7 +719,19 @@
   if (oneBtn) oneBtn.addEventListener("click", replaceOne);
   const allBtn = document.getElementById("replace-all");
   if (allBtn) allBtn.addEventListener("click", replaceAll);
-  input.addEventListener("input", () => { findIdx = 0; updateCount(); });
+  input.addEventListener("input", () => {
+    findIdx = 0;
+    updateCount();
+    // 输入即定位首个匹配（VSCode/Typora 同款）：当前匹配高亮 + 滚动到位，
+    // 否则「共 N 处」没有文档内反馈环
+    const q = input.value;
+    if (q && countMatches() > 0) {
+      try {
+        if (window.find(q, false, false, true, false, true, false)) findIdx = 1;
+      } catch (e) { /* 部分 WebView 无 window.find */ }
+      updateCount();
+    }
+  });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();

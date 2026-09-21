@@ -12,8 +12,11 @@
   let open = false;
   let mode = "slash";      // slash（带 / 查询）| context（右键）| wiki（[[ 查询）
   let items = [];          // 当前过滤结果
+  let allItems = null;     // context 模式的完整命令列表（打字过滤的源）
+  let filter = "";         // context 模式的打字过滤串
   let activeIdx = 0;
   let wikiSeq = 0;
+  let wikiTimer = 0; // wiki 查询防抖（每击键一次后端往返太贵，且结果闪烁）
 
   function setEditor(ed) { editor = ed; }
   function setStyle(s) { style = s === "wolai" ? "wolai" : "notion"; }
@@ -58,8 +61,12 @@
   }
 
   function render() {
+    // context 模式头部：打字过滤提示（不占焦点，键盘事件在 document 捕获）
+    const head = mode === "context"
+      ? `<div class="slash-filter">${filter ? "过滤：" + esc(filter) : "输入以过滤…"}</div>`
+      : "";
     if (!items.length) {
-      menu.innerHTML = '<div class="slash-empty">没有匹配的命令</div>';
+      menu.innerHTML = head + '<div class="slash-empty">没有匹配的命令</div>';
       return;
     }
     let html = "";
@@ -78,21 +85,18 @@
             <div class="si-title">${esc(cmd.title)}</div>
             ${cmd.desc ? `<div class="si-desc">${esc(cmd.desc)}</div>` : ""}
           </span>
-          <span class="si-keys">${esc(key)}</span>
+          ${key ? `<span class="si-keys">${esc(key)}</span>` : ""}
         </div>`;
     });
-    menu.innerHTML = html;
+    menu.innerHTML = head + html;
     menu.querySelectorAll(".slash-item").forEach((el) => {
       el.addEventListener("mousedown", (e) => {
         e.preventDefault();
         activeIdx = parseInt(el.dataset.idx, 10);
         choose();
       });
-      el.addEventListener("mousemove", () => {
-        const idx = parseInt(el.dataset.idx, 10);
-        if (items[idx] && items[idx].disabled) return; // 禁用项不进入高亮
-        if (idx !== activeIdx) { activeIdx = idx; highlight(); }
-      });
+      /* 鼠标悬停交给 CSS :hover（淡色），不写 activeIdx：实心选中态只跟随
+         键盘导航与初始位置，瞬间 hover 与持续选中不再共用最强填充 */
     });
     scrollActiveIntoView();
   }
@@ -168,10 +172,26 @@
     position(ctx.rect, true);
   }
 
+  /* context 模式打字过滤：完整列表存 allItems，按标题/描述/分组/快捷键包含匹配。
+     不过滤禁用项（保持可见但不可选，与未过滤时一致） */
+  function applyFilter() {
+    if (!allItems) return;
+    const q = filter.trim().toLowerCase();
+    items = !q ? allItems : allItems.filter((c) => {
+      const hay = ((c.title || "") + " " + (c.desc || "") + " " + (c.group || "") + " " +
+        (c.keys != null ? c.keys : window.displayKey(c, style) || "")).toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+    activeIdx = 0;
+    if (items[0] && items[0].disabled) step(1);
+  }
+
   /* 通用菜单入口（操作柄等外部调用）：直接给完整命令列表，复用同一面板 */
   function showItems(list, x, y) {
-    items = list || [];
-    if (!items.length) return;
+    allItems = list || [];
+    filter = "";
+    items = allItems;
+    if (!items.length) { allItems = null; return; }
     activeIdx = 0;
     mode = "context";
     if (items[0] && items[0].disabled) step(1);
@@ -188,7 +208,9 @@
   function showContext(x, y) {
     const blk = window.Convert ? window.Convert.blockItemsForContext() : [];
     const conv = window.Convert ? window.Convert.itemsForContext() : [];
-    items = clipboardItems().concat(fileItems(), blk, conv, window.filterCommands("", style));
+    allItems = clipboardItems().concat(fileItems(), blk, conv, window.filterCommands("", style));
+    filter = "";
+    items = allItems;
     activeIdx = 0;
     mode = "context";
     if (items[0] && items[0].disabled) step(1); // 首项禁用则落到首个可用项
@@ -255,6 +277,9 @@
     menu.classList.remove("open");
     open = false;
     items = [];
+    allItems = null;
+    filter = "";
+    clearTimeout(wikiTimer);
   }
 
   /* 插入选中命令；slash 模式先删除已键入的 "/查询"；剪贴板伪命令走 doClipboard */
@@ -301,11 +326,21 @@
     }
   }
 
+  /* wiki 模式：120ms 防抖后按「当时的」光标上下文查询，避免用击键瞬间的旧
+     查询发请求；查询期间菜单保持旧结果，不闪空。 */
+  function scheduleWiki() {
+    clearTimeout(wikiTimer);
+    wikiTimer = setTimeout(() => {
+      const ctx = caretContext();
+      if (ctx && ctx.kind === "wiki") showWiki(ctx);
+    }, 120);
+  }
+
   /* 输入事件：仅 slash 模式随输入刷新；右键模式不被打断 */
   function onInput() {
     if (mode === "context" && open) return;
     const ctx = caretContext();
-    if (ctx && ctx.kind === "wiki") showWiki(ctx);
+    if (ctx && ctx.kind === "wiki") scheduleWiki();
     else if (ctx) showSlash(ctx);
     else if (open && (mode === "slash" || mode === "wiki")) close();
   }
@@ -321,10 +356,25 @@
     activeIdx = i;
   }
 
-  /* 键盘导航：菜单打开时拦截 上/下/Tab/Enter/Esc */
+  /* 键盘导航：菜单打开时拦截 上/下/Tab/Enter/Esc；
+     context 模式额外拦截可打印字符与 Backspace 做打字过滤
+     （此前这些键会穿透菜单直接插入编辑器，属于盲打） */
   function onKeydown(e) {
     if (!open) return;
     if (e.__menuHandled) return;
+    if (mode === "context" && !e.ctrlKey && !e.altKey && !e.metaKey &&
+      (e.key.length === 1 || e.key === "Backspace")) {
+      e.__menuHandled = true;
+      e.preventDefault(); e.stopPropagation();
+      filter = e.key === "Backspace" ? filter.slice(0, -1) : filter + e.key;
+      applyFilter();
+      render();
+      return;
+    }
+    // 光标/翻页键：关闭菜单并放行给编辑器移动光标（Notion 同款；
+    // 此前这些键穿透菜单移动光标后菜单悬空在旧位置）
+    const caretKeys = ["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"];
+    if (caretKeys.includes(e.key)) { close(); return; }
     const navKeys = ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"];
     if (!navKeys.includes(e.key)) return;
     e.__menuHandled = true;

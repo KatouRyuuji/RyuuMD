@@ -100,3 +100,8 @@
   --code-body-bg: var(--sys-surface);
   --code-fg: var(--sys-text-2);
 }
+
+:root[data-theme="dark"] {
+  /* 暗色滚动条 thumb 压暗一档：浅灰滑块在深底上太跳 */
+  --scrollbar-thumb: color-mix(in srgb, var(--sys-scrollbar-thumb), var(--sys-bg) 35%);
+}

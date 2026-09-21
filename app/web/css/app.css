@@ -47,6 +47,12 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+/* 不渲染上下箭头按钮（旧式 Windows 控件语言，与细圆角滚条不符） */
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 
 /* ============================================================
    布局
@@ -193,6 +199,29 @@ body:not(.is-workdir) #btn-merge-source {
   font-size: 12.5px;
   line-height: 1.8;
   color: var(--text-secondary);
+}
+/* 空态示例提问：轻胶囊 chips，点击即问（兼作新手引导） */
+.ai-eg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ai-eg-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.ai-eg-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-bg);
 }
 .ai-entry {
   border: 1px solid var(--border);
@@ -537,12 +566,14 @@ body:not(.is-workdir) #btn-merge-source {
   background: var(--hover-bg);
   color: var(--primary);
 }
-.outline-item[data-level="1"] { font-weight: 600; }
-.outline-item[data-level="2"] { padding-left: 18px; }
+/* 大纲层级：缩进之外再给字重/色阶，深层文档可扫读（属性选择器优先级高于
+   ryuuji-a.css 的 .outline-item 统一色，故此处色阶生效） */
+.outline-item[data-level="1"] { font-weight: 600; color: var(--text); }
+.outline-item[data-level="2"] { padding-left: 18px; font-weight: 500; }
 .outline-item[data-level="3"] { padding-left: 30px; }
-.outline-item[data-level="4"] { padding-left: 42px; font-size: 12px; }
-.outline-item[data-level="5"] { padding-left: 54px; font-size: 12px; }
-.outline-item[data-level="6"] { padding-left: 66px; font-size: 12px; }
+.outline-item[data-level="4"] { padding-left: 42px; font-size: 12px; color: var(--text-muted); }
+.outline-item[data-level="5"] { padding-left: 54px; font-size: 12px; color: var(--text-muted); }
+.outline-item[data-level="6"] { padding-left: 66px; font-size: 12px; color: var(--text-muted); }
 
 .links-group {
   font-size: 10.5px;
@@ -1038,16 +1069,18 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 .sb-cloud:hover { color: var(--primary); }
 .sb-cloud.busy { color: var(--primary); }
 .sb-workdir {
-  border: none;
-  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sidebar-bg);
   color: var(--text-muted);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11.5px;
   cursor: pointer;
-  padding: 0;
+  padding: 2px 10px;
   max-width: 28vw;
+  /* 与右侧「渲染/源码」同族的胶囊形制：可点击切换，不是纯文本标签 */
 }
-.sb-workdir:hover { color: var(--primary); }
+.sb-workdir:hover { color: var(--primary); border-color: var(--primary); }
 .sb-workdir.is-pending { color: var(--sys-warning-ink); }
 .sb-workdir.is-conflict { color: var(--sys-danger-ink); }
 
@@ -1440,8 +1473,8 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 .ctx-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 11px;
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
@@ -1449,18 +1482,27 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   color: var(--text);
 }
 .ctx-item:hover { background: var(--primary-bg); }
+/* 图标瓦片：与编辑器右键菜单（slash-item .si-icon）同构；
+   边框/底色由 ryuuji-a.css 统一供给 */
 .ctx-item .ci-icon {
-  width: 16px;
-  height: 16px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
+  border-radius: 7px;
   color: var(--text-secondary);
   flex-shrink: 0;
 }
+.ctx-item .ci-title { font-weight: 600; }
 .ctx-item .ci-icon svg { width: 15px; height: 15px; }
 .ctx-item:hover .ci-icon { color: var(--primary); }
 .ctx-item.danger { color: #e74c3c; }
 .ctx-item.danger .ci-icon { color: #e74c3c; }
+/* 危险项的瓦片随语义色：不沿用主色底（优先级高于 ryuuji-a 的瓦片通用底色） */
+.ctx-item.danger .ci-icon {
+  border-color: rgba(231, 76, 60, 0.35);
+  background: rgba(231, 76, 60, 0.08);
+}
 .ctx-item.danger:hover { background: rgba(231, 76, 60, 0.1); }
 
 /* 窄窗：工具栏只留图标，title/aria-label 补偿文字（统一 1180px 断点） */

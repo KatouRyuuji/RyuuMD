@@ -151,15 +151,29 @@
     return !!(cs.sync_all_projects || r.cloud_enabled);
   }
 
+  /* 展示路径：末段与仓库名同名时去掉（名字就在旁边，避免一行两处），
+     过长时中段折叠为 盘符\…\末段，头尾都保留语义 */
+  function dispPath(r) {
+    let p = String(r.path || "");
+    const name = String(r.name || "");
+    const segs = p.split(/[\\/]/).filter(Boolean);
+    if (name && segs.length > 1 && segs[segs.length - 1].toLowerCase() === name.toLowerCase()) segs.pop();
+    p = segs.join("\\");
+    if (p.length <= 46) return p;
+    const head = segs.slice(0, 2).join("\\");
+    const tail = segs[segs.length - 1] || "";
+    return head + "\\…\\" + tail;
+  }
+
   function cardHTML(r) {
     return `
       <div class="repo-card hover-lift press${r.exists ? "" : " missing"}" data-id="${esc(r.id)}">
         <button class="repo-open" type="button" aria-label="打开仓库：${esc(r.name)}">
           <span class="repo-card-top">
-            <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
+            <span class="repo-avatar">${esc(initial(r.name))}</span>
           </span>
           <span class="repo-name" title="${esc(r.name)}">${nameHTML(r)}</span>
-          <span class="repo-path" title="${esc(r.path)}">${esc(r.path)}</span>
+          <span class="repo-path" title="${esc(r.path)}">${esc(dispPath(r))}</span>
           <span class="repo-meta">${metaHTML(r)}</span>
         </button>
         ${actionsHTML(r)}
@@ -170,9 +184,9 @@
     return `
       <div class="repo-row${r.exists ? "" : " missing"}" data-id="${esc(r.id)}">
         <button class="repo-open repo-open-row" type="button" aria-label="打开仓库：${esc(r.name)}">
-          <span class="repo-avatar" style="--repo-hue:${hue(r.path)}">${esc(initial(r.name))}</span>
+          <span class="repo-avatar">${esc(initial(r.name))}</span>
           <span class="repo-name" title="${esc(r.name)}">${nameHTML(r)}</span>
-          <span class="repo-path" title="${esc(r.path)}">${esc(r.path)}</span>
+          <span class="repo-path" title="${esc(r.path)}">${esc(dispPath(r))}</span>
           <span class="repo-meta">${metaHTML(r)}</span>
         </button>
         ${actionsHTML(r)}
@@ -548,14 +562,6 @@
 
   function initial(name) {
     return (name || "?").trim().charAt(0).toUpperCase() || "?";
-  }
-
-  // 路径稳定映射到色相：同一仓库颜色恒定
-  function hue(path) {
-    let h = 0;
-    const s = String(path || "");
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-    return h % 360;
   }
 
   function esc(s) {

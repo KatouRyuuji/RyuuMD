@@ -283,6 +283,10 @@
             if (window.BlockUI && window.BlockUI.outlineDragging && window.BlockUI.outlineDragging()) return;
             window.Sidebar.renderOutline(hs);
           },
+          outlineActive: (key) => {
+            if (window.BlockUI && window.BlockUI.outlineDragging && window.BlockUI.outlineDragging()) return;
+            window.Sidebar.markOutlineActive(key);
+          },
           onReady: readyCb(gen),
           modeChange: (m) => syncModeButtons(m),
           docDir: () => state.currentPath ? dirname(state.currentPath) : "",

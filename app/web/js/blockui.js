@@ -328,7 +328,37 @@
         return;
     }
     if (!ok) toast("操作未完成");
-    hideHandle();
+    else maybeRetarget(s, loc.start);
+  }
+
+  /* 操作成功后把柄重定位到被操作的块（Vditor 已重建 DOM）：按 probe 在全文找
+     首行相同、距原位置最近的顶层块，柄留在它上面，可连续上移/下移/转换
+     （Notion 操作后块保持选中同款）。列表项/整列表/删除/范围切换不重定位：
+     项级重定位易错配，删除无块可留。 */
+  function maybeRetarget(s, oldStart) {
+    if (!cur || !cur.probe || s.type === "delete" || s.type === "scope" ||
+        cur.kind === "item" || cur.kind === "sv" || cur.scope === "list") {
+      hideHandle();
+      return;
+    }
+    const probe = cur.probe;
+    hideHandle(); // 先清旧引用与高亮（el 已被重建换掉）
+    setTimeout(() => {
+      const E = window.Editor;
+      if (!E || E.getMode() === "sv") return;
+      const lines = E.getValue().split("\n");
+      let best = null;
+      window.Blocks.scanDoc(lines).forEach((b) => {
+        if (!probe(lines.slice(b.start, b.end))) return;
+        const d = Math.abs(b.start - oldStart);
+        if (!best || d < best.d) best = { b, d };
+      });
+      if (!best) return;
+      const loc = window.Blocks.locateLine(best.b.start);
+      if (!loc || !loc.node || !loc.node.el) return;
+      const kind = loc.type === "h" ? "heading" : loc.type === "quote" ? "quote" : "block";
+      showHandle({ el: loc.node.el, kind });
+    }, 90);
   }
 
   function toast(msg) {
@@ -689,28 +719,27 @@
       if (drag && drag.active) return;
       if (window.SlashMenu && window.SlashMenu.isOpen && window.SlashMenu.isOpen()) return;
       if (homeOpen()) { hideHandle(); return; }
+      // 柄只跟随鼠标悬停（ir）与 sv 光标：打字/方向键移光标时弹出柄是视觉噪音，
+      // 且每次 caret 移动都要付出 locate 对齐代价（Notion 亦仅悬停出现）。
+      // sv 无悬停语义（span 流无块级元素），保留光标跟随作为唯一入口。
+      if (window.Editor.getMode() !== "sv") return;
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return;
       const p = panel();
       if (!p || !p.contains(sel.anchorNode)) return;
-      if (window.Editor.getMode() === "sv") {
-        // sv：柄只跟随光标所在顶层块（span 流无块结构，不做悬停解析）
-        const line = caretLineSV(p, sel);
-        if (line == null) return;
-        const loc = window.Blocks.locateLine(line);
-        if (!loc || loc.type === "html") return;
-        const r = sel.getRangeAt(0).getClientRects()[0];
-        ensureOverlays();
-        cur = { el: null, kind: "sv", loc, probe: null, scope: "block", svRect: r };
-        if (r) {
-          handleEl.style.left = Math.max(p.getBoundingClientRect().left + 6, r.left - 30) + "px";
-          handleEl.style.top = r.top + "px";
-        }
-        handleEl.classList.add("on");
-        return;
+      // sv：柄只跟随光标所在顶层块（span 流无块结构，不做悬停解析）
+      const line = caretLineSV(p, sel);
+      if (line == null) return;
+      const loc = window.Blocks.locateLine(line);
+      if (!loc || loc.type === "html") return;
+      const r = sel.getRangeAt(0).getClientRects()[0];
+      ensureOverlays();
+      cur = { el: null, kind: "sv", loc, probe: null, scope: "block", svRect: r };
+      if (r) {
+        handleEl.style.left = Math.max(p.getBoundingClientRect().left + 6, r.left - 30) + "px";
+        handleEl.style.top = r.top + "px";
       }
-      const t = targetForElement(sel.anchorNode);
-      if (t) showHandle(t);
+      handleEl.classList.add("on");
     }, 120);
   }
 

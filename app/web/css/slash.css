@@ -27,6 +27,16 @@
   user-select: none;
 }
 
+/* 右键（context）模式顶部的打字过滤提示：不占焦点，按键在 document 捕获 */
+.slash-filter {
+  padding: 6px 10px;
+  margin: -2px 0 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
 .slash-item {
   display: flex;
   align-items: center;

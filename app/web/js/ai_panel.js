@@ -67,6 +67,13 @@
       emptyEl.addEventListener("click", (e) => {
         if (e.target && e.target.id === "ai-go-settings") {
           if (deps.openSettingsAi) deps.openSettingsAi();
+          return;
+        }
+        // 示例提问 chips：点击填入并发送，兼作新手引导
+        const chip = e.target && e.target.closest ? e.target.closest(".ai-eg-chip") : null;
+        if (chip) {
+          askInput.value = chip.dataset.q || chip.textContent || "";
+          sendAsk();
         }
       });
     }
@@ -91,7 +98,12 @@
     }
     emptyEl.style.display = "";
     emptyEl.innerHTML = ok
-      ? "问点什么，或概括文档、梳理知识谱系。"
+      ? `问点什么，或概括文档、梳理知识谱系。
+         <div class="ai-eg">
+           <button type="button" class="ai-eg-chip" data-q="这篇文档讲了什么？">这篇文档讲了什么？</button>
+           <button type="button" class="ai-eg-chip" data-q="帮我列出本文的要点">列出本文要点</button>
+           <button type="button" class="ai-eg-chip" data-q="这个仓库的主题结构是什么？">梳理仓库主题结构</button>
+         </div>`
       : '尚未配置 AI 接口。<br /><button type="button" class="btn btn--primary" id="ai-go-settings">去配置 AI</button>';
   }
 

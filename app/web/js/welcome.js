@@ -100,7 +100,7 @@
           </div>
         </div>
         <div class="modal-foot">
-          <label class="checkbox"><input type="checkbox" id="welcome-dontshow" checked /> 不再显示</label>
+          <label class="checkbox"><input type="checkbox" id="welcome-dontshow" /> 不再显示</label>
           <button class="btn btn--primary" id="welcome-start">${window.ICONS.sparkles}<span>开始使用</span></button>
         </div>
       </div>`;
