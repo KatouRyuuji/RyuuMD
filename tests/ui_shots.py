@@ -33,8 +33,12 @@ from main import start_webview  # noqa: E402
 from app.core.api import Api  # noqa: E402
 from app.core.config import Config  # noqa: E402
 
-OUT_DIR = ROOT / "tests" / "ui-shots"
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR = Path(os.environ.get("RYUUMD_UI_SHOT_OUT", str(ROOT / "tests" / "ui-shots")))
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+SHOT_THEME = os.environ.get("RYUUMD_UI_SHOT_THEME", "light")
+SHOT_PALETTE = os.environ.get("RYUUMD_UI_SHOT_PALETTE", "a1")
+SHOT_PREFIX = f"{SHOT_PALETTE}-{SHOT_THEME}"
+OTHER_THEME = "dark" if SHOT_THEME == "light" else "light"
 PS1 = ROOT / "tests" / "ui_shot.ps1"
 TITLE = "RyuuMD UIShot"
 
@@ -49,9 +53,12 @@ MAIN_MD = REPO / "样式总览.md"
 (REPO / "入门指南.md").write_text("# 入门指南\n\n快速上手。\n", encoding="utf-8")
 (REPO / "更新日志.md").write_text("# 更新日志\n\n- v1\n- v2\n", encoding="utf-8")
 (REPO / "notes" / "随手记.md").write_text("# 随手记\n\n杂项。\n", encoding="utf-8")
+(REPO / "模板").mkdir()
+(REPO / "模板" / "日记.md").write_text("# {{date}}\n\n## 今天\n\n- [ ] 待办\n", encoding="utf-8")
+(REPO / "模板" / "会议.md").write_text("# {{title}}\n\n## 议题\n\n## 决议\n", encoding="utf-8")
 
 MAIN_MD.write_text(
-    """# 标题1
+    r"""# 标题1
 
 ## 标题2
 
@@ -85,6 +92,29 @@ MAIN_MD.write_text(
 
 - [ ] 这是todo1
 - [x] 这是todo2
+
+## 表格、公式与链接
+
+| 字段 | 示例 |
+| --- | --- |
+| 状态 | 完成 |
+
+行内公式 $E=mc^2$ 与块公式：
+
+$$
+\int_0^1 x^2 \, dx = \frac{1}{3}
+$$
+
+双链 [[入门指南]] 与 [外部链接](https://example.com)。
+
+## 图表
+
+```mermaid
+flowchart LR
+  A[开始] --> B[完成]
+```
+
+#工作流 #设计评审
 """,
     encoding="utf-8",
 )
@@ -98,7 +128,7 @@ def J(s: str) -> str:
 # 截图
 # ----------------------------------------------------------------------------
 def shot(name: str) -> None:
-    out = OUT_DIR / f"{name}.png"
+    out = OUT_DIR / f"{SHOT_PREFIX}-{name}.png"
     r = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(PS1),
          "-Title", TITLE, "-Out", str(out), "-OwnerPid", str(os.getpid())],
@@ -141,24 +171,24 @@ def _run(window) -> None:
     repo_js = J(REPO)
 
     # —— 首页 ——
-    step(window, "01-home-light-card", sleep=1.2)
-    step(window, "02-home-light-list",
+    step(window, f"01-home-{SHOT_THEME}-card", sleep=1.2)
+    step(window, f"02-home-{SHOT_THEME}-list",
          'document.querySelector("#repo-view-toggle [data-view=\\"list\\"]").click()')
 
     # —— 编辑器：亮色 sky（先开文件夹让文件树有内容，再开主文档） ——
-    step(window, "03-editor-light-files",
+    step(window, f"03-editor-{SHOT_THEME}-files",
          f"window.App.openPath({repo_js});window.App.openPath({main_js})", sleep=3.0)
-    step(window, "04-editor-light-outline",
+    step(window, f"04-editor-{SHOT_THEME}-outline",
          'document.querySelector(".side-tab[data-panel=\\"outline\\"]").click()', sleep=1.0)
 
     # —— 编辑器：深色 vampire ——
-    step(window, "05-editor-dark-outline",
+    step(window, f"05-editor-{OTHER_THEME}-outline",
          'document.getElementById("btn-theme").click()', sleep=1.5)
-    step(window, "06-editor-dark-files",
+    step(window, f"06-editor-{OTHER_THEME}-files",
          'document.querySelector(".side-tab[data-panel=\\"files\\"]").click()')
 
     # —— 回到亮色，浮层类 ——
-    step(window, "07-ctx-editor",
+    step(window, f"07-ctx-editor-{SHOT_THEME}",
          'document.getElementById("btn-theme").click();', sleep=1.5)
     window.evaluate_js(
         "(function(){var el=document.querySelector('.vditor-reset')||document.querySelector('#editor');"
@@ -167,20 +197,41 @@ def _run(window) -> None:
         "clientX:r.x+Math.min(500,r.width/2),clientY:r.y+220,button:2}));return true;})()"
     )
     time.sleep(0.6)
-    shot("07-ctx-editor")
+    shot(f"07-ctx-editor-{SHOT_THEME}")
 
-    step(window, "08-ctx-tree",
+    step(window, f"08-ctx-tree-{SHOT_THEME}",
          "window.SlashMenu.close();"
          "(function(){var el=document.querySelector('#file-tree .tree-item.file');if(!el)return false;"
          "var r=el.getBoundingClientRect();"
          "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,"
          "clientX:r.x+60,clientY:r.y+8,button:2}));return true;})()")
 
-    step(window, "09-palette",
+    step(window, f"09-palette-files-{SHOT_THEME}",
          "document.dispatchEvent(new MouseEvent('click',{bubbles:true}));"
          "window.Palette.openFiles();", sleep=0.8)
+    step(window, f"09b-palette-commands-{SHOT_THEME}",
+         "window.Palette.close();window.Palette.openCommands();", sleep=0.8)
+    step(window, f"09c-search-title-{SHOT_THEME}",
+         "window.Palette.close();window.Palette.openSearch();"
+         f"var i=document.getElementById('pal-input');i.value={J('指南')};"
+         "i.dispatchEvent(new Event('input',{bubbles:true}));", sleep=0.8)
+    step(window, f"09d-search-content-{SHOT_THEME}",
+         "window.Palette.close();window.Palette.openSearch();"
+         "window.Palette.setSearchMode('content');"
+         f"var i=document.getElementById('pal-input');i.value={J('代码块')};"
+         "i.dispatchEvent(new Event('input',{bubbles:true}));", sleep=1.0)
+    step(window, f"09e-search-semantic-{SHOT_THEME}",
+         "window.Palette.close();window.Palette.openSearch();"
+         "window.Palette.setSearchMode('semantic');"
+         f"var i=document.getElementById('pal-input');i.value={J('总结知识')};"
+         "i.dispatchEvent(new Event('input',{bubbles:true}));", sleep=0.8)
+    for label, method in (("tasks", "openTasks"), ("tags", "openTags"),
+                          ("broken", "openBroken"), ("orphans", "openOrphans"),
+                          ("mentions", "openMentions")):
+        step(window, f"09-index-{label}-{SHOT_THEME}",
+             f"window.Palette.close();window.Palette.{method}();", sleep=0.8)
 
-    step(window, "10-find-bar",
+    step(window, f"10-find-bar-{SHOT_THEME}",
          "window.Palette.close();window.FindBar.open();"
          "document.getElementById('find-toggle-replace').click();"
          "document.getElementById('find-input').value='这是';"
@@ -196,36 +247,48 @@ def _run(window) -> None:
     except Exception as e:
         print("  probe failed:", e)
 
-    step(window, "11-settings-modal",
+    step(window, f"11-settings-general-{SHOT_THEME}",
          'document.getElementById("find-close").click();document.getElementById("btn-settings").click()',
          sleep=0.9)
+    step(window, f"11b-settings-appearance-{SHOT_THEME}",
+         'document.querySelector(".settings-tab[data-tab=\\"appearance\\"]").click()', sleep=0.7)
+    step(window, f"11c-settings-cloud-{SHOT_THEME}",
+         'document.querySelector(".settings-tab[data-tab=\\"cloud\\"]").click();'
+         'if(!document.getElementById("cloud-panel").classList.contains("show"))'
+         'document.getElementById("cloud-enabled").click()', sleep=0.8)
+    step(window, f"11d-settings-style-wolai-{SHOT_THEME}",
+         'document.querySelector(".settings-tab[data-tab=\\"general\\"]").click();'
+         'document.querySelector("#set-style [data-v=wolai]").click()', sleep=0.7)
+    step(window, f"11e-settings-style-notion-{SHOT_THEME}",
+         'document.querySelector("#set-style [data-v=notion]").click()', sleep=0.7)
+    window.evaluate_js("window.Settings.close()")
 
-    step(window, "12-confirm-modal",
+    step(window, f"12-confirm-modal-{SHOT_THEME}",
          'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
          'window.App.confirm({title:"移入回收站", message:"确定要把「样式总览.md」移入回收站吗？", okText:"移入回收站", danger:true})',
          sleep=0.8)
 
     # —— 首页深色 ——
-    step(window, "13-home-dark",
+    step(window, f"13-home-{OTHER_THEME}",
          'document.getElementById("cf-cancel").click();'
          'document.getElementById("btn-theme").click();window.Home.show()', sleep=1.4)
 
     # —— 首页亮色（有最近记录，验证最近区布局） ——
-    step(window, "13b-home-light-recent",
+    step(window, f"13b-home-{SHOT_THEME}-recent",
          'document.getElementById("btn-theme").click()', sleep=1.4)
 
     # —— 欢迎弹窗（亮色） ——
-    step(window, "14-welcome-modal",
+    step(window, f"14-welcome-modal-{SHOT_THEME}",
          'window.App.showWelcome()', sleep=1.2)
 
     # —— AI：设置 AI 标签页 ——
-    step(window, "15-settings-ai",
+    step(window, f"15-settings-ai-{SHOT_THEME}",
          'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
          'document.getElementById("btn-settings").click();'
          'document.querySelector(".settings-tab[data-tab=\\"ai\\"]").click()', sleep=0.9)
 
     # —— AI：搜索面板 ask 回答框（未配置 Key 时展示错误态，构图参考） ——
-    step(window, "16-palette-ask",
+    step(window, f"16-palette-ask-{SHOT_THEME}",
          'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
          'window.Palette.openSearch();'
          'var i=document.getElementById("pal-input");'
@@ -233,12 +296,32 @@ def _run(window) -> None:
          'i.dispatchEvent(new Event("input"))', sleep=1.6)
 
     # —— AI：右侧 AI 侧栏（编辑器态，未配置 Key 时空态） ——
-    step(window, "17-ai-sidebar",
+    step(window, f"17-ai-sidebar-{SHOT_THEME}",
          'window.Palette.close();window.Home.hide();'
          'document.getElementById("btn-ai").click()', sleep=0.8)
+    step(window, f"17b-sidebar-recent-{SHOT_THEME}",
+         'document.getElementById("btn-ai").click();'
+         'document.querySelector(".side-tab[data-panel=\\"recent\\"]").click()', sleep=0.8)
+    step(window, f"17c-sidebar-links-{SHOT_THEME}",
+         'document.querySelector(".side-tab[data-panel=\\"links\\"]").click()', sleep=0.8)
+    step(window, f"17d-editor-source-{SHOT_THEME}",
+         'document.querySelector(".side-tab[data-panel=\\"files\\"]").click();'
+         'window.Editor.setMode("sv")', sleep=1.2)
+    step(window, f"17e-editor-rendered-{SHOT_THEME}",
+         'window.Editor.setMode("ir")', sleep=1.2)
+    step(window, f"17f-daily-note-{SHOT_THEME}",
+         'window.App.openDailyNote().then(function(r){if(r&&r.ok)window.App.openPath(r.path);})', sleep=1.8)
+    step(window, f"17g-return-to-main-note-{SHOT_THEME}",
+         f'window.App.openPath({main_js})', sleep=1.4)
+    step(window, f"17h-context-menu-filter-{SHOT_THEME}",
+         "window.SlashMenu.close();"
+         "(function(){var el=document.querySelector('.vditor-reset');var r=el.getBoundingClientRect();"
+         "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,"
+         "clientX:r.x+Math.min(500,r.width/2),clientY:r.y+180,button:2}));})();"
+         "document.dispatchEvent(new KeyboardEvent('keydown',{key:'t',bubbles:true}));", sleep=0.8)
 
     # —— 结构操作柄（blockui.js）：悬停列表项出柄（先滚入视口，柄按块坐标定位） ——
-    step(window, "18-block-handle",
+    step(window, f"18-block-handle-{SHOT_THEME}",
          'document.getElementById("btn-ai").click();'
          'window.SlashMenu.close();'
          '(function(){var li=document.querySelectorAll(".vditor-reset > ul > li")[1];'
@@ -248,12 +331,12 @@ def _run(window) -> None:
          'return true;})()', sleep=1.0)
 
     # —— 柄菜单：点击开菜单 + 范围高亮 ——
-    step(window, "19-block-menu",
+    step(window, f"19-block-menu-{SHOT_THEME}",
          '(function(){var h=document.querySelector(".block-handle.on");'
          'if(h)h.click();return true;})()', sleep=0.8)
 
     # —— 拖拽落点：拖到柄下方 120px 的块（插入线 + 归属提示），截图后松手还原 ——
-    step(window, "20-block-drag", "")
+    step(window, f"20-block-drag-{SHOT_THEME}", "")
     window.evaluate_js(
         "window.SlashMenu.close();"
         "(function(){var h=document.querySelector('.block-handle.on');if(!h)return false;"
@@ -265,7 +348,7 @@ def _run(window) -> None:
         "return true;})()"
     )
     time.sleep(0.7)
-    shot("20-block-drag")
+    shot(f"20-block-drag-{SHOT_THEME}")
     # 松手完成移动，避免遗留拖拽状态
     window.evaluate_js(
         "(function(){var h=document.querySelector('.block-handle.on');"
@@ -290,8 +373,8 @@ def main() -> int:
     config.update({
         "startup_page": "home",
         "last_folder": str(REPO),
-        "theme": "light",
-        "palette": "a1",
+        "theme": SHOT_THEME,
+        "palette": SHOT_PALETTE,
         "welcome_shown": True,
     })
     api = Api(config)

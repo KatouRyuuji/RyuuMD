@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -82,6 +83,12 @@ OPS_RENAME_JS = str(OPS_DIR / "rename-me.md").replace("\\", "\\\\")
 OPS_RENAMED = OPS_DIR / "renamed-e2e.md"
 OPS_RENAMED_JS = str(OPS_RENAMED).replace("\\", "\\\\")
 OPS_DELETE_JS = str(OPS_DIR / "delete-me.md").replace("\\", "\\\\")
+
+# 可选全路径截图：只在 RYUUMD_E2E_SHOTS 指定时启用，捕捉每个 UI 用例完成的可见状态。
+_UI_SHOT_DIR = Path(os.environ["RYUUMD_E2E_SHOTS"]) if os.environ.get("RYUUMD_E2E_SHOTS") else None
+if _UI_SHOT_DIR:
+    _UI_SHOT_DIR.mkdir(parents=True, exist_ok=True)
+_UI_SHOT_SCRIPT = ROOT / "tests" / "ui_shot.ps1"
 
 # 工作副本夹具：与 e2e-repo 分开，避免 T24 计数/T45 搜索被副本树干扰
 WORKDIR_DIR = TMP / "e2e-workdir"
@@ -3121,6 +3128,24 @@ def _make_ev(window):
     return ev
 
 
+def _capture_ui_state(case_index: int, case_name: str, stage: str) -> None:
+    if not _UI_SHOT_DIR:
+        return
+    case_id = case_name.split(" ", 1)[0]
+    safe_id = "".join(ch for ch in case_id if ch.isalnum() or ch in "-_") or "case"
+    path = _UI_SHOT_DIR / f"{case_index:03d}-{safe_id}-{stage}.png"
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(_UI_SHOT_SCRIPT),
+             "-Title", "RyuuMD E2E", "-Out", str(path), "-OwnerPid", str(os.getpid())],
+            capture_output=True, text=True, timeout=30,
+        )
+        ok = res.returncode == 0 and path.is_file()
+        print(("SHOT " if ok else "SHOT_FAIL ") + f"{case_index:03d}/{safe_id}/{stage}", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("SHOT_FAIL", case_index, safe_id, stage, str(e), flush=True)
+
+
 def _check(ev, js: str, timeout: float) -> tuple[bool, str]:
     """在超时窗口内轮询断言表达式,真值即通过。返回 (ok, 最后一次值)。"""
     deadline = time.time() + timeout
@@ -3148,7 +3173,7 @@ def _run(window, api):
 
     only = os.environ.get("E2E_ONLY", "").strip()
     prefixes = [p.strip() for p in only.split(",") if p.strip()]
-    for c in CASES:
+    for case_index, c in enumerate(CASES, 1):
         if prefixes and not any(c["name"].startswith(p) for p in prefixes):
             continue
         try:
@@ -3162,17 +3187,20 @@ def _run(window, api):
                 ev(c["setup"])
             time.sleep(c.get("sleep", 0.6))
             ok, last = _check(ev, c["js"], c.get("timeout", 8))
+            _capture_ui_state(case_index, c["name"], "1")
             # 可选第二阶段(setup2 + js2)
             if ok and c.get("js2"):
                 if c.get("setup2"):
                     ev(c["setup2"])
                 time.sleep(c.get("sleep2", 0.4))
                 ok, last = _check(ev, c["js2"], c.get("timeout2", c.get("timeout", 8)))
+                _capture_ui_state(case_index, c["name"], "2")
             if ok and c.get("js3"):
                 if c.get("setup3"):
                     ev(c["setup3"])
                 time.sleep(c.get("sleep3", 0.4))
                 ok, last = _check(ev, c["js3"], c.get("timeout3", c.get("timeout", 8)))
+                _capture_ui_state(case_index, c["name"], "3")
             if ok and c.get("py"):
                 py_res = c["py"](api, ev)
                 if py_res is not True:
