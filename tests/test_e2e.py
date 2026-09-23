@@ -79,7 +79,8 @@ OPS_DIR.mkdir(parents=True, exist_ok=True)
 (OPS_DIR / "rename-me.md").write_text("# 待重命名\n", encoding="utf-8")
 (OPS_DIR / "delete-me.md").write_text("# 待删除\n", encoding="utf-8")
 OPS_RENAME_JS = str(OPS_DIR / "rename-me.md").replace("\\", "\\\\")
-OPS_RENAMED_JS = str(OPS_DIR / "renamed-e2e.md").replace("\\", "\\\\")
+OPS_RENAMED = OPS_DIR / "renamed-e2e.md"
+OPS_RENAMED_JS = str(OPS_RENAMED).replace("\\", "\\\\")
 OPS_DELETE_JS = str(OPS_DIR / "delete-me.md").replace("\\", "\\\\")
 
 # 工作副本夹具：与 e2e-repo 分开，避免 T24 计数/T45 搜索被副本树干扰
@@ -889,6 +890,27 @@ CASES = [
          sleep2=1.6,
          js2="window.__t40===1?true:'t40='+window.__t40",
          timeout=12),
+
+    dict(name="T40b 并发保存:串行写入且最终版本为最新内容",
+         before=lambda api: OPS_RENAMED.write_text("# Save race fixture\n", encoding="utf-8"),
+         setup=("window.Sidebar.renderTree([{type:'file',name:'renamed-e2e.md',path:'" + OPS_RENAMED_JS + "'}],'ops');"
+                "document.querySelector('#file-tree .tree-item.file').click();"),
+         sleep=1.0,
+         js="document.getElementById('doc-name').textContent.indexOf('renamed-e2e.md')>=0",
+         setup2=("window.__saveWrites=[];window.__saveActive=0;window.__saveMaxActive=0;"
+                 "var api=window.pywebview.api;var original=api.save_file;"
+                 "api.save_file=function(path,content){window.__saveActive++;"
+                 "window.__saveMaxActive=Math.max(window.__saveMaxActive,window.__saveActive);"
+                 "return new Promise(function(resolve){setTimeout(function(){"
+                 "window.__saveWrites.push(content);window.__saveActive--;"
+                 "resolve({ok:true,mtime:Date.now()/1000});},content.indexOf('SAVE-OLD')>=0?450:50);});};"
+                 "window.Editor.setValue('SAVE-OLD');window.Editor.notifyChange();window.App.save({silent:true});"
+                 "setTimeout(function(){window.Editor.setValue('SAVE-NEW');window.Editor.notifyChange();window.App.save({silent:true});},50);"
+                 "setTimeout(function(){api.save_file=original;},1200);"),
+         sleep2=1.5,
+         js2=("(function(){return window.__saveWrites.length===2&&window.__saveMaxActive===1&&String(window.__saveWrites[1]).indexOf('SAVE-NEW')>=0"
+              "?true:'writes='+window.__saveWrites.length+', max='+window.__saveMaxActive+', last='+(window.__saveWrites[1]||'none');})()"),
+         timeout2=4),
 
     dict(name="T41 首页最近区分组:最近3个文件单独成卡、文件夹归入其他",
          # 此刻最近列表应为 [renamed-e2e.md, small.md, e2e-repo(文件夹), big.md, ...]
@@ -3063,6 +3085,24 @@ CASES += [
              "if(b.indexOf(" + JV("放在") + ")<0)return 'badge='+b;"
              "return true;})()"),
          timeout=12),
+]
+
+CASES += [
+    dict(name="T12d AI 设置:测试连接按钮调用接口并反馈状态",
+         setup="document.getElementById('btn-settings').click()", sleep=0.4,
+         js="document.getElementById('settings-mask').classList.contains('open')",
+         setup2=("(function(){"
+                 "var t=document.querySelector('.settings-tab[data-tab=\"ai\"]');if(t)t.click();"
+                 "document.getElementById('ai-base-url').value='https://example.test';"
+                 "document.getElementById('ai-api-key').value='sk-e2e';"
+                 "document.getElementById('ai-model').value='test-model';"
+                 "window.__aiTestCalls=0;"
+                 "window.pywebview.api.test_ai=function(){window.__aiTestCalls++;return Promise.resolve({ok:true});};"
+                 "document.getElementById('ai-test').click();})()"),
+         sleep2=0.5,
+         js2="window.__aiTestCalls===1&&document.getElementById('ai-test-status').textContent==='连接成功'",
+         setup3="document.getElementById('set-close').click()", sleep3=0.4,
+         js3="!document.getElementById('settings-mask').classList.contains('open')"),
 ]
 
 

@@ -28,6 +28,7 @@
   let getDocDir = null;    // () => 当前文档目录，用于相对图片转 file://
   let onOutlineActive = null; // 大纲当前位置回调（滚动跟随）
   let lastOutline = [];    // 最近一次 updateOutline 的结果（sv 行号定位用）
+  let outlineHeadingNodes = [];
   let outlineRaf = 0;
   let outlineScrollBound = false;
   let docVer = 0;          // 文档版本：setValue / 真实输入递增，Blocks 树缓存的失效依据
@@ -451,6 +452,7 @@
   function updateOutline(md) {
     const list = [];
     if (curMode === "sv") {
+      outlineHeadingNodes = [];
       const lines = (md != null ? md : getValue()).split("\n");
       let inFence = false;
       lines.forEach((line, idx) => {
@@ -462,7 +464,8 @@
     } else {
       const el = activePanel();
       if (!el) return;
-      el.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach((h, i) => {
+      outlineHeadingNodes = Array.from(el.querySelectorAll("h1,h2,h3,h4,h5,h6"));
+      outlineHeadingNodes.forEach((h, i) => {
         const id = "ryuu-h-" + i;
         h.setAttribute("data-ryuu-id", id);
         // textContent 会带上 IR 标记 span 的 "# " 前缀，剔除后再进大纲
@@ -512,9 +515,18 @@
     const scTop = sc.getBoundingClientRect().top;
     // 阈值取面板顶部留白 + 一行：文档起始处（首标题落在 padding 内）也能命中
     let key = null;
-    sc.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach((h) => {
-      if (h.getBoundingClientRect().top - scTop <= 88) key = h.getAttribute("data-ryuu-id");
-    });
+    let low = 0;
+    let high = outlineHeadingNodes.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const heading = outlineHeadingNodes[mid];
+      if (heading.getBoundingClientRect().top - scTop <= 88) {
+        key = heading.getAttribute("data-ryuu-id");
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
     return key;
   }
 

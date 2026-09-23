@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +20,7 @@ os.environ["APPDATA"] = _TMP_APPDATA.name
 
 from app.core.api import Api, wrap_html_export, apply_template_vars  # noqa: E402
 from app.core.config import Config  # noqa: E402
+from app.core import search as search_module  # noqa: E402
 from app.core.search import parse_wikilink  # noqa: E402
 
 
@@ -332,10 +334,12 @@ class TestVaultIndex(unittest.TestCase):
         self.assertNotIn("a.md", names)
 
     def test_vault_stats_and_file_stat(self):
-        st = self.api.vault_stats(str(self.root))
+        with patch("app.core.search._read_head", wraps=search_module._read_head) as read_head:
+            st = self.api.vault_stats(str(self.root))
         self.assertTrue(st["ok"], st)
         self.assertGreaterEqual(st["files"], 3)
         self.assertGreaterEqual(st["tasks"], 1)
+        self.assertEqual(read_head.call_count, st["files"])
         fs = self.api.file_stat(str(self.root / "a.md"))
         self.assertTrue(fs["ok"] and fs["exists"])
         self.assertGreater(fs["mtime"], 0)

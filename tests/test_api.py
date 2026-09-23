@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -265,6 +266,17 @@ class TestOpenPathAndSession(unittest.TestCase):
         # 其他类型 -> 拒绝
         r3 = self.api.open_path(str(self.root / "skip.txt"))
         self.assertFalse(r3["ok"])
+
+    def test_stale_open_request_does_not_replace_last_file(self):
+        older = touch(self.root / "older.md", "older")
+        newer = touch(self.root / "newer.md", "newer")
+        self.api.config.set("recent_files", [])
+
+        self.assertTrue(self.api.read_file(str(newer), 2)["ok"])
+        self.assertTrue(self.api.read_file(str(older), 1)["ok"])
+
+        self.assertEqual(self.api.config.get("last_file"), str(newer))
+        self.assertEqual(self.api.get_recent()["items"][0]["path"], str(newer))
 
     def test_restore_session(self):
         f = touch(self.root / "last.md", "上次内容")
@@ -795,6 +807,15 @@ class TestConfig(unittest.TestCase):
         cfg = Config()
         cfg.set("theme", "dark")
         self.assertFalse((cfg.data_dir / "config.json.tmp").exists())
+
+    @unittest.skipIf(os.name == "nt", "POSIX file permissions are not available on Windows")
+    def test_config_file_permissions_are_private(self):
+        cfg = Config()
+        cfg.set("ai", {"api_key": "sk-test"})
+        path = cfg.data_dir / "config.json"
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        Config()
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         self.assertEqual(Config().get("theme"), "dark")
 
     def test_legacy_palette_migrates_when_key_missing(self):

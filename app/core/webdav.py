@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import email.utils
+import ipaddress
 import ssl
 import urllib.error
 import urllib.parse
@@ -75,6 +76,17 @@ class WebDavClient:
         opener: Optional[urllib.request.OpenerDirector] = None,
     ) -> None:
         self.base_url = (base_url or "").rstrip("/") + "/"
+        parsed = urllib.parse.urlparse(self.base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise DavError("WebDAV 地址必须使用有效的 HTTP 或 HTTPS URL")
+        if parsed.scheme == "http":
+            host = parsed.hostname.lower()
+            try:
+                local = host == "localhost" or ipaddress.ip_address(host).is_loopback
+            except ValueError:
+                local = host == "localhost"
+            if not local:
+                raise DavError("远程 WebDAV 地址必须使用 HTTPS；HTTP 仅允许本机地址")
         self.username = username or ""
         self.password = password or ""
         self.insecure_ssl = bool(insecure_ssl)
@@ -110,7 +122,10 @@ class WebDavClient:
             rel = ""
         else:
             rel = href_path.lstrip("/")
-        return rel.replace("\\", "/")
+        rel = rel.replace("\\", "/")
+        if any(part == ".." for part in rel.split("/")):
+            raise DavError("WebDAV 响应包含越界路径")
+        return rel
 
     def request(
         self,

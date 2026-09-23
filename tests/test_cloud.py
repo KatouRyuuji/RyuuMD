@@ -199,6 +199,16 @@ class TestCloudEngine(unittest.TestCase):
         self.assertEqual(res["downloaded"], 1)
         self.assertEqual((d / "from-cloud.md").read_text(encoding="utf-8"), "# cloud")
 
+    def test_remote_path_cannot_escape_vault(self):
+        pid, d = self._vault()
+        outside = d.parent / "outside.md"
+        self.dav.put(f"{pid}/../outside.md", b"# outside")
+        res = self.engine.sync()
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["downloaded"], 0)
+        self.assertFalse(outside.exists())
+        self.assertIn("WebDAV 路径越界", res["error"])
+
     def test_skip_unchanged_second_sync(self):
         pid, d = self._vault()
         touch(d / "a.md", "same")
@@ -436,6 +446,15 @@ class TestWebDavHttp(unittest.TestCase):
         c = WebDavClient(self.base, "alice", "wrong")
         with self.assertRaises(DavError):
             c.put("x.md", b"no")
+
+    def test_remote_http_transport_rejected(self):
+        with self.assertRaisesRegex(DavError, "HTTPS"):
+            WebDavClient("http://example.test/dav", "alice", "secret")
+
+    def test_propfind_rejects_parent_path(self):
+        c = WebDavClient(self.base)
+        with self.assertRaises(DavError):
+            c._rel_from_href(f"{self.base}../outside.md")
 
     def test_parse_mtime(self):
         ts = _parse_mtime("Thu, 01 Jan 2026 00:00:00 GMT")

@@ -674,19 +674,50 @@ def vault_stats(root: str) -> dict[str, Any]:
     root_p = Path(root)
     if not root_p.is_dir():
         return {"ok": False, "error": "文件夹不存在"}
-    files = 0
-    for _ in iter_md_files(root_p):
-        files += 1
-    tasks = list_tasks(root, max_hits=MAX_HITS)
-    tags = list_tags(root, max_hits=MAX_HITS)
-    broken = list_broken_wikilinks(root, max_hits=MAX_HITS)
+    files = list(iter_md_files(root_p))
+    names = {name for p in files for name in (p.stem.lower(), p.name.lower())}
+    task_count = tag_occurrences = broken_count = 0
+    tasks_truncated = tags_truncated = broken_truncated = False
+    tag_groups: dict[str, str] = {}
+    for p in files:
+        text = _read_head(p)
+        for _line_no, line in _iter_source_lines(text):
+            task = TASK_RE.match(line)
+            if not tasks_truncated and task:
+                task_count += 1
+                tasks_truncated = task_count >= MAX_HITS
+
+            if not tags_truncated:
+                body = re.sub(r"^#{1,6}\s+", "", line)
+                for match in TAG_RE.finditer(body):
+                    tag = match.group(1)
+                    tag_groups.setdefault(tag.lower(), tag)
+                    tag_occurrences += 1
+                    if tag_occurrences >= MAX_HITS:
+                        tags_truncated = True
+                        break
+
+            if not broken_truncated:
+                for match in WIKI_RE.finditer(line):
+                    target, _alias = parse_wikilink(match.group(1).strip())
+                    if target and not _wikilink_exists(target, p, root_p, names):
+                        broken_count += 1
+                        if broken_count >= MAX_HITS:
+                            broken_truncated = True
+                            break
+
+            if tasks_truncated and tags_truncated and broken_truncated:
+                break
+        if tasks_truncated and tags_truncated and broken_truncated:
+            break
+    tags_truncated = tags_truncated or len(tag_groups) >= MAX_HITS
     return {
         "ok": True,
-        "files": files,
-        "tasks": len(tasks.get("items") or []),
-        "tags": len(tags.get("items") or []),
-        "broken": len(broken.get("items") or []),
-        "tasks_truncated": bool(tasks.get("truncated")),
-        "tags_truncated": bool(tags.get("truncated")),
-        "broken_truncated": bool(broken.get("truncated")),
+        "files": len(files),
+        "tasks": task_count,
+        "tags": min(len(tag_groups), MAX_HITS),
+        "broken": broken_count,
+        "tasks_truncated": tasks_truncated,
+        "tags_truncated": tags_truncated,
+        "broken_truncated": broken_truncated,
     }

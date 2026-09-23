@@ -37,6 +37,8 @@ MAX_TREE_DEPTH = 8
 MAX_TREE_ENTRIES = 2000
 # 最近打开列表上限（最新在前，去重）
 RECENT_MAX = 15
+_KNOWLEDGE_CACHE_LOCK = threading.RLock()
+_KNOWLEDGE_CACHE_REGISTRY: dict[str, dict[str, dict[str, Any]]] = {}
 
 
 class Api:
@@ -55,8 +57,15 @@ class Api:
         self._window_manager = window_manager
         # 本窗口的初始打开路径（命令行 / 单实例转发 / 新窗口传入），前端启动时拉取
         self._initial_path = initial_path
+        self._latest_open_request = 0
+        self._open_request_lock = threading.Lock()
         # 知识谱系缓存：规范化仓库根 → 生成结果；写盘或 refresh 时失效
-        self._knowledge_cache: dict[str, dict[str, Any]] = {}
+        try:
+            cache_owner = os.path.normcase(str(config.data_dir.resolve()))
+        except OSError:
+            cache_owner = os.path.normcase(str(config.data_dir))
+        with _KNOWLEDGE_CACHE_LOCK:
+            self._knowledge_cache = _KNOWLEDGE_CACHE_REGISTRY.setdefault(cache_owner, {})
         # 即时通讯传输；测试注入 MemoryTransport，未注入则按配置走 webhook
         self._im_transport: Any = None
 
@@ -273,15 +282,24 @@ class Api:
     # ------------------------------------------------------------------
     # 文件读写
     # ------------------------------------------------------------------
-    def read_file(self, path: str) -> dict[str, Any]:
+    def read_file(self, path: str, open_request_id: Optional[int] = None) -> dict[str, Any]:
         try:
             io_path, logical, sess = self._resolve_io(path, create=True)
             p = Path(io_path)
             if not p.exists() or not p.is_file():
                 return {"ok": False, "error": "文件不存在"}
             content = p.read_text(encoding="utf-8")
-            self.config.set("last_file", logical)
-            self._add_recent(logical, "file")
+            record_open = True
+            if open_request_id is not None:
+                request_id = int(open_request_id)
+                with self._open_request_lock:
+                    if request_id < self._latest_open_request:
+                        record_open = False
+                    else:
+                        self._latest_open_request = request_id
+            if record_open:
+                self.config.set("last_file", logical)
+                self._add_recent(logical, "file")
             st = p.stat()
             return self._attach_workdir_meta(
                 {
@@ -475,7 +493,7 @@ class Api:
                 return {"ok": False, "error": "目标位置已存在同名文件"}
             shutil.move(str(p), str(target))
             return self._finish_path_change(
-                str(p), logical, str(target), sess or sess_folder, name=target.name
+                str(p), logical, str(target), sess_folder, name=target.name
             )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -676,6 +694,8 @@ class Api:
         assert sess is not None
         out = self.workdir.merge_file(sess, resolved, strategy=str(strategy or ""))
         out["edit_mode"] = EDIT_WORKDIR
+        if out.get("ok") and out.get("merged"):
+            self._invalidate_knowledge(resolved)
         return out
 
     def workdir_push_all(self, folder: str = "", force: bool = False) -> dict[str, Any]:
@@ -698,6 +718,8 @@ class Api:
         assert sess is not None
         out = self.workdir.merge_all(sess, strategy=str(strategy or ""))
         out["edit_mode"] = EDIT_WORKDIR
+        if out.get("ok") and out.get("merged"):
+            self._invalidate_knowledge(sess["work_root"])
         return out
 
     def open_file_dialog(self) -> dict[str, Any]:
@@ -1305,6 +1327,12 @@ class Api:
     def _ai_cfg(self) -> dict[str, Any]:
         return ai_client.normalize_ai(self.config.get("ai"))
 
+    def test_ai(self) -> dict[str, Any]:
+        """向已配置的 Messages 端点发送最小请求，验证地址、密钥与模型。"""
+        return ai_client.complete(
+            self._ai_cfg(), "Reply with OK.", max_tokens=1, timeout=20
+        )
+
     def search_notes(self, folder: str = "", query: str = "", mode: str = "title") -> dict[str, Any]:
         """标题 / 内容 / 语义检索；查询以 `ask ` 为前缀时走 AI 问答。"""
         is_ask, _rest = ai_client.parse_ask_prefix(query)
@@ -1323,7 +1351,8 @@ class Api:
         """笔记写盘后丢掉所属仓库的谱系缓存。"""
         raw = (path_or_folder or "").strip()
         if not raw:
-            self._knowledge_cache.clear()
+            with _KNOWLEDGE_CACHE_LOCK:
+                self._knowledge_cache.clear()
             return
         targets: set[str] = set()
 
@@ -1344,15 +1373,16 @@ class Api:
             if sess:
                 _add(str(sess.get("work_root") or ""))
                 _add(str(sess.get("source_root") or ""))
-        drop: list[str] = []
-        for key in self._knowledge_cache:
-            root = os.path.normcase(str(key))
-            for tgt in targets:
-                if tgt == root or tgt.startswith(root + os.sep) or root.startswith(tgt + os.sep):
-                    drop.append(key)
-                    break
-        for key in drop:
-            self._knowledge_cache.pop(key, None)
+        with _KNOWLEDGE_CACHE_LOCK:
+            drop: list[str] = []
+            for key in self._knowledge_cache:
+                root = os.path.normcase(str(key))
+                for tgt in targets:
+                    if tgt == root or tgt.startswith(root + os.sep) or root.startswith(tgt + os.sep):
+                        drop.append(key)
+                        break
+            for key in drop:
+                self._knowledge_cache.pop(key, None)
 
     def summarize_document(self, path: str = "", content: str = "", folder: str = "") -> dict[str, Any]:
         """概括当前文档：优先用传入正文（含未保存编辑），读盘时受仓库边界约束。"""
@@ -1401,13 +1431,17 @@ class Api:
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹", "text": ""}
         key = self._knowledge_key(root)
-        if not refresh and key in self._knowledge_cache:
-            cached = dict(self._knowledge_cache[key])
-            cached["cached"] = True
-            return cached
+        if not refresh:
+            with _KNOWLEDGE_CACHE_LOCK:
+                cached = self._knowledge_cache.get(key)
+                if cached:
+                    result = dict(cached)
+                    result["cached"] = True
+                    return result
         res = ai_client.knowledge_tree(root, self._ai_cfg())
         if res.get("ok"):
-            self._knowledge_cache[key] = dict(res)
+            with _KNOWLEDGE_CACHE_LOCK:
+                self._knowledge_cache[key] = dict(res)
         res["cached"] = False
         return res
 
@@ -1770,4 +1804,3 @@ def wrap_html_export(title: str, body: str, config: Optional[dict[str, Any]] = N
         f"{body}\n"
         "</body>\n</html>\n"
     )
-

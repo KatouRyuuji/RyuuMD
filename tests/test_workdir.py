@@ -74,6 +74,21 @@ class TestWorkdirCopyAndPush(unittest.TestCase):
         self.assertEqual(Path(res["source_path"]).name, "hello.md")
         self.assertEqual(self.api.config.get("last_file"), res["source_path"])
 
+    def test_move_between_workdirs_returns_target_source_path(self):
+        source = self.api.list_folder(str(self.root))
+        target_root = self.root.with_name(self.root.name + "-target")
+        (target_root / "docs").mkdir(parents=True)
+        (target_root / "docs" / "existing.md").write_text("target", encoding="utf-8")
+        target = self.api.list_folder(str(target_root))
+        source_file = Path(source["root"]) / "hello.md"
+        target_folder = Path(target["root"]) / "docs"
+
+        res = self.api.move_file(str(source_file), str(target_folder))
+
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(Path(res["path"]), target_folder / "hello.md")
+        self.assertEqual(Path(res["source_path"]), target_root / "docs" / "hello.md")
+
     def test_push_writes_source(self):
         listed = self.api.list_folder(str(self.root))
         work = str(Path(listed["root"]) / "hello.md")

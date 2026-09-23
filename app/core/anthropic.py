@@ -7,6 +7,7 @@ URL 拼接、ask 前缀判定、prompt 组装与响应文本提取为无 I/O 纯
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import urllib.error
@@ -102,6 +103,14 @@ def messages_url(base_url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_URL_SCHEMES or not parsed.netloc:
         return ""
+    if parsed.scheme == "http":
+        host = (parsed.hostname or "").lower()
+        try:
+            local = host == "localhost" or ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            local = host == "localhost"
+        if not local:
+            return ""
     return url
 
 
@@ -193,7 +202,7 @@ def complete(
         return {"ok": False, "error": err, "text": ""}
     url = messages_url(data["base_url"])
     if not url:
-        return {"ok": False, "error": "Base URL 仅支持 http 或 https", "text": ""}
+        return {"ok": False, "error": "远程 Base URL 必须使用 HTTPS；http 仅允许本机地址", "text": ""}
     body = build_messages_body(data["model"], user_text, system, max_tokens, tools=tools)
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=raw, method="POST")

@@ -33,6 +33,8 @@
   let items = [];
   let activeIdx = 0;
   let seq = 0;
+  let contentSearchInFlight = false;
+  let contentSearchQueued = false;
   let handlers = {};
   let debounceTimer = null;
   let askChip = false; // ask 前缀已 chip 化，输入框里只剩问题本体
@@ -235,6 +237,7 @@
   async function refresh() {
     const q = rawQuery();
     const my = ++seq;
+    const contentScan = mode === "search" && searchMode === "content";
     if (mode === "command") {
       const src = (handlers.commands && handlers.commands()) || [];
       const ql = q.trim().toLowerCase();
@@ -343,15 +346,28 @@
       renderAskHint(q);
       return;
     }
+    if (contentScan && contentSearchInFlight) {
+      contentSearchQueued = true;
+      return;
+    }
     if (answerEl) { answerEl.hidden = true; answerEl.innerHTML = ""; }
     if (!handlers.search) { items = []; render(); return; }
     let res;
+    if (contentScan) contentSearchInFlight = true;
     try {
       res = await handlers.search(q, searchMode);
     } catch (e) {
       if (my !== seq) return;
       renderSearchError((e && e.message) || "搜索失败");
       return;
+    } finally {
+      if (contentScan) {
+        contentSearchInFlight = false;
+        if (contentSearchQueued) {
+          contentSearchQueued = false;
+          refresh();
+        }
+      }
     }
     if (my !== seq) return;
     if (res && res.kind === "ask") {

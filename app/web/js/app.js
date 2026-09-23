@@ -483,11 +483,15 @@
     if (state.config.display_mode !== "sv") window.Editor.setMode("ir");
   }
 
+  let openRequestSeq = 0;
+
   async function openFileByPath(path, opts) {
-    if (!(await maybeConfirmDiscard())) return;
+    const requestId = ++openRequestSeq;
+    if (!(await maybeConfirmDiscard()) || requestId !== openRequestSeq) return;
     const a = apiOrToast();
     if (!a) return;
-    const pair = await Promise.all([a.read_file(path), ensureEditor()]);
+    const pair = await Promise.all([a.read_file(path, requestId), ensureEditor()]);
+    if (requestId !== openRequestSeq) return;
     const res = pair[0];
     if (res.ok) await loadDoc(res, opts);
     else toast("打开失败：" + (res.error || ""));
@@ -573,7 +577,25 @@
     refreshTemplates();
   }
 
+  let saveInFlight = null;
+
   async function save(opts) {
+    if (saveInFlight) {
+      const pending = saveInFlight;
+      const ok = await pending;
+      if (!ok || !state.dirty) return ok;
+      return save(opts);
+    }
+    const operation = saveOnce(opts);
+    saveInFlight = operation;
+    try {
+      return await operation;
+    } finally {
+      if (saveInFlight === operation) saveInFlight = null;
+    }
+  }
+
+  async function saveOnce(opts) {
     const silent = opts && opts.silent;
     const a = apiOrToast();
     if (!a) return false;

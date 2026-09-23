@@ -16,7 +16,7 @@ import json
 import os
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Optional, Protocol
 
 from .config import Config
@@ -133,6 +133,24 @@ def iter_local_files(root: str) -> dict[str, dict[str, Any]]:
                 if len(out) >= MAX_FILES_PER_VAULT:
                     return out
     return out
+
+
+def _safe_local_path(root: str, rel: str) -> Path:
+    """解析仓库内相对路径，并拒绝越界或穿过仓库外符号链接的目标。"""
+    parts = (rel or "").replace("\\", "/").split("/")
+    if (
+        not rel
+        or PureWindowsPath(rel).drive
+        or any(part in ("", ".", "..") or ":" in part or "\0" in part for part in parts)
+    ):
+        raise ValueError("WebDAV 路径越界")
+    base = Path(root).resolve()
+    dest = base.joinpath(*parts).resolve()
+    try:
+        dest.relative_to(base)
+    except ValueError as e:
+        raise ValueError("WebDAV 路径越界") from e
+    return dest
 
 
 class CloudEngine:
@@ -390,8 +408,8 @@ class CloudEngine:
                     }
                     totals["uploaded"] += 1
                 elif action == "download":
+                    dest = _safe_local_path(root, rel)
                     data = client.get(f"{prefix}/{rel}")
-                    dest = Path(root) / rel
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     atomic_write_bytes(dest, data)
                     files_state[self._key(pid, rel)] = {
@@ -400,8 +418,8 @@ class CloudEngine:
                     }
                     totals["downloaded"] += 1
                 elif action == "conflict":
+                    dest = _safe_local_path(root, rel)
                     data = client.get(f"{prefix}/{rel}")
-                    dest = Path(root) / rel
                     stamp = time.strftime("%Y%m%d-%H%M%S")
                     stem, ext = dest.stem, dest.suffix
                     conflict_path = dest.with_name(f"{stem}{CONFLICT_MARK}{stamp}{ext}")
@@ -414,7 +432,7 @@ class CloudEngine:
                     }
                     totals["conflicts"] += 1
                     totals["uploaded"] += 1
-            except (DavError, OSError) as e:
+            except (DavError, OSError, ValueError) as e:
                 totals["errors"].append(f"{rel}: {e}")
 
     def _decide(self, loc: Optional[dict], rem: Any, rec: dict) -> str:

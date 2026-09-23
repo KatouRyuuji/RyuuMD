@@ -228,6 +228,22 @@ class TestAnthropicHttp(unittest.TestCase):
         finally:
             stop_mock(server)
 
+    def test_ai_connection_check_sends_minimal_messages_request(self):
+        server, _t = start_mock(assistant_payload("OK"))
+        try:
+            self._point_at(server)
+            res = self.api.test_ai()
+            self.assertTrue(res["ok"], res)
+            self.assertEqual(len(server.requests), 1)
+            rec = server.requests[0]
+            self.assertEqual(rec["method"], "POST")
+            self.assertEqual(rec["headers"].get("x-api-key"), "sk-mock-key")
+            body = json.loads(rec["body"])
+            self.assertEqual(body["max_tokens"], 1)
+            self.assertEqual(body["messages"], [{"role": "user", "content": "Reply with OK."}])
+        finally:
+            stop_mock(server)
+
     def test_file_url_rejected(self):
         self.api.update_config({
             "ai": {"base_url": "file:///C:/tmp", "api_key": "sk-x", "model": "m"},
@@ -235,6 +251,15 @@ class TestAnthropicHttp(unittest.TestCase):
         res = self.api.summarize_document("", "# t\n\nbody", "")
         self.assertFalse(res["ok"])
         self.assertIn("http", res.get("error") or "")
+
+    def test_remote_http_endpoint_rejected(self):
+        self.api.update_config({
+            "ai": {"base_url": "http://example.test", "api_key": "sk-x", "model": "m"},
+        })
+        res = self.api.summarize_document("", "# t\n\nbody", "")
+        self.assertFalse(res["ok"])
+        self.assertIn("HTTPS", res["error"])
+        self.assertEqual(messages_url("http://127.0.0.1:1234"), "http://127.0.0.1:1234/v1/messages")
 
     def test_redirect_does_not_follow(self):
         class _RedirectHandler(http.server.BaseHTTPRequestHandler):
@@ -525,8 +550,9 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             self.assertTrue(first["ok"], first)
             self.assertEqual(first["text"], "MOCK_TREE")
             self.assertEqual(len(server.requests), 1)  # type: ignore[attr-defined]
-            # 第二次走缓存，不再发请求
-            second = self.api.knowledge_tree(str(self.root))
+            # 另一窗口实例共享缓存，不再发请求
+            second_api = Api(Config())
+            second = second_api.knowledge_tree(str(self.root))
             self.assertEqual(second["text"], "MOCK_TREE")
             self.assertTrue(second.get("cached"))
             self.assertEqual(len(server.requests), 1)  # type: ignore[attr-defined]
@@ -536,7 +562,7 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             self.assertEqual(len(server.requests), 1)  # type: ignore[attr-defined]
             # 写盘后缓存失效
             self.api.save_file(str(self.root / "分布式.md"), "# 分布式\n\n已改。")
-            after_save = self.api.knowledge_tree(str(self.root))
+            after_save = second_api.knowledge_tree(str(self.root))
             self.assertTrue(after_save["ok"], after_save)
             self.assertFalse(after_save.get("cached"))
             self.assertEqual(len(server.requests), 2)  # type: ignore[attr-defined]
@@ -596,6 +622,7 @@ class TestUiSurface(unittest.TestCase):
         self.assertIn("Enter 搜索", palette)
         self.assertIn("renderAskHint", palette)
         self.assertIn('id="ai-test"', settings)
+        self.assertIn("api.test_ai()", settings)
         self.assertIn("ai-advanced", settings)
         self.assertIn("去配置 AI", (web / "js" / "ai_panel.js").read_text(encoding="utf-8"))
         self.assertIn("FOOT_ENTER_SEARCH", palette)

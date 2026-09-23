@@ -155,6 +155,11 @@ class Config:
     def _load(self) -> None:
         if self._path.exists():
             try:
+                if os.name != "nt":
+                    try:
+                        self._path.chmod(0o600)
+                    except OSError:
+                        pass
                 loaded = json.loads(self._path.read_text(encoding="utf-8"))
                 if isinstance(loaded, dict):
                     self._data.update(loaded)
@@ -174,6 +179,11 @@ class Config:
                 json.dumps(self._data, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
+            if os.name != "nt":
+                try:
+                    tmp.chmod(0o600)
+                except OSError:
+                    pass
             os.replace(tmp, self._path)
         except Exception:
             pass

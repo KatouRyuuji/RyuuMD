@@ -229,7 +229,7 @@
             </div>
           </div>
           <div class="settings-pane" data-pane="ai">
-            <p class="cloud-hint">Anthropic Messages 协议（官方或兼容中转）。API Key 保存在本机且不回显。</p>
+            <p class="cloud-hint">Anthropic Messages 协议（官方或兼容中转）。远程地址需使用 HTTPS；HTTP 仅允许本机地址。API Key 保存在本机且不回显。</p>
             <div class="field-grid ai-fields">
               <label for="ai-base-url">Base URL</label>
               <input class="field-input" id="ai-base-url" placeholder="https://api.anthropic.com" spellcheck="false" />
@@ -588,14 +588,15 @@
         const res = await api.update_config({ ai: payload });
         if (res && res.ok) {
           if (onApply) onApply({ ai: cfg.ai });
-          return;
+          return true;
         }
         if (res && !res.ok && window.App) {
           window.App.toast("保存 AI 设置失败：" + (res.error || ""), { type: "error" });
         }
-        return;
+        return false;
       }
       if (onApply) onApply({ ai: cfg.ai });
+      return true;
     }
 
     [urlEl, keyEl, modelEl].forEach((el) => {
@@ -606,17 +607,34 @@
     const testStatus = document.getElementById("ai-test-status");
     if (testBtn) {
       testBtn.addEventListener("click", async () => {
-        await persist();
-        const hasKey = !!(keyEl.value.trim() || ai.api_key_set || (cfg.ai && cfg.ai.api_key_set));
-        const url = urlEl.value.trim();
-        const model = modelEl.value.trim();
-        if (!hasKey || !url || !model) {
-          if (testStatus) testStatus.textContent = "请先填写 Base URL、API Key 和模型";
-          if (window.App) window.App.toast("请先填写 Base URL、API Key 和模型", { type: "error" });
-          return;
+        testBtn.disabled = true;
+        if (testStatus) testStatus.textContent = "正在测试连接…";
+        try {
+          if (!(await persist())) {
+            if (testStatus) testStatus.textContent = "保存设置失败，请检查后重试";
+            return;
+          }
+          const hasKey = !!(keyEl.value.trim() || ai.api_key_set || (cfg.ai && cfg.ai.api_key_set));
+          const url = urlEl.value.trim();
+          const model = modelEl.value.trim();
+          if (!hasKey || !url || !model) {
+            if (testStatus) testStatus.textContent = "请先填写 Base URL、API Key 和模型";
+            if (window.App) window.App.toast("请先填写 Base URL、API Key 和模型", { type: "error" });
+            return;
+          }
+          const api = a();
+          if (!api || !api.test_ai) throw new Error("AI 连接测试不可用");
+          const res = await api.test_ai();
+          const message = res && res.ok ? "连接成功" : "连接失败：" + ((res && res.error) || "未知错误");
+          if (testStatus) testStatus.textContent = message;
+          if (window.App) window.App.toast(message, res && res.ok ? { type: "success" } : { type: "error" });
+        } catch (e) {
+          const message = "连接失败：" + (e && e.message ? e.message : String(e));
+          if (testStatus) testStatus.textContent = message;
+          if (window.App) window.App.toast(message, { type: "error" });
+        } finally {
+          testBtn.disabled = false;
         }
-        if (testStatus) testStatus.textContent = "已保存。打开 AI 侧栏提问即可验证。";
-        if (window.App) window.App.toast("AI 接口已保存");
       });
     }
   }
