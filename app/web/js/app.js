@@ -1804,7 +1804,8 @@
       { id: "replace", title: "查找替换", keys: "Ctrl+H", group: "导航", run: () => openFindBar({ replace: true }) },
       { id: "goto-line", title: "转到行", keys: "Ctrl+G", group: "导航", run: goToLine },
       { id: "locate", title: "在目录中定位当前文件", keys: "", group: "导航", run: locateInTree },
-      { id: "new-here", title: "在当前文件夹新建笔记", keys: "", group: "文件", run: newNoteBeside },
+      { id: "new-here", title: "在当前文件夹中新建文件", keys: "", group: "文件", run: newNoteBeside },
+      { id: "new-in-vault", title: "在当前仓库中新建文件", keys: "", group: "文件", run: () => newNoteInFolder(state.currentFolder) },
       { id: "tasks", title: "仓库待办", keys: "", group: "仓库", run: () => window.Palette.openTasks() },
       { id: "tags", title: "浏览标签", keys: "", group: "仓库", run: () => window.Palette.openTags() },
       { id: "broken", title: "断开的双链", keys: "", group: "仓库", run: () => window.Palette.openBroken() },
@@ -2127,7 +2128,7 @@
 
   function newNoteBeside() {
     const dir = state.currentPath ? dirname(state.currentPath) : state.currentFolder;
-    newNoteInFolder(dir);
+    return newNoteInFolder(dir);
   }
 
   // AI 交互统一收在右侧 AI 侧栏（js/ai_panel.js）；命令面板入口开栏并执行

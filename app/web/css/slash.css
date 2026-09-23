@@ -64,7 +64,7 @@
 .slash-item.active .si-icon {
   background: var(--sys-on-primary, #fff);
   color: var(--primary);
-  border-color: var(--sys-on-primary, #fff);
+  border-color: transparent;
 }
 .slash-item .si-icon svg { width: 17px; height: 17px; }
 .slash-item .si-body { flex: 1; min-width: 0; }
@@ -176,5 +176,5 @@
 .slash-item.disabled.active .si-icon {
   background: var(--sidebar-bg);
   color: var(--primary);
-  border-color: var(--border);
+  border-color: transparent;
 }

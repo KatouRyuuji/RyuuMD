@@ -55,7 +55,7 @@
 
 /* 随手记保存：主色描边的轻量按钮，与全局描边体系一致 */
 #home-scratch-save {
-  border-color: var(--primary);
+  border-color: transparent;
   background: transparent;
   color: var(--primary);
 }

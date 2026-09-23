@@ -114,6 +114,7 @@
   }
 
   function open(nextMode) {
+    if (window.BlockUI) window.BlockUI.hideHandle();
     mode = HINTS[nextMode] ? nextMode : "file";
     if (mode === "search") searchMode = "title";
     mask.classList.add("open");

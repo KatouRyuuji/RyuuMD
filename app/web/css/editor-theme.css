@@ -136,13 +136,13 @@
 
 .vditor-reset pre {
   border-radius: 10px !important;
-  border: 1px solid var(--border) !important;
-  /* 亮色下也要有可读底色，不只靠细边框 */
+  border: 1px solid transparent !important;
+  /* 代码块以底色区分正文。 */
   background: color-mix(in srgb, var(--text) 4%, var(--code-body-bg)) !important;
 }
 :root[data-theme="dark"] .vditor-reset pre {
   background: color-mix(in srgb, var(--text) 7%, var(--code-body-bg)) !important;
-  border-color: color-mix(in srgb, var(--text) 18%, transparent) !important;
+  border-color: transparent !important;
 }
 .vditor-reset pre > code {
   font-family: var(--font-mono) !important;
@@ -181,10 +181,10 @@
   font-family: "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
 }
 .vditor-reset blockquote:hover { transform: scale(1.01); }
-/* 暗色：块的边界要在底色上看得出来 */
+/* 暗色引用使用独立底色。 */
 :root[data-theme="dark"] .vditor-reset blockquote {
   background: color-mix(in srgb, var(--el) 13%, var(--bg)) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--el) 28%, transparent);
+  box-shadow: none;
 }
 
 /* ===========================================================
@@ -475,8 +475,11 @@
   opacity: 1;
   background: var(--primary-bg);
   color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--border);
+  box-shadow: none;
+}
+.block-handle:focus-visible {
+  outline: 2px solid var(--interactive-fg);
+  outline-offset: 2px;
 }
 .block-handle svg { width: 15px; height: 15px; }
 

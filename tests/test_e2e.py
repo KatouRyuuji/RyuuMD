@@ -3126,6 +3126,60 @@ CASES += [
 
 
 # ----------------------------------------------------------------------------
+# 针对源码操作柄与新建命令的回归检查。
+CASES += [
+    dict(name="T159 源码操作柄:任务与引用行尾不遮挡内容",
+         setup=("window.__gutterReady=false;"
+                "(async function(){await window.App.openPath(" + JV(str(SMALL_MD)) + ");"
+                "window.Home.hide();window.SlashMenu.close();window.Editor.setMode('sv');"
+                "while(!window.Editor.isReady())await new Promise(requestAnimationFrame);"
+                "window.Editor.setValue('- [ ] 源码行 GHI\\n\\n> 甲 AAA\\n> 乙 BBB\\n');"
+                "window.__gutterReady=true;})();"),
+         sleep=0.6, timeout=15,
+         js="window.__gutterReady&&window.Editor.isReady()&&window.Editor.getMode()==='sv'",
+         setup2=("var p=window.Editor.panel();var w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);"
+                 "var n;while(n=w.nextNode()){if(n.textContent.indexOf('GHI')>=0)break;}"
+                 "var r=document.createRange();r.setStart(n,n.textContent.indexOf('GHI')+3);r.collapse(true);"
+                 "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                 "document.dispatchEvent(new Event('selectionchange'));"),
+         sleep2=0.4,
+         js2=("(function(){var p=window.Editor.panel(),h=document.querySelector('.block-handle.on');"
+              "if(!h)return 'no handle';var pr=p.getBoundingClientRect();"
+              "var edge=pr.left+parseFloat(getComputedStyle(p).paddingLeft);"
+              "if(h.getBoundingClientRect().right>edge-4)return 'overlap';"
+              "window.dispatchEvent(new Event('resize'));p.dispatchEvent(new Event('scroll',{bubbles:true}));"
+              "window.__gutterX=h.getBoundingClientRect().left;"
+              "return h.getBoundingClientRect().right<=edge-4;})()"),
+         setup3=("var p=window.Editor.panel(),w=document.createTreeWalker(p,NodeFilter.SHOW_TEXT),n;"
+                 "while(n=w.nextNode()){if(n.textContent.indexOf('AAA')>=0)break;}"
+                 "var r=document.createRange();r.setStart(n,n.textContent.indexOf('AAA')+3);r.collapse(true);"
+                 "var s=window.getSelection();s.removeAllRanges();s.addRange(r);"
+                 "document.dispatchEvent(new Event('selectionchange'));"),
+         sleep3=0.4,
+         js3="Math.abs(document.querySelector('.block-handle.on').getBoundingClientRect().left-window.__gutterX)<1"),
+]
+
+for _case_id, _title, _filename, _target in [
+    ('T160', '在当前文件夹中新建文件', 'folder-command.md', REPO_DIR / 'sub'),
+    ('T161', '在当前仓库中新建文件', 'vault-command.md', REPO_DIR),
+]:
+    CASES.append(dict(
+        name=_case_id + ' 新建命令:' + _title,
+        setup=("(async function(){await window.App.openPath(" + JV(str(REPO_DIR)) + ");"
+               "await window.App.openPath(" + JV(str(REPO_DIR / 'sub' / 'note.md')) + ");"
+               "window.Palette.openCommands();var i=document.getElementById('pal-input');"
+               "i.value=" + JV(_title) + ";i.dispatchEvent(new Event('input',{bubbles:true}));})();"),
+        sleep=0.6, timeout=15,
+        js="!document.querySelector('.block-handle.on')&&document.querySelectorAll('#pal-list .pal-item').length===1&&document.getElementById('pal-list').textContent.indexOf(" + JV(_title) + ")>=0",
+        setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));",
+        sleep2=0.3,
+        js2="document.getElementById('input-modal-mask').classList.contains('open')",
+        setup3="document.getElementById('pm-input').value=" + JV(_filename) + ";document.getElementById('pm-ok').click();",
+        sleep3=0.5, timeout3=15,
+        js3="document.getElementById('doc-name').textContent.indexOf(" + JV(_filename) + ")>=0",
+        py=lambda api, ev, dest=_target / _filename: dest.is_file() or 'wrong creation directory',
+    ))
+
 # 执行器
 # ----------------------------------------------------------------------------
 results: list[tuple[str, bool, str]] = []

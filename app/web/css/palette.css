@@ -53,7 +53,7 @@
   border-radius: 999px;
   background: var(--primary-bg);
   color: var(--primary);
-  border: 1px solid var(--primary);
+  border: 1px solid transparent;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;

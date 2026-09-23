@@ -209,7 +209,7 @@ body:not(.is-workdir) #btn-merge-source {
   margin-top: 10px;
 }
 .ai-eg-chip {
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--bg-elevated);
   color: var(--text-secondary);
@@ -219,7 +219,7 @@ body:not(.is-workdir) #btn-merge-source {
   cursor: pointer;
 }
 .ai-eg-chip:hover {
-  border-color: var(--primary);
+  border-color: transparent;
   color: var(--primary);
   background: var(--primary-bg);
 }
@@ -1080,7 +1080,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   max-width: 28vw;
   /* 与右侧「渲染/源码」同族的胶囊形制：可点击切换，不是纯文本标签 */
 }
-.sb-workdir:hover { color: var(--primary); border-color: var(--primary); }
+.sb-workdir:hover { color: var(--primary); border-color: transparent; }
 .sb-workdir.is-pending { color: var(--sys-warning-ink); }
 .sb-workdir.is-conflict { color: var(--sys-danger-ink); }
 
@@ -1320,7 +1320,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   margin: 0 auto;
   border-radius: var(--radius);
   background: var(--bg-elevated);
-  border: 1px dashed var(--border);
+  border: 1px solid transparent;
   display: grid;
   place-items: center;
   color: var(--text-muted);
@@ -1330,7 +1330,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 /* 有图时改白底 + 内边距：暗色主题下也保证二维码可扫 */
 .sponsor .qr.has-img {
   background: #fff;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   padding: var(--sys-space-2);
 }
 .sponsor .qr img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -1500,7 +1500,7 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 .ctx-item.danger .ci-icon { color: #e74c3c; }
 /* 危险项的瓦片随语义色：不沿用主色底（优先级高于 ryuuji-a 的瓦片通用底色） */
 .ctx-item.danger .ci-icon {
-  border-color: rgba(231, 76, 60, 0.35);
+  border-color: transparent;
   background: rgba(231, 76, 60, 0.08);
 }
 .ctx-item.danger:hover { background: rgba(231, 76, 60, 0.1); }

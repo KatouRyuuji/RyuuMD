@@ -1,7 +1,7 @@
 /* RyuujiDesign A：统一外壳、组件与交互状态。
    全部令牌（--sys-* 及桥接后的旧变量名）由 vendor/ryuuji + css/sys-bridge.css 供给；
-   本文件只写组件皮肤配方（v4.1/v5 证据配方：卡影+唇、输入三件套、实心选中行、
-   pill 化、主钮实心白字），不重复定义令牌。 */
+   本文件只写组件皮肤：底色与字重承载常驻状态，细线界定区域，
+   焦点环与拖放标记承载交互反馈，不重复定义令牌。 */
 
 html,
 body {
@@ -115,7 +115,7 @@ button:disabled,
   padding: 6px 10px;
   border-bottom: 1px solid var(--edge-soft);
   background: var(--bg-elevated);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--bg-elevated), #ffffff 22%) inset;
+  box-shadow: none;
 }
 
 .tb-title {
@@ -123,7 +123,7 @@ button:disabled,
   min-width: 142px;
   margin-right: var(--space-2);
   padding: 0 var(--space-3) 0 var(--space-1);
-  border-right: 1px solid var(--edge-soft);
+  border-right: 0;
   color: var(--text);
   font-size: 14px;
   font-weight: 600;
@@ -135,11 +135,11 @@ button:disabled,
   height: 28px;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 24%);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--primary);
   color: var(--active-fg);
-  box-shadow: 0 1px 0 color-mix(in srgb, #ffffff, transparent 40%) inset;
+  box-shadow: none;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
@@ -148,7 +148,7 @@ button:disabled,
 }
 
 html[data-theme="light"] .tb-title .logo {
-  border-color: var(--interactive-fg);
+  border-color: transparent;
   background: var(--interactive-fg);
   color: #ffffff;
 }
@@ -175,7 +175,7 @@ html[data-theme="dark"] .tb-title .logo {
 }
 
 .icon-btn:hover {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-hover);
   color: var(--text);
   transform: translateY(-1px);
@@ -190,7 +190,7 @@ html[data-theme="dark"] .tb-title .logo {
 
 #btn-save,
 #btn-push-source {
-  border-color: color-mix(in srgb, var(--primary), transparent 68%);
+  border-color: transparent;
   background: var(--primary-bg);
   color: var(--interactive-fg);
 }
@@ -198,7 +198,7 @@ html[data-theme="dark"] .tb-title .logo {
 #btn-home.active,
 #btn-save:hover,
 #btn-push-source:hover {
-  border-color: color-mix(in srgb, var(--primary), transparent 48%);
+  border-color: transparent;
   background: color-mix(in srgb, var(--primary), var(--bg-elevated) 86%);
   color: var(--interactive-fg);
 }
@@ -263,7 +263,7 @@ html[data-theme="dark"] .tb-title .logo {
   gap: 2px;
   margin: 10px 10px 8px;
   padding: 3px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 10px;
   background: color-mix(in srgb, var(--bg), var(--bg-elevated) 54%);
 }
@@ -286,10 +286,10 @@ html[data-theme="dark"] .tb-title .logo {
 
 .side-tab.active,
 .side-tab[aria-selected="true"] {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-raised);
   color: var(--interactive-fg);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
   font-weight: 600;
 }
 
@@ -304,7 +304,7 @@ html[data-theme="dark"] .tb-title .logo {
 .side-empty {
   margin: var(--space-4) var(--space-2);
   padding: var(--space-4);
-  border: 1px dashed var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-elevated), transparent 46%);
   color: var(--text-secondary);
@@ -324,18 +324,17 @@ html[data-theme="dark"] .tb-title .logo {
 
 .tree-item:hover,
 .outline-item:hover {
-  border-color: color-mix(in srgb, var(--edge-soft), transparent 28%);
+  border-color: transparent;
   background: var(--surface-hover);
   color: var(--text);
 }
 
 .tree-item.active {
-  /* 常驻选中态从轻量处理：主色浅染底 + 主色字 + 左侧 2px 指示条，
-     不用实心大色块（长盯编辑器时余光不抢注意力） */
+  /* 常驻选中态使用主色浅染底和字重，保持长时写作的视觉安静。 */
   border-color: transparent;
   background: var(--primary-bg);
   color: var(--primary);
-  box-shadow: inset 2px 0 0 var(--primary);
+  box-shadow: none;
   font-weight: 600;
 }
 
@@ -345,7 +344,7 @@ html[data-theme="dark"] .tb-title .logo {
   border-color: transparent;
   background: var(--primary-bg);
   color: var(--primary);
-  box-shadow: inset 2px 0 0 var(--primary);
+  box-shadow: none;
   font-weight: 600;
 }
 
@@ -411,7 +410,7 @@ html[data-theme="dark"] .tb-title .logo {
 
 button.sb-item:hover,
 .sb-item[title]:hover {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-hover);
   color: var(--text);
 }
@@ -424,7 +423,7 @@ button.sb-item:hover,
 .sb-modes {
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg), var(--bg-elevated) 52%);
 }
@@ -449,28 +448,38 @@ button.sb-item:hover,
 .sb-view.active,
 .sb-mode.active,
 .sb-mode[aria-pressed="true"] {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-raised);
   color: var(--interactive-fg);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
 }
 
 /* 统一按钮和表单 */
 .btn {
   min-height: var(--control-h);
   padding: 0 13px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--surface-control);
   color: var(--text);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--bg-elevated), #ffffff 18%) inset;
+  box-shadow: none;
   font-size: 13px;
   font-weight: 500;
 }
 
+/* 应用按钮覆盖语言皮肤的常驻描边与内高光；键盘焦点仍走 focus-visible。 */
+html[data-lang="a"] .btn:not(.btn--danger, .btn--warning, .btn--success) {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-lang="a"] .btn:not(.btn--danger, .btn--warning, .btn--success):hover {
+  border-color: transparent;
+}
+
 .btn:hover,
 .btn--text:hover {
-  border-color: color-mix(in srgb, var(--primary), transparent 60%);
+  border-color: transparent;
   background: var(--surface-hover);
   color: var(--interactive-fg);
   transform: translateY(-1px);
@@ -511,7 +520,7 @@ select {
   border-radius: var(--radius-sm);
   background: var(--surface-control);
   color: var(--text);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--bg-elevated), #ffffff 16%) inset;
+  box-shadow: none;
 }
 
 .field-input:hover,
@@ -537,7 +546,7 @@ select:focus {
 .toggle {
   width: 42px;
   height: 24px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   background: color-mix(in srgb, var(--text-muted), transparent 72%);
   box-shadow: none;
 }
@@ -552,7 +561,7 @@ select:focus {
 }
 
 .toggle.on {
-  border-color: var(--primary);
+  border-color: transparent;
   background: var(--primary);
 }
 
@@ -563,7 +572,7 @@ select:focus {
 .segmented {
   gap: 2px;
   padding: 3px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 10px;
   background: color-mix(in srgb, var(--bg), var(--bg-elevated) 52%);
 }
@@ -576,10 +585,10 @@ select:focus {
 }
 
 .segmented button.active {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-raised);
   color: var(--interactive-fg);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
 }
 
 /* 弹窗、设置与欢迎页 */
@@ -592,12 +601,12 @@ select:focus {
 .modal {
   width: min(680px, calc(100vw - 48px));
   max-height: min(760px, calc(100vh - 48px));
-  /* 面板影+唇（v4.1 Linea 配方）：lift 影 + 顶沿高光 */
+  /* 浮层使用中性边界与外投影区分层级。 */
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
   color: var(--text);
-  box-shadow: var(--shadow-overlay), var(--sys-paper-lip);
+  box-shadow: var(--shadow-overlay);
 }
 
 .modal-head {
@@ -623,11 +632,17 @@ select:focus {
   font-size: 12px;
 }
 
+/* 标题图标已有底色和语义，无需再加一圈装饰线。 */
+html[data-lang="a"] .modal-head .badge {
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .pal-badge,
 .si-keys {
   /* pill 配方（v5）：主色 9% 底 + 22% 边 + primary-ink 字 + 999 圆角。
      注：.modal-head .badge 无需在此重复——lang/a.css 的 .badge 基座即同一配方 */
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 78%);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: color-mix(in srgb, var(--primary), transparent 91%);
   color: var(--interactive-fg);
@@ -659,7 +674,7 @@ select:focus {
   gap: 2px;
   margin: var(--space-3) var(--space-5) 0;
   padding: 3px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 10px;
   background: color-mix(in srgb, var(--bg), var(--bg-elevated) 54%);
 }
@@ -677,10 +692,10 @@ select:focus {
 }
 
 .settings-tab.active {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-raised);
   color: var(--interactive-fg);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
   font-weight: 600;
 }
 
@@ -707,8 +722,8 @@ select:focus {
 }
 
 .palette-swatch {
-  border: 2px solid var(--surface-raised);
-  box-shadow: 0 0 0 1px var(--edge-soft);
+  border: 1px solid transparent;
+  box-shadow: none;
 }
 
 .palette-swatch:hover {
@@ -716,7 +731,7 @@ select:focus {
 }
 
 .palette-swatch.active {
-  box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px var(--focus-soft);
+  box-shadow: none;
 }
 
 .welcome-word {
@@ -729,7 +744,7 @@ select:focus {
 .feature-card,
 .mode-opt,
 .style-opt {
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--surface-control);
   box-shadow: none;
@@ -739,7 +754,7 @@ select:focus {
 .mode-opt.selected,
 .style-opt:hover,
 .style-opt.selected {
-  border-color: color-mix(in srgb, var(--primary), transparent 54%);
+  border-color: transparent;
   background: var(--primary-bg);
 }
 
@@ -747,9 +762,14 @@ select:focus {
   color: var(--primary);
 }
 
+html[data-lang="a"] .style-opt code,
+html[data-lang="a"] .mode-opt code {
+  border-color: transparent;
+}
+
 .welcome-tip {
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 70%);
-  border-left: 3px solid var(--primary);
+  border: 1px solid transparent;
+  border-left: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--primary-bg-soft);
 }
@@ -808,19 +828,19 @@ select:focus {
   min-height: 76px;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--surface-raised);
   color: var(--text);
-  /* 卡影+唇（v4.1）：rest 即带浅影与顶沿高光 */
-  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
+  /* 卡片用表面底色区分内容。 */
+  box-shadow: none;
   font-size: 13px;
   font-weight: 600;
 }
 
 .quick-card:hover {
-  /* hover 不加深影：浓边 + 上移 1px */
-  border-color: var(--edge-soft-strong);
+  /* 悬停用底色和轻微位移反馈。 */
+  border-color: transparent;
   background: var(--surface-hover);
   transform: translateY(-1px);
 }
@@ -828,7 +848,7 @@ select:focus {
 .quick-card .qc-icon {
   width: 32px;
   height: 32px;
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 68%);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--primary-bg);
   color: var(--interactive-fg);
@@ -866,7 +886,7 @@ select:focus {
 .home-sec-count {
   min-width: 22px;
   padding: 2px 6px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 6px;
   background: var(--surface-control);
   color: var(--text-secondary);
@@ -878,7 +898,7 @@ select:focus {
 .view-toggle {
   gap: 2px;
   padding: 3px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 9px;
   background: color-mix(in srgb, var(--bg), var(--bg-elevated) 54%);
 }
@@ -898,10 +918,10 @@ select:focus {
 
 .view-toggle button.active,
 .view-toggle button[aria-pressed="true"] {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-raised);
   color: var(--interactive-fg);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
 }
 
 .repo-grid {
@@ -912,10 +932,10 @@ select:focus {
 
 .repo-card,
 .recent-file-card {
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--surface-raised);
-  box-shadow: var(--sys-shadow-sm), var(--sys-paper-lip);
+  box-shadow: none;
 }
 
 .recent-file-card {
@@ -952,7 +972,7 @@ select:focus {
 
 .repo-card:hover,
 .recent-file-card:hover {
-  border-color: var(--edge-soft-strong);
+  border-color: transparent;
   background: var(--surface-hover);
   transform: translateY(-1px);
 }
@@ -960,7 +980,7 @@ select:focus {
 .repo-avatar,
 .recent-file-card .rf-icon,
 .recent-row .rr-icon {
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 68%);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--primary-bg);
   color: var(--interactive-fg);
@@ -990,10 +1010,10 @@ select:focus {
 .repo-actions {
   gap: 2px;
   padding: 3px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 8px;
   background: var(--surface-raised);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
   backdrop-filter: none !important;
 }
 
@@ -1020,7 +1040,7 @@ select:focus {
 .repo-row,
 .recent-row {
   min-height: 46px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
 }
@@ -1072,13 +1092,13 @@ select:focus {
 
 .repo-row:hover,
 .recent-row:hover {
-  border-color: var(--edge-soft);
+  border-color: transparent;
   background: var(--surface-hover);
 }
 
 .home-empty {
   padding: var(--space-5);
-  border: 1px dashed var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-elevated), transparent 46%);
   color: var(--text-secondary);
@@ -1098,7 +1118,7 @@ select:focus {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-overlay), var(--sys-paper-lip);
+  box-shadow: var(--shadow-overlay);
   overflow: hidden;
 }
 
@@ -1113,7 +1133,7 @@ select:focus {
 #pal-icon {
   width: 32px;
   height: 32px;
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 68%);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--primary-bg);
   color: var(--interactive-fg);
@@ -1146,40 +1166,40 @@ select:focus {
 
 .pal-mode {
   min-height: 28px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--surface-control);
   color: var(--text-secondary);
 }
 
 .pal-mode:hover {
-  border-color: color-mix(in srgb, var(--primary), transparent 58%);
+  border-color: transparent;
   color: var(--text);
 }
 
 .pal-mode.active {
-  border-color: color-mix(in srgb, var(--primary), var(--text) 14%);
+  border-color: transparent;
   background: var(--primary-bg);
   color: color-mix(in srgb, var(--interactive-fg), var(--text) 14%);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--primary), var(--text) 14%);
+  box-shadow: none;
 }
 
 .pal-mode-kbd {
-  border-color: color-mix(in srgb, currentColor, transparent 35%);
+  border-color: transparent;
   background: color-mix(in srgb, currentColor, transparent 88%);
 }
 
 .pal-mode.active .pal-mode-kbd {
-  border-color: color-mix(in srgb, var(--primary), transparent 72%);
+  border-color: transparent;
   background: color-mix(in srgb, var(--primary), transparent 92%);
   color: var(--interactive-fg);
 }
 
 #pal-answer {
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-elevated), transparent 20%);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
 }
 
 #ai-sidebar {
@@ -1188,15 +1208,15 @@ select:focus {
 }
 
 .ai-entry {
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-elevated), transparent 20%);
-  box-shadow: var(--shadow-contact);
+  box-shadow: none;
 }
 
 .ai-ask-send {
   color: var(--active-fg);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff, transparent 78%);
+  box-shadow: none;
 }
 
 .pal-item,
@@ -1213,7 +1233,7 @@ select:focus {
 .slash-item:hover,
 .ctx-item:hover,
 .vditor-hint button:hover {
-  border-color: color-mix(in srgb, var(--primary), transparent 68%);
+  border-color: transparent;
   background: var(--primary-bg);
   color: var(--text);
 }
@@ -1258,7 +1278,7 @@ select:focus {
 
 .vditor-hint button.vditor-hint--current .hint-kk,
 .vditor-hint button.vditor-hint--current .hint-row .hint-ic {
-  border-color: color-mix(in srgb, var(--active-fg), transparent 72%) !important;
+  border-color: transparent !important;
   background: color-mix(in srgb, var(--active-fg), transparent 86%) !important;
   color: var(--active-fg) !important;
 }
@@ -1294,7 +1314,7 @@ select:focus {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-overlay), var(--sys-paper-lip);
+  box-shadow: var(--shadow-overlay);
 }
 
 #slash-menu,
@@ -1312,7 +1332,7 @@ select:focus {
 .slash-item .si-icon,
 .hint-row .hint-ic,
 .ctx-item .ci-icon {
-  border: 1px solid color-mix(in srgb, var(--primary), transparent 72%);
+  border: 1px solid transparent;
   border-radius: 6px;
   background: var(--primary-bg);
   color: var(--interactive-fg);
@@ -1333,7 +1353,7 @@ select:focus {
   gap: 6px;
 }
 #find-bar.replace-open #find-toggle-replace {
-  border-color: color-mix(in srgb, var(--primary), transparent 54%);
+  border-color: transparent;
   background: var(--primary-bg);
   color: var(--primary);
 }
@@ -1481,7 +1501,7 @@ select:focus {
 
 .vditor-reset code:not(.hljs):not([class*="language-"]) {
   padding: 0.15em 0.38em;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius-xs);
   background: var(--surface-control);
   color: var(--interactive-fg);
@@ -1489,17 +1509,17 @@ select:focus {
 }
 
 .vditor-reset pre {
-  border: 1px solid var(--edge-soft) !important;
+  border: 1px solid transparent !important;
   border-radius: var(--radius) !important;
   background: var(--code-body-bg) !important;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 .vditor-reset blockquote {
   margin: 1.2em 0 !important;
   padding: 12px 16px !important;
   border: 0 !important;
-  border-left: 3px solid var(--primary) !important;
+  border-left: 2px solid var(--edge-soft-strong) !important;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
   background: var(--primary-bg-soft) !important;
   color: var(--text-secondary) !important;
@@ -1555,7 +1575,6 @@ select:focus {
 
 .toast-item {
   border: 1px solid var(--edge-soft);
-  border-left: 3px solid var(--primary);
   border-radius: var(--radius);
   background: var(--surface-raised);
   color: var(--text);
@@ -1705,7 +1724,7 @@ select:focus {
   gap: 2px;
   flex: 0 0 auto;
   padding-right: var(--space-1);
-  border-right: 1px solid var(--edge-soft);
+  border-right: 0;
 }
 
 .tb-tools { border-right: 0; }
@@ -1822,8 +1841,8 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border: 0;
-  border-left: 2px solid var(--edge-soft);
+  border: 1px solid transparent;
+  border-left: 1px solid transparent;
   border-radius: 0;
   background: color-mix(in srgb, var(--bg-elevated), transparent 28%);
   text-align: left;
@@ -1862,8 +1881,8 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   gap: 3px;
   margin: var(--space-4) 0 var(--space-4) var(--space-4);
   padding: 5px;
-  border: 0;
-  border-right: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
+  border-right: 1px solid transparent;
   border-radius: 0;
   background: transparent;
 }
@@ -1890,7 +1909,7 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
 }
 
 .settings-tab.active {
-  border-color: color-mix(in srgb, var(--primary), transparent 84%);
+  border-color: transparent;
   background: var(--primary-bg);
   color: var(--interactive-fg);
   box-shadow: none;
@@ -1937,7 +1956,7 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   justify-content: center;
   gap: 7px;
   padding: 0 9px;
-  border: 1px solid var(--edge-soft);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--surface-control);
   color: var(--text-secondary);
@@ -1955,10 +1974,15 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
 }
 
 .palette-swatch.selected {
-  border-color: var(--primary);
+  border-color: transparent;
   background: var(--primary-bg);
   color: var(--interactive-fg);
-  box-shadow: 0 0 0 2px var(--focus-soft);
+  box-shadow: none;
+}
+
+.palette-swatch.selected::after {
+  color: var(--interactive-fg);
+  text-shadow: none;
 }
 
 .tree-item,
@@ -2004,10 +2028,10 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
 
 .pal-item.active,
 .slash-item.active {
-  border-color: color-mix(in srgb, var(--primary), var(--text) 12%);
+  border-color: transparent;
   background: var(--primary-bg);
   color: color-mix(in srgb, var(--interactive-fg), var(--text) 16%);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--primary), var(--text) 16%);
+  box-shadow: none;
 }
 
 .pal-item.active .pal-title,
@@ -2021,6 +2045,13 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   opacity: 1;
 }
 
+.pal-item.active .pal-badge,
+.slash-item.active .si-keys {
+  border-color: transparent;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+}
+
 button:disabled,
 button[aria-disabled="true"] {
   opacity: 0.68;
@@ -2029,7 +2060,7 @@ button[aria-disabled="true"] {
 .tree-item.active,
 .outline-item.active {
   color: color-mix(in srgb, var(--primary), var(--text) 14%);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--primary), var(--text) 14%);
+  box-shadow: none;
 }
 
 @media (max-width: 760px) {

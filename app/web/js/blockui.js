@@ -109,9 +109,26 @@
 
   function positionHandle() {
     if (!handleEl || !cur) return;
-    const r = cur.el.getBoundingClientRect();
     const p = panel();
+    if (!p) { hideHandle(); return; }
     const pr = p.getBoundingClientRect();
+    if (cur.kind === "sv") {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !p.contains(sel.anchorNode)) { hideHandle(); return; }
+      const r = sel.getRangeAt(0).getClientRects()[0];
+      const padding = parseFloat(getComputedStyle(p).paddingLeft) || 0;
+      // 操作柄占用左侧留白，不随光标横向移动，也不盖住源码前缀。
+      if (!r || r.top < pr.top || r.bottom > pr.bottom || p.scrollLeft > 0) {
+        handleEl.classList.remove("on");
+        return;
+      }
+      handleEl.style.left = (pr.left + padding - 28) + "px";
+      handleEl.style.top = r.top + "px";
+      handleEl.classList.add("on");
+      return;
+    }
+    if (!cur.el || !cur.el.isConnected) { hideHandle(); return; }
+    const r = cur.el.getBoundingClientRect();
     // x 对齐目标所在顶层块的左缘（列表项取整个列表的左缘），
     // 落在面板 padding 留白里，不与列表 marker 重叠
     let top = cur.el;
@@ -732,14 +749,9 @@
       if (line == null) return;
       const loc = window.Blocks.locateLine(line);
       if (!loc || loc.type === "html") return;
-      const r = sel.getRangeAt(0).getClientRects()[0];
       ensureOverlays();
-      cur = { el: null, kind: "sv", loc, probe: null, scope: "block", svRect: r };
-      if (r) {
-        handleEl.style.left = Math.max(p.getBoundingClientRect().left + 6, r.left - 30) + "px";
-        handleEl.style.top = r.top + "px";
-      }
-      handleEl.classList.add("on");
+      cur = { el: null, kind: "sv", loc, probe: null, scope: "block" };
+      positionHandle();
     }, 120);
   }
 
