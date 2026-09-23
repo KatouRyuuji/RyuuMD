@@ -16,6 +16,8 @@
     diskMtime: 0,
     diskGone: false,
   };
+  let configWriteQueue = Promise.resolve();
+  let themeUpdateRevision = 0;
 
   // 大文档阈值（字节）：Vditor 渲染(ir)模式全量渲染超长文档会卡死，
   // 超过则以源码模式打开并 toast 告知（不静默降级，用户可随时切回）
@@ -607,11 +609,13 @@
       // _saving 门闩：磁盘守望在自己写盘的往返窗口内不得把 mtime 变化
       // 误判为外部修改而重载（会把阅读位置刷回顶部）
       state._saving = true;
+      updateDocName();
       let res;
       try {
         res = await a.save_file(savePath, content);
       } finally {
         state._saving = false;
+        updateDocName();
       }
       if (res.ok) {
         markSaved(content);
@@ -668,8 +672,10 @@
   async function loadRecent() {
     const a = api();
     if (!a) return;
+    state._recentRequestId = (state._recentRequestId || 0) + 1;
+    const requestId = state._recentRequestId;
     const res = await a.get_recent();
-    if (res && res.ok) window.Sidebar.renderRecent(res.items);
+    if (requestId === state._recentRequestId && res && res.ok) window.Sidebar.renderRecent(res.items);
   }
 
   // 点击最近项：与 openPath 同路，但打开失败（文件已移动/删除）时自动移除失效项
@@ -743,7 +749,8 @@
     const el = document.getElementById("sb-path");
     if (!el) return;
     const shown = state.sourcePath || state.currentPath;
-    el.textContent = shown || "未保存文档";
+    el.textContent = shown ? basename(shown) : "未保存文档";
+    el.setAttribute("aria-label", shown ? "当前文件：" + shown : "未保存文档");
     el.title = state.sourcePath && state.currentPath && state.sourcePath !== state.currentPath
       ? ("源文件：" + state.sourcePath + "\n工作副本：" + state.currentPath)
       : (shown || "在目录中定位");
@@ -863,8 +870,10 @@
     document.body.classList.toggle("no-doc", !state.currentPath);
     const sb = document.getElementById("sb-save");
     if (sb) {
-      sb.textContent = state.dirty || !state.currentPath ? "未保存" : "已保存";
-      sb.title = state.dirty || !state.currentPath ? "保存 (Ctrl+S)" : "已保存";
+      const saving = !!state._saving;
+      sb.textContent = saving ? "保存中…" : (state.dirty || !state.currentPath ? "未保存" : "已保存");
+      sb.title = saving ? "正在写入文件" : (state.dirty || !state.currentPath ? "保存 (Ctrl+S)" : "已保存");
+      sb.setAttribute("aria-busy", String(saving));
     }
   }
 
@@ -1020,6 +1029,13 @@
 
   async function applyConfig(partial) {
     const prevEditMode = state.config && state.config.edit_mode;
+    const previousThemeConfig = {
+      theme: state.config.theme,
+      palette: state.config.palette,
+      palette_light: state.config.palette_light,
+      palette_dark: state.config.palette_dark,
+      reduced_motion: state.config.reduced_motion,
+    };
     if ("edit_mode" in partial && partial.edit_mode !== prevEditMode) {
       const flushed = await flushEditorBeforeModeSwitch();
       if (flushed === false) {
@@ -1032,9 +1048,33 @@
     // cloud_sync 含脱敏字段，必须走 save_cloud_settings，禁止经 update_config 把密码冲掉
     const persist = Object.assign({}, partial);
     delete persist.cloud_sync;
-    if (a && Object.keys(persist).length) await a.update_config(persist);
-    if ("theme" in partial || "palette" in partial || "reduced_motion" in partial) {
+    const themeChanged = "theme" in partial || "palette" in partial || "reduced_motion" in partial;
+    const themeRevision = themeChanged ? ++themeUpdateRevision : 0;
+    if (themeChanged) {
       applyTheme(state.config.theme);
+    }
+    if (a && Object.keys(persist).length) {
+      const write = configWriteQueue.then(() => a.update_config(persist));
+      configWriteQueue = write.catch(() => undefined);
+      try {
+        const saved = await write;
+        if (themeChanged && saved && saved.ok === false) {
+          if (themeRevision !== themeUpdateRevision) return true;
+          Object.assign(state.config, previousThemeConfig);
+          applyTheme(state.config.theme);
+          toast("主题设置未能保存");
+          return false;
+        }
+      } catch (err) {
+        if (themeChanged) {
+          if (themeRevision !== themeUpdateRevision) return true;
+          Object.assign(state.config, previousThemeConfig);
+          applyTheme(state.config.theme);
+          toast("主题设置未能保存");
+          return false;
+        }
+        throw err;
+      }
     }
     if ("font_ui" in partial || "font_mono" in partial) applyFonts();
     if ("operation_style" in partial) {

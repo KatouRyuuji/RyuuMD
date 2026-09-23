@@ -16,6 +16,7 @@
   let repoItems = [];  // 最近一次 list_projects 结果
   let view = "card";   // card | list
   let modalReturnFocus = null;
+  let refreshRequestId = 0;
 
   // ---------------------------------------------------------------
   // 初始化 / 显示控制
@@ -71,6 +72,7 @@
   async function refresh() {
     const a = api();
     if (!a || typeof a.list_projects !== "function") return;
+    const requestId = ++refreshRequestId;
     repoWrap.setAttribute("aria-busy", "true");
     recentWrap.setAttribute("aria-busy", "true");
     try {
@@ -79,18 +81,22 @@
         pair = await fetchHomeData(a);
       } catch (e) {
         await new Promise((r) => setTimeout(r, 120));
+        if (requestId !== refreshRequestId) return;
         pair = await fetchHomeData(a);
       }
+      if (requestId !== refreshRequestId) return;
       const [repos, recent, scratch] = pair;
       if (repos && repos.ok) renderRepos(repos.items);
       if (recent && recent.ok) renderRecent(recent.items);
       const scratchEl = document.getElementById("home-scratch-input");
       if (scratchEl && scratch && scratch.ok) scratchEl.value = scratch.content || "";
     } catch (e) {
-      toast("首页数据加载失败，请稍后重试", { type: "error" });
+      if (requestId === refreshRequestId) toast("首页数据加载失败，请稍后重试", { type: "error" });
     } finally {
-      repoWrap.removeAttribute("aria-busy");
-      recentWrap.removeAttribute("aria-busy");
+      if (requestId === refreshRequestId) {
+        repoWrap.removeAttribute("aria-busy");
+        recentWrap.removeAttribute("aria-busy");
+      }
     }
   }
 
@@ -204,7 +210,7 @@
       clearBtn.style.display = items.length ? "" : "none";
     }
     if (!items.length) {
-      recentEmpty.style.display = "block";
+      recentEmpty.style.display = "flex";
       recentWrap.innerHTML = "";
       return;
     }

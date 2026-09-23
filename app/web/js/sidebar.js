@@ -59,19 +59,19 @@
         if (n.type === "dir") {
           return `
             <div class="tree-dir">
-              <div class="tree-item dir" data-path="${esc(n.path)}">
+              <button type="button" class="tree-item dir" data-path="${esc(n.path)}" aria-expanded="true" aria-label="展开或折叠文件夹：${esc(n.name)}">
                 <span class="caret">${window.ICONS.chevron}</span>
                 <span class="tw-icon">${window.ICONS.folder}</span>
                 <span class="tw-name">${esc(n.name)}</span>
-              </div>
-              <div class="tree-children">${buildNodes(n.children || [])}</div>
+              </button>
+              <div class="tree-children" role="group">${buildNodes(n.children || [])}</div>
             </div>`;
         }
         return `
-          <div class="tree-item file" data-path="${esc(n.path)}" title="${esc(n.path)}">
+          <button type="button" class="tree-item file" data-path="${esc(n.path)}" title="${esc(n.path)}" aria-label="打开文件：${esc(n.name)}">
             <span class="tw-icon">${window.ICONS.fileText}</span>
             <span class="tw-name">${esc(n.name)}</span>
-          </div>`;
+          </button>`;
       })
       .join("");
   }
@@ -85,8 +85,25 @@
       return;
     }
     item.classList.toggle("collapsed");
+    item.setAttribute("aria-expanded", String(!item.classList.contains("collapsed")));
     const children = item.parentElement.querySelector(".tree-children");
     if (children) children.style.display = item.classList.contains("collapsed") ? "none" : "block";
+  });
+
+  fileTreeEl.addEventListener("keydown", (e) => {
+    const item = e.target.closest(".tree-item");
+    if (!item) return;
+    if ((e.key === "ArrowRight" && item.classList.contains("collapsed")) ||
+        (e.key === "ArrowLeft" && !item.classList.contains("collapsed"))) {
+      if (item.classList.contains("dir")) {
+        e.preventDefault();
+        item.click();
+      }
+    } else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      e.preventDefault();
+      const rect = item.getBoundingClientRect();
+      openMenu(item.classList.contains("dir") ? "dir" : "file", item.dataset.path, rect.left, rect.bottom, true);
+    }
   });
 
   // —— 文件/目录右键菜单（文件：重命名等；目录：新建笔记/文件夹） ——
@@ -103,44 +120,50 @@
   ];
   let menuPath = null;
   let menuKind = "file";
+  let menuTrigger = null;
 
   fileTreeEl.addEventListener("contextmenu", (e) => {
     const file = e.target.closest(".tree-item.file");
     const dir = e.target.closest(".tree-item.dir");
     if (file) {
       e.preventDefault();
-      openMenu("file", file.dataset.path, e.clientX, e.clientY);
+      openMenu("file", file.dataset.path, e.clientX, e.clientY, false);
     } else if (dir) {
       e.preventDefault();
-      openMenu("dir", dir.dataset.path, e.clientX, e.clientY);
+      openMenu("dir", dir.dataset.path, e.clientX, e.clientY, false);
     }
   });
 
-  function openMenu(kind, path, x, y) {
+  function openMenu(kind, path, x, y, focusFirst) {
     menuKind = kind;
     menuPath = path;
+    menuTrigger = focusFirst ? fileTreeEl.querySelector(`.tree-item[data-path="${CSS.escape(path)}"]`) : null;
     const ops = kind === "dir" ? DIR_OPS : FILE_OPS;
     // 与编辑器右键菜单同构：分组小标题 + 图标瓦片 + 标题；无快捷键不渲染芯片
     treeMenu.innerHTML =
       `<div class="slash-group-label">${kind === "dir" ? "文件夹" : "文件"}</div>` +
       ops.map(
         (op) => `
-          <div class="ctx-item${op.danger ? " danger" : ""}" data-act="${op.act}">
+          <button type="button" role="menuitem" class="ctx-item${op.danger ? " danger" : ""}" data-act="${op.act}">
             <span class="ci-icon">${window.ICONS[op.icon]}</span><span class="ci-title">${op.label}</span>
-          </div>`
+          </button>`
       ).join("");
     treeMenu.classList.add("open");
+    treeMenu.setAttribute("role", "menu");
     const mw = treeMenu.offsetWidth || 190;
     const mh = treeMenu.offsetHeight || 170;
     if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
     if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
     treeMenu.style.left = Math.max(8, x) + "px";
     treeMenu.style.top = Math.max(8, y) + "px";
+    if (focusFirst) treeMenu.querySelector("[role=menuitem]")?.focus();
   }
 
   function closeMenu() {
     treeMenu.classList.remove("open");
     menuPath = null;
+    if (menuTrigger && menuTrigger.isConnected) menuTrigger.focus();
+    menuTrigger = null;
   }
 
   treeMenu.addEventListener("click", (e) => {
@@ -156,19 +179,45 @@
     if (handler) handler(path);
   });
 
+  treeMenu.addEventListener("keydown", (e) => {
+    const items = Array.from(treeMenu.querySelectorAll('[role="menuitem"]'));
+    const index = items.indexOf(document.activeElement);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenu();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      items[(index + dir + items.length) % items.length]?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  });
+
   document.addEventListener("click", (e) => {
     if (menuPath && !treeMenu.contains(e.target)) closeMenu();
   });
   // 捕获阶段拦截 Esc：菜单打开时不让全局 Esc（如关闭首页）抢先响应
   document.addEventListener("keydown", (e) => {
-    if (menuPath && e.key === "Escape") { e.stopPropagation(); closeMenu(); }
+    if (menuPath && e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu();
+    }
   }, true);
   window.addEventListener("resize", () => { if (menuPath) closeMenu(); });
 
   function markActive(path) {
     activePath = path;
     fileTreeEl.querySelectorAll(".tree-item.file").forEach((el) => {
-      el.classList.toggle("active", el.dataset.path === path);
+      const active = el.dataset.path === path;
+      el.classList.toggle("active", active);
+      if (active) el.setAttribute("aria-current", "page");
+      else el.removeAttribute("aria-current");
     });
   }
 
@@ -193,7 +242,7 @@
     outlineList.innerHTML = headings
       .map(
         (h) =>
-          `<div class="outline-item" data-level="${h.level}" data-id="${esc(h.id)}"${h.line != null ? ` data-line="${h.line}"` : ""} title="${esc(h.text)}">${esc(h.text)}</div>`
+          `<button type="button" class="outline-item" data-level="${h.level}" data-id="${esc(h.id)}"${h.line != null ? ` data-line="${h.line}"` : ""} title="${esc(h.text)}" aria-label="跳转到标题：${esc(h.text)}">${esc(h.text)}</button>`
       )
       .join("");
     applyOutlineActive();
@@ -232,10 +281,10 @@
     recentList.innerHTML = items
       .map(
         (it) => `
-          <div class="tree-item recent${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" data-kind="${esc(it.kind)}" title="${esc(it.path)}">
+          <button type="button" class="tree-item recent${it.exists ? "" : " missing"}" data-path="${esc(it.path)}" data-kind="${esc(it.kind)}" title="${esc(it.path)}" aria-label="打开最近${it.kind === "folder" ? "文件夹" : "文件"}：${esc(it.name)}">
             <span class="tw-icon">${it.kind === "folder" ? window.ICONS.folder : window.ICONS.fileText}</span>
             <span class="tw-name">${esc(it.name)}</span>
-          </div>`
+          </button>`
       )
       .join("");
   }
@@ -262,19 +311,19 @@
     if (back.length) {
       html += `<div class="links-group">反向链接 · ${back.length}</div>`;
       back.forEach((it) => {
-        html += `<div class="tree-item file link-item" data-path="${esc(it.path)}" title="${esc(it.path)}">
+        html += `<button type="button" class="tree-item file link-item" data-path="${esc(it.path)}" title="${esc(it.path)}" aria-label="打开反向链接：${esc(it.name)}">
           <span class="tw-icon">${window.ICONS.fileText}</span>
           <span class="tw-name">${esc(it.name)}</span>
-        </div>`;
+        </button>`;
       });
     }
     if (out.length) {
       html += `<div class="links-group">本文链出 · ${out.length}</div>`;
       out.forEach((it) => {
-        html += `<div class="tree-item file link-item${it.exists === false ? " missing" : ""}" data-wiki="${esc(it.wiki || "")}" data-path="${esc(it.path || "")}" title="${esc(it.rel || it.wiki || "")}">
+        html += `<button type="button" class="tree-item file link-item${it.exists === false ? " missing" : ""}" data-wiki="${esc(it.wiki || "")}" data-path="${esc(it.path || "")}" title="${esc(it.rel || it.wiki || "")}" aria-label="打开链出链接：${esc(it.name || it.wiki)}">
           <span class="tw-icon">${window.ICONS.wiki || window.ICONS.link}</span>
           <span class="tw-name">${esc(it.name || it.wiki)}</span>
-        </div>`;
+        </button>`;
       });
     }
     linksList.innerHTML = html;
@@ -311,6 +360,7 @@
         const children = node.querySelector(":scope > .tree-children");
         if (dirItem && dirItem.classList.contains("collapsed")) {
           dirItem.classList.remove("collapsed");
+          dirItem.setAttribute("aria-expanded", "true");
           if (children) children.style.display = "block";
         }
       }
@@ -324,6 +374,7 @@
     const hide = !!collapsed;
     fileTreeEl.querySelectorAll(".tree-item.dir").forEach((item) => {
       item.classList.toggle("collapsed", hide);
+      item.setAttribute("aria-expanded", String(!hide));
       const parent = item.parentElement;
       const children = parent ? parent.querySelector(":scope > .tree-children") : null;
       if (children) children.style.display = hide ? "none" : "block";

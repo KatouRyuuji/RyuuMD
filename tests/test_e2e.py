@@ -1019,6 +1019,18 @@ CASES = [
          sleep2=0.3,
          js2="!document.getElementById('palette-mask').classList.contains('open')"),
 
+    dict(name="T45d 键盘搜索模式:切换后焦点返回查询框",
+         setup=("window.Palette.openSearch();"
+                "var btn=document.querySelector('#pal-modes [data-mode=semantic]');"
+                "if(btn){btn.focus();btn.click();}"),
+         sleep=0.3,
+         js= ("(function(){var input=document.getElementById('pal-input');"
+              "if(window.Palette.getSearchMode()!=='semantic')return 'mode='+window.Palette.getSearchMode();"
+              "return document.activeElement===input?true:'focus='+document.activeElement.id;})()"),
+         setup2="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))",
+         sleep2=0.3,
+         js2="!document.getElementById('palette-mask').classList.contains('open')"),
+
     dict(name="T46 本文查找 Ctrl+F:查找条打开并可关闭",
          setup="window.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}))",
          sleep=0.3,

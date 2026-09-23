@@ -31,7 +31,7 @@
 
   function swatchHtml(list) {
     return list.map((p) =>
-      `<button type="button" class="palette-swatch" data-v="${p.id}" title="${p.name}" aria-label="${p.name}" style="background:${p.color}"></button>`
+      `<button type="button" class="palette-swatch" data-v="${p.id}" title="${p.name}" aria-label="${p.name}" aria-pressed="false" style="--swatch:${p.color}"><span>${p.name}</span></button>`
     ).join("");
   }
 
@@ -54,14 +54,16 @@
           </div>
           <button type="button" class="icon-btn modal-x" id="set-x" title="关闭" aria-label="关闭">${window.ICONS.close}</button>
         </div>
-        <div class="settings-tabs" role="tablist">
-          <button type="button" class="settings-tab active" data-tab="general" role="tab">通用</button>
-          <button type="button" class="settings-tab" data-tab="appearance" role="tab">外观</button>
-          <button type="button" class="settings-tab" data-tab="cloud" role="tab">云同步</button>
-          <button type="button" class="settings-tab" data-tab="ai" role="tab">AI</button>
-        </div>
-        <div class="modal-body">
-          <div class="settings-pane active" data-pane="general">
+        <div class="settings-layout">
+          <div class="settings-tabs" role="tablist" aria-label="设置分类" aria-orientation="vertical">
+            <button type="button" id="settings-tab-general" class="settings-tab active" data-tab="general" role="tab" aria-selected="true" aria-controls="settings-pane-general" tabindex="0"><span>通用</span><small>启动与编辑</small></button>
+            <button type="button" id="settings-tab-appearance" class="settings-tab" data-tab="appearance" role="tab" aria-selected="false" aria-controls="settings-pane-appearance" tabindex="-1"><span>外观</span><small>主题与字体</small></button>
+            <button type="button" id="settings-tab-cloud" class="settings-tab" data-tab="cloud" role="tab" aria-selected="false" aria-controls="settings-pane-cloud" tabindex="-1"><span>云同步</span><small>WebDAV 设置</small></button>
+            <button type="button" id="settings-tab-ai" class="settings-tab" data-tab="ai" role="tab" aria-selected="false" aria-controls="settings-pane-ai" tabindex="-1"><span>AI</span><small>模型与连接</small></button>
+          </div>
+          <div class="settings-content">
+          <div class="modal-body">
+          <div class="settings-pane active" id="settings-pane-general" data-pane="general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
             <div class="setting-row">
               <div>
                 <div class="label">操作风格</div>
@@ -153,7 +155,7 @@
               <input class="field-input" id="set-daily-folder" placeholder="日记" spellcheck="false" />
             </div>
           </div>
-          <div class="settings-pane" data-pane="appearance">
+          <div class="settings-pane" id="settings-pane-appearance" data-pane="appearance" role="tabpanel" aria-labelledby="settings-tab-appearance" tabindex="0">
             <div class="setting-row">
               <div>
                 <div class="label">主题外观</div>
@@ -197,7 +199,7 @@
               <button type="button" class="toggle" id="set-reduced-motion" title="减少动态效果"></button>
             </div>
           </div>
-          <div class="settings-pane" data-pane="cloud">
+          <div class="settings-pane" id="settings-pane-cloud" data-pane="cloud" role="tabpanel" aria-labelledby="settings-tab-cloud" tabindex="0">
             <div class="setting-row">
               <div>
                 <div class="label">启用云同步</div>
@@ -228,7 +230,7 @@
               <div id="cloud-status"></div>
             </div>
           </div>
-          <div class="settings-pane" data-pane="ai">
+          <div class="settings-pane" id="settings-pane-ai" data-pane="ai" role="tabpanel" aria-labelledby="settings-tab-ai" tabindex="0">
             <p class="cloud-hint">Anthropic Messages 协议（官方或兼容中转）。远程地址需使用 HTTPS；HTTP 仅允许本机地址。API Key 保存在本机且不回显。</p>
             <div class="field-grid ai-fields">
               <label for="ai-base-url">Base URL</label>
@@ -260,6 +262,8 @@
                 <input class="field-input" id="im-qq" data-im="qq" placeholder="webhook URL" spellcheck="false" />
               </div>
             </details>
+          </div>
+          </div>
           </div>
         </div>
         <div class="modal-foot">
@@ -304,13 +308,36 @@
   function bindTabs() {
     const tabs = mask.querySelectorAll(".settings-tab");
     const panes = mask.querySelectorAll(".settings-pane");
-    tabs.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const id = tab.dataset.tab;
-        tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === id));
-        panes.forEach((p) => p.classList.toggle("active", p.dataset.pane === id));
+    function selectTab(tab, focus) {
+      const id = tab.dataset.tab;
+      tabs.forEach((t) => {
+        const selected = t.dataset.tab === id;
+        t.classList.toggle("active", selected);
+        t.setAttribute("aria-selected", String(selected));
+        t.tabIndex = selected ? 0 : -1;
+      });
+      panes.forEach((p) => {
+        const selected = p.dataset.pane === id;
+        p.classList.toggle("active", selected);
+        p.hidden = !selected;
+      });
+      if (focus) tab.focus();
+    }
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => selectTab(tab, false));
+      tab.addEventListener("keydown", (e) => {
+        let next = index;
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (index + 1) % tabs.length;
+        else if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+        else if (e.key === "Home") next = 0;
+        else if (e.key === "End") next = tabs.length - 1;
+        else return;
+        e.preventDefault();
+        selectTab(tabs[next], true);
       });
     });
+    const current = Array.from(tabs).find((tab) => tab.classList.contains("active")) || tabs[0];
+    if (current) selectTab(current, false);
   }
 
   function bindSwatches(id, key) {
@@ -693,17 +720,21 @@
   function setSeg(id, val) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.querySelectorAll("button").forEach((b) =>
-      b.classList.toggle("active", b.dataset.v === val)
-    );
+    el.querySelectorAll("button").forEach((b) => {
+      const selected = b.dataset.v === val;
+      b.classList.toggle("active", selected);
+      b.setAttribute("aria-pressed", String(selected));
+    });
   }
 
   function setSwatch(id, val) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.querySelectorAll(".palette-swatch").forEach((b) =>
-      b.classList.toggle("selected", b.dataset.v === val)
-    );
+    el.querySelectorAll(".palette-swatch").forEach((b) => {
+      const selected = b.dataset.v === val;
+      b.classList.toggle("selected", selected);
+      b.setAttribute("aria-pressed", String(selected));
+    });
   }
 
   let lastFocus = null;

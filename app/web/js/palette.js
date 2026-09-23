@@ -555,8 +555,7 @@
 
   if (modesEl) {
     modesEl.querySelectorAll(".pal-mode").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => {
-        e.preventDefault();
+      function selectMode() {
         searchMode = btn.dataset.mode || "title";
         syncSearchChrome();
         const q = rawQuery();
@@ -569,6 +568,14 @@
           return;
         }
         refresh();
+      }
+      // Mouse activation is handled before focus leaves the query field; click(detail=0)
+      // covers keyboard activation, whose native buttons emit no mousedown event.
+      btn.addEventListener("mousedown", (e) => { e.preventDefault(); selectMode(); });
+      btn.addEventListener("click", (e) => {
+        if (e.detail !== 0) return;
+        selectMode();
+        input.focus();
       });
     });
   }

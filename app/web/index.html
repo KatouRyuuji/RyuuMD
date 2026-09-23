@@ -82,24 +82,30 @@
   <a class="skip-link" href="#editor-wrap">跳到编辑区</a>
   <div id="app">
     <!-- 顶部工具条 -->
-    <div id="toolbar" role="toolbar" aria-label="主要操作">
+    <div id="toolbar" role="group" aria-label="主要操作">
       <div class="tb-title">
         <span class="logo">md</span>
         <span>RyuuMD</span>
       </div>
       <!-- 图标放在 .ib-icon（data-icon 注入目标）里，文字放 .ib-label，互不覆盖 -->
-      <button class="icon-btn" id="btn-home" title="首页 (Ctrl+Shift+H)" aria-label="首页"><span class="ib-icon" data-icon="home"></span><span class="ib-label">首页</span></button>
-      <button class="icon-btn" id="btn-sidebar" title="切换侧栏 (Ctrl+Shift+B)" aria-label="切换侧栏"><span class="ib-icon" data-icon="sidebar"></span><span class="ib-label">侧栏</span></button>
-      <button class="icon-btn tb-chrome-hide" id="btn-open-folder" title="打开文件夹" aria-label="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
-      <button class="icon-btn tb-chrome-hide" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
-      <button class="icon-btn tb-chrome-hide" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
-      <button class="icon-btn tb-chrome-hide" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
-      <button class="icon-btn workdir-only" id="btn-push-source" title="保存至源文件 (Ctrl+Shift+S)" aria-label="保存至源文件"><span class="ib-icon" data-icon="upload"></span><span class="ib-label">保存至源</span></button>
-      <button class="icon-btn workdir-only" id="btn-merge-source" title="合并源文件" aria-label="合并源文件"><span class="ib-icon" data-icon="gitMerge"></span><span class="ib-label">合并源</span></button>
-      <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
-      <button class="icon-btn" id="btn-ai" title="AI 侧栏" aria-label="AI 侧栏" aria-expanded="false"><span class="ib-icon" data-icon="sparkles"></span><span class="ib-label">AI</span></button>
-      <button class="icon-btn tb-chrome-hide" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
-      <button class="icon-btn tb-chrome-hide" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
+      <div class="tb-group tb-navigation" role="group" aria-label="工作区导航">
+        <button class="icon-btn" id="btn-home" title="首页 (Ctrl+Shift+H)" aria-label="首页"><span class="ib-icon" data-icon="home"></span><span class="ib-label">首页</span></button>
+        <button class="icon-btn" id="btn-sidebar" title="切换侧栏 (Ctrl+Shift+B)" aria-label="切换侧栏"><span class="ib-icon" data-icon="sidebar"></span><span class="ib-label">侧栏</span></button>
+      </div>
+      <div class="tb-group tb-document-actions" role="group" aria-label="文档操作">
+        <button class="icon-btn tb-chrome-hide" id="btn-open-folder" title="打开文件夹" aria-label="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
+        <button class="icon-btn tb-chrome-hide" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
+        <button class="icon-btn tb-chrome-hide" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
+        <button class="icon-btn tb-chrome-hide" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
+        <button class="icon-btn workdir-only" id="btn-push-source" title="保存至源文件 (Ctrl+Shift+S)" aria-label="保存至源文件"><span class="ib-icon" data-icon="upload"></span><span class="ib-label">保存至源</span></button>
+        <button class="icon-btn workdir-only" id="btn-merge-source" title="合并源文件" aria-label="合并源文件"><span class="ib-icon" data-icon="gitMerge"></span><span class="ib-label">合并源</span></button>
+      </div>
+      <div class="tb-group tb-tools" role="group" aria-label="工具">
+        <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
+        <button class="icon-btn" id="btn-ai" title="AI 侧栏" aria-label="AI 侧栏" aria-expanded="false"><span class="ib-icon" data-icon="sparkles"></span><span class="ib-label">AI</span></button>
+        <button class="icon-btn tb-chrome-hide" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
+        <button class="icon-btn tb-chrome-hide" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
+      </div>
 
       <div class="tb-spacer"></div>
 
@@ -218,6 +224,19 @@
             </div>
           </header>
 
+          <section class="home-section" id="home-recent-section">
+            <div class="home-sec-head">
+              <h2><span data-icon="clock"></span>最近打开</h2>
+              <div class="home-sec-spacer"></div>
+              <button class="btn btn--text" id="home-clear-recent">清空</button>
+            </div>
+            <div id="home-recent" class="home-recent"></div>
+            <div class="home-empty home-recent-empty" id="home-recent-empty" style="display:none">
+              <span>还没有最近打开的文档</span>
+              <span class="home-empty-hint">从文件或仓库开始，最近使用的内容会留在这里。</span>
+            </div>
+          </section>
+
           <section class="home-section">
             <div class="home-sec-head">
               <h2><span data-icon="books"></span>我的仓库 <span class="home-sec-count" id="repo-count"></span></h2>
@@ -241,16 +260,6 @@
               还没有仓库。仓库是你的笔记目录，添加后可在首页一键切换。<br />
               <button class="btn btn--primary" id="repo-empty-add">添加第一个仓库</button>
             </div>
-          </section>
-
-          <section class="home-section">
-            <div class="home-sec-head">
-              <h2><span data-icon="clock"></span>最近打开</h2>
-              <div class="home-sec-spacer"></div>
-              <button class="btn btn--text" id="home-clear-recent">清空</button>
-            </div>
-            <div id="home-recent" class="home-recent"></div>
-            <div class="home-empty" id="home-recent-empty" style="display:none">最近打开的文件和文件夹会显示在这里</div>
           </section>
 
           <section class="home-section" id="home-scratch-sec">
