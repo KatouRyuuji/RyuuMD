@@ -7,6 +7,8 @@
   <style>
     html:not([data-chrome-ready]),
     html:not([data-chrome-ready]) body { background: transparent; }
+    /* 首屏揭示淡入：无过渡时 0→1 瞬时跳变是「首启闪一下」的来源 */
+    #app { transition: opacity 0.18s ease; }
     html:not([data-ui-ready]) #app { opacity: 0; }
   </style>
   <script>
@@ -95,13 +97,15 @@
       <div class="tb-group tb-document-actions" role="group" aria-label="文档操作">
         <button class="icon-btn tb-chrome-hide" id="btn-open-folder" title="打开文件夹" aria-label="打开文件夹"><span class="ib-icon" data-icon="folder"></span><span class="ib-label">打开文件夹</span></button>
         <button class="icon-btn tb-chrome-hide" id="btn-open-file" title="打开文件 (Ctrl+O)" aria-label="打开文件"><span class="ib-icon" data-icon="file"></span><span class="ib-label">打开文件</span></button>
-        <button class="icon-btn tb-chrome-hide" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
+        <button class="icon-btn" id="btn-new" title="新建 (Ctrl+N)" aria-label="新建"><span class="ib-icon" data-icon="plus"></span><span class="ib-label">新建</span></button>
+        <button class="icon-btn btn-new-more" id="btn-new-more" title="更多新建方式" aria-label="更多新建方式" aria-haspopup="menu" aria-expanded="false"><span class="ib-icon" data-icon="chevronDown"></span></button>
         <button class="icon-btn tb-chrome-hide" id="btn-save" title="保存 (Ctrl+S)" aria-label="保存"><span class="ib-icon" data-icon="save"></span><span class="ib-label">保存</span></button>
         <button class="icon-btn workdir-only" id="btn-push-source" title="保存至源文件 (Ctrl+Shift+S)" aria-label="保存至源文件"><span class="ib-icon" data-icon="upload"></span><span class="ib-label">保存至源</span></button>
         <button class="icon-btn workdir-only" id="btn-merge-source" title="合并源文件" aria-label="合并源文件"><span class="ib-icon" data-icon="gitMerge"></span><span class="ib-label">合并源</span></button>
       </div>
       <div class="tb-group tb-tools" role="group" aria-label="工具">
         <button class="icon-btn" id="btn-search" title="搜索 (Ctrl+Shift+F)" aria-label="搜索"><span class="ib-icon" data-icon="search"></span><span class="ib-label">搜索</span></button>
+        <button class="icon-btn" id="btn-commands" title="命令面板 (Ctrl+Shift+P)" aria-label="命令面板"><span class="ib-icon" data-icon="command"></span><span class="ib-label">命令</span></button>
         <button class="icon-btn" id="btn-ai" title="AI 侧栏" aria-label="AI 侧栏" aria-expanded="false"><span class="ib-icon" data-icon="sparkles"></span><span class="ib-label">AI</span></button>
         <button class="icon-btn tb-chrome-hide" id="btn-new-window" title="打开新窗口" aria-label="打开新窗口"><span class="ib-icon" data-icon="newWindow"></span><span class="ib-label">新窗口</span></button>
         <button class="icon-btn tb-chrome-hide" id="btn-reveal" title="在资源管理器中打开当前文件所在目录" aria-label="在资源管理器中打开当前文件所在目录"><span class="ib-icon" data-icon="folderOpen"></span><span class="ib-label">所在目录</span></button>
@@ -280,6 +284,8 @@
 
   <!-- 文件树右键菜单（重命名/移动/删除等真实文件操作） -->
   <div id="tree-menu"></div>
+  <!-- 工具栏「新建」下拉（新建文件 / 在当前文件夹 / 在当前仓库） -->
+  <div id="new-menu"></div>
 
   <!-- 拖放提示 -->
   <div id="drop-hint"><div class="inner">松开以打开 Markdown 文件或文件夹</div></div>

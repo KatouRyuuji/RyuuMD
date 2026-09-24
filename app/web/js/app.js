@@ -720,6 +720,11 @@
     if (!state.config || state.config.auto_save === false) return;
     if (!state.currentPath || !state.dirty) return;
     autoSaveTimer = setTimeout(() => {
+      // 组词期顺延：此刻 getValue 会把未上屏的拼音序列化进磁盘文件
+      if (window.Editor && window.Editor.isComposing && window.Editor.isComposing()) {
+        scheduleAutoSave();
+        return;
+      }
       if (state.dirty && state.currentPath) save({ silent: true });
     }, 1800);
   }
@@ -880,6 +885,80 @@
   // ---------------------------------------------------------------
   // 工具栏 / 快捷键
   // ---------------------------------------------------------------
+  /* 「新建」下拉：主按钮（btn-new）新建未命名文档；下拉提供直接落盘的
+     在当前文件夹 / 当前仓库新建。菜单结构与文件树右键菜单（.ctx-item）同构。 */
+  function bindNewMenu() {
+    const btn = document.getElementById("btn-new-more");
+    const menu = document.getElementById("new-menu");
+    if (!btn || !menu) return;
+    const ITEMS = [
+      { act: "doc", label: "新建文件", icon: "plus", run: () => newDoc() },
+      { act: "here", label: "在当前文件夹中新建文件", icon: "file", run: () => newNoteBeside() },
+      { act: "vault", label: "在当前仓库中新建文件", icon: "folderOpen", run: () => newNoteInFolder(state.currentFolder) },
+    ];
+    let opened = false;
+    function close() {
+      if (!opened) return;
+      opened = false;
+      menu.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+      btn.focus();
+    }
+    function openMenu() {
+      opened = true;
+      menu.innerHTML = '<div class="slash-group-label">新建</div>' + ITEMS.map((it) =>
+        `<button type="button" role="menuitem" class="ctx-item" data-act="${it.act}">` +
+        `<span class="ci-icon">${window.ICONS[it.icon]}</span>` +
+        `<span class="ci-title">${it.label}</span></button>`
+      ).join("");
+      menu.classList.add("open");
+      menu.setAttribute("role", "menu");
+      const r = btn.getBoundingClientRect();
+      const mw = menu.offsetWidth || 220;
+      const x = Math.min(r.left, window.innerWidth - mw - 8);
+      menu.style.left = Math.max(8, x) + "px";
+      menu.style.top = (r.bottom + 4) + "px";
+      btn.setAttribute("aria-expanded", "true");
+      const first = menu.querySelector("[role=menuitem]");
+      if (first) first.focus();
+    }
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (opened) close(); else openMenu();
+    });
+    menu.addEventListener("click", (e) => {
+      const item = e.target.closest(".ctx-item");
+      if (!item) return;
+      const it = ITEMS.find((x) => x.act === item.dataset.act);
+      close();
+      if (it) it.run();
+    });
+    menu.addEventListener("keydown", (e) => {
+      const items = Array.from(menu.querySelectorAll("[role=menuitem]"));
+      const idx = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const d = e.key === "ArrowDown" ? 1 : -1;
+        items[(idx + d + items.length) % items.length]?.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+      }
+    });
+    document.addEventListener("click", (e) => {
+      if (opened && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) close();
+    });
+    // 捕获阶段拦 Esc：不让全局 Esc（关首页等）抢先
+    document.addEventListener("keydown", (e) => {
+      if (opened && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    }, true);
+    window.addEventListener("resize", () => { if (opened) close(); });
+  }
+
   function bindToolbar() {
     on("btn-home", () => toggleHome());
     on("btn-sidebar", () => {
@@ -888,6 +967,8 @@
     on("btn-open-folder", openFolder);
     on("btn-open-file", openFile);
     on("btn-new", newDoc);
+    on("btn-commands", () => { refreshTemplates(); window.Palette.openCommands(); });
+    bindNewMenu();
     on("btn-save", save);
     on("sb-save", save);
     on("btn-push-source", () => pushCurrentToSource());
@@ -1521,6 +1602,10 @@
     const mode = theme === "dark" ? "dark" : "light";
     const palette = currentPalette();
     const root = document.documentElement;
+    // 翻转瞬间禁掉控件级过渡（button/input 等 180ms）：背景秒变、按钮慢淡
+    // 会逐格扫过屏幕，观感即「闪」。240ms 窗口覆盖最长的控件过渡。
+    root.setAttribute("data-theme-flip", "");
+    setTimeout(() => root.removeAttribute("data-theme-flip"), 240);
     root.setAttribute("data-lang", "a");
     root.setAttribute("data-theme", mode);
     root.setAttribute("data-palette", palette);

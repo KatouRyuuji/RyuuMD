@@ -331,13 +331,14 @@ CASES = [
 
     dict(name="T02 工具栏按钮均有中文文字", sleep=0,
          js=("(function(){var ids=['btn-home','btn-sidebar','btn-open-folder','btn-open-file',"
-             "'btn-new','btn-save','btn-push-source','btn-merge-source','btn-search','btn-ai','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
+             "'btn-new','btn-new-more','btn-save','btn-push-source','btn-merge-source','btn-search','btn-commands','btn-ai','btn-new-window','btn-reveal','btn-theme','btn-settings'];"
              "var bs=document.querySelectorAll('#toolbar .icon-btn');"
              "if(bs.length!==ids.length)return 'count='+bs.length;"
              "for(var i=0;i<ids.length;i++){"
              "var b=document.getElementById(ids[i]);"
              "if(!b)return 'missing '+ids[i];"
              "var l=b.querySelector('.ib-label');"
+             "if(ids[i]==='btn-new-more'){if(!b.getAttribute('aria-label'))return 'aria btn-new-more';continue;}"
              "if(!l||!l.textContent.trim())return 'label '+ids[i];}"
              "return true;})()")),
 
@@ -1694,7 +1695,7 @@ CASES = [
          setup="window.Home.show()",
          sleep=0.4,
          js=("(function(){"
-             "var hid=['btn-sidebar','btn-save','btn-push-source','btn-merge-source','btn-ai','btn-reveal','btn-open-folder','btn-new'];"
+             "var hid=['btn-sidebar','btn-save','btn-push-source','btn-merge-source','btn-ai','btn-reveal','btn-open-folder','btn-new','btn-new-more'];"
              "for(var i=0;i<hid.length;i++){"
              "var b=document.getElementById(hid[i]);"
              "if(getComputedStyle(b).display!=='none')return 'shown on home:'+hid[i];}"
@@ -1703,7 +1704,7 @@ CASES = [
          setup2="window.Home.hide()",
          sleep2=0.4,
          js2=("(function(){"
-              "var ids=['btn-sidebar','btn-ai'];"
+              "var ids=['btn-sidebar','btn-ai','btn-new','btn-new-more','btn-commands'];"
               "for(var i=0;i<ids.length;i++){"
               "var b=document.getElementById(ids[i]);"
               "if(getComputedStyle(b).display==='none')return 'hidden on editor:'+ids[i];}"
@@ -3179,6 +3180,25 @@ for _case_id, _title, _filename, _target in [
         js3="document.getElementById('doc-name').textContent.indexOf(" + JV(_filename) + ")>=0",
         py=lambda api, ev, dest=_target / _filename: dest.is_file() or 'wrong creation directory',
     ))
+
+# 工具栏「新建」下拉：可见入口回归（主按钮 + 三条落盘命令）
+CASES.append(dict(
+    name='T162 新建下拉:按钮开菜单并走「在当前文件夹中新建文件」',
+    setup=("(async function(){await window.App.openPath(" + JV(str(REPO_DIR / 'sub' / 'note.md')) + ");"
+           "window.Home.hide();"
+           "document.getElementById('btn-new-more').click();})();"),
+    sleep=0.3,
+    js=("document.getElementById('new-menu').classList.contains('open')"
+        "&&document.querySelectorAll('#new-menu .ctx-item').length===3"
+        "&&document.getElementById('btn-new-more').getAttribute('aria-expanded')==='true'"),
+    setup2=("document.querySelector('#new-menu .ctx-item[data-act=here]').click();"),
+    sleep2=0.4,
+    js2=("!document.getElementById('new-menu').classList.contains('open')"
+         "&&document.getElementById('input-modal-mask').classList.contains('open')"),
+    setup3="document.getElementById('pm-cancel').click();",
+    sleep3=0.3,
+    js3="!document.getElementById('input-modal-mask').classList.contains('open')",
+))
 
 # 执行器
 # ----------------------------------------------------------------------------

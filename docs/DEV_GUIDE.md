@@ -301,8 +301,8 @@ python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他
 ## 7. 打包发布
 
 ```bash
-build.bat            # Windows onefile（默认）
-build.bat onedir     # Windows onedir
+build.bat            # Windows onedir（默认，启动快）
+build.bat onefile    # Windows onefile（便携分发）
 bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同脚本）
 ```
 

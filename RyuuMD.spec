@@ -18,7 +18,9 @@ a = Analysis(
     hiddenimports=['webview.platforms.edgechromium'] + collect_submodules('app.core'),
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    # cryptography 由 webview 包静态引用但运行时惰性 import 且本应用永不触发
+    # （已验证 import webview/platforms 后 sys.modules 无它）；排除省约 15MB 解压/扫描
+    excludes=['cryptography'],
     cipher=block_cipher,
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)

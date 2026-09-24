@@ -361,6 +361,9 @@
      （此前这些键会穿透菜单直接插入编辑器，属于盲打） */
   function onKeydown(e) {
     if (!open) return;
+    // IME 组词期不拦截：context/wiki 模式的过滤与 Enter 上屏都必须等组词结束，
+    // 否则拼音会被当作过滤词或触发组词期 insertValue（中文+拼音双份）
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.__menuHandled) return;
     if (mode === "context" && !e.ctrlKey && !e.altKey && !e.metaKey &&
       (e.key.length === 1 || e.key === "Backspace")) {

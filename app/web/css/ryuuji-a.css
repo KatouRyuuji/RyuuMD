@@ -174,6 +174,22 @@ html[data-theme="dark"] .tb-title .logo {
   display: none;
 }
 
+/* 主题翻转瞬间全局禁过渡：button/input 等控件带 180ms 过渡，背景秒变而
+   控件慢淡会逐格扫过（切换闪烁来源之一）。窗口期由 app.js applyTheme 控制。 */
+html[data-theme-flip] *,
+html[data-theme-flip] *::before,
+html[data-theme-flip] *::after { transition: none !important; }
+
+/* 新建 split 按钮：主钮与下拉触发器拼合（下拉触发器无文字，窄化） */
+#toolbar #btn-new { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+#toolbar #btn-new-more {
+  margin-left: -3px;
+  padding: 0 5px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+#toolbar #btn-new-more .ib-icon svg { width: 12px; height: 12px; }
+
 .icon-btn:hover {
   border-color: transparent;
   background: var(--surface-hover);
@@ -1310,6 +1326,7 @@ html[data-lang="a"] .mode-opt code {
 
 #slash-menu,
 #tree-menu,
+#new-menu,
 .vditor-hint {
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-lg);
@@ -1318,7 +1335,8 @@ html[data-lang="a"] .mode-opt code {
 }
 
 #slash-menu,
-#tree-menu {
+#tree-menu,
+#new-menu {
   padding: 5px;
 }
 

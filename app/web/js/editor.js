@@ -32,6 +32,27 @@
   let outlineRaf = 0;
   let outlineScrollBound = false;
   let docVer = 0;          // 文档版本：setValue / 真实输入递增，Blocks 树缓存的失效依据
+  let composing = false;   // IME 组词中：此期间任何延迟任务都不得写编辑器 DOM
+                           // （重写节点会摧毁 composition 上下文，WebView2 下表现为
+                           // 中文与拼音双份落文）
+  let deferEnhance = false; // 组词期被跳过的 DOM 增强，compositionend 后补跑
+
+  /* 组词闸：compositionstart/end 挂 #editor 宿主（事件冒泡，实例重建免疫）；
+     组词结束后补跑被推迟的大纲/渲染增强。 */
+  function bindImeGuard() {
+    const host = document.getElementById("editor");
+    if (!host || host.__ryuuIme) return;
+    host.__ryuuIme = true;
+    host.addEventListener("compositionstart", () => { composing = true; });
+    host.addEventListener("compositionend", () => {
+      composing = false;
+      if (deferEnhance) {
+        deferEnhance = false;
+        updateOutline();
+        enhanceRendered();
+      }
+    });
+  }
 
   /* Vditor 默认 flowchart.htmlLabels=true：测量用 foreignObject 会继承编辑区
      width（约 980px），每个节点被当成近千像素，viewBox 变成 2000×2000，
@@ -150,6 +171,7 @@
       }
       bindCheckboxGuard();
       bindEditorClicks();
+      bindImeGuard();
       bindMermaidFit();
       fitAllMermaid(document.getElementById("editor"));
       if (onReady) onReady();
@@ -343,6 +365,8 @@
       noteSize(v.length);
       // 把取到的值传给消费方，避免各处再各自 getValue 重复序列化
       if (onChange) onChange(v);
+      // 组词期跳过写编辑器 DOM 的部分（大纲 id、双链/媒体重写）
+      if (composing) { deferEnhance = true; return; }
       updateOutline(v);
       enhanceRendered();
     }, changeDelay);
@@ -364,33 +388,72 @@
 
   /* 主题切换后按新主题重渲染 mermaid 图。
      渲染产物是 svg；图源码在代码块的 pre 兄弟节点里（```mermaid 围栏行在 pre
-     之外的 marker span，pre.textContent 即纯源码——实测取证）。把源码写回预览
-     节点、清掉已渲染标记，再走 Vditor 自带渲染管线；结构对不上时跳过该图
-     （下次输入会按新主题自然重渲染），不影响编辑。 */
+     之外的 marker span，pre.textContent 即纯源码——实测取证）。
+     双缓冲：源码放进离屏节点走 Vditor 渲染管线，单图渲染完成（Vditor 回写
+     data-processed）即替换原位节点 innerHTML——旧实现先清空原位节点再重渲，
+     图越多「消失→重排」的切换闪烁越明显。超时未完成的图回退为原地重渲。 */
   function rerenderMermaid() {
     if (curMode !== "ir" || !window.Vditor || !Vditor.mermaidRender) return;
     const el = activePanel();
     if (!el) return;
-    let dirty = false;
+    const jobs = [];
     el.querySelectorAll(".vditor-ir__preview").forEach((pv) => {
       const inner = pv.querySelector(".language-mermaid");
       if (!inner || inner.getAttribute("data-processed") !== "true") return;
       const pre = pv.previousElementSibling;
       if (!pre) return;
-      let src = (pre.textContent || "").replace(/\u200B/g, "");
+      let src = (pre.textContent || "").replace(/​/g, "");
       // 结构变体兜底：若 pre 里仍带 ``` 围栏行则剥掉
       const fenced = src.match(/^\s*```[^\n]*\n([\s\S]*?)\n?```\s*$/);
       if (fenced) src = fenced[1];
       if (!src.trim()) return;
-      inner.textContent = src;
-      inner.removeAttribute("data-processed");
-      dirty = true;
+      const clone = document.createElement("div");
+      clone.className = inner.className;
+      clone.textContent = src;
+      jobs.push({ inner, src, clone, done: false });
     });
-    if (dirty) {
-      try { Vditor.mermaidRender(el, "vendor/vditor", curTheme); } catch (e) { /* ignore */ }
-      setTimeout(() => fitAllMermaid(el), 80);
-      setTimeout(() => fitAllMermaid(el), 400);
-    }
+    if (!jobs.length) return;
+    const off = document.createElement("div");
+    off.style.cssText = "position:fixed;left:-99999px;top:0;width:960px;visibility:hidden;";
+    off.setAttribute("aria-hidden", "true");
+    jobs.forEach((j) => off.appendChild(j.clone));
+    document.body.appendChild(off);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      obs.disconnect();
+      off.remove();
+      fitAllMermaid(el);
+      // 超时未完成的图回退原地重渲（旧路径）
+      const leftover = jobs.filter((j) => !j.done);
+      if (leftover.length) {
+        leftover.forEach(({ inner, src }) => {
+          if (!inner.isConnected) return;
+          inner.textContent = src;
+          inner.removeAttribute("data-processed");
+        });
+        try { Vditor.mermaidRender(el, "vendor/vditor", curTheme); } catch (e) { /* ignore */ }
+        setTimeout(() => fitAllMermaid(el), 80);
+        setTimeout(() => fitAllMermaid(el), 400);
+      }
+    };
+    const obs = new MutationObserver(() => {
+      jobs.forEach((j) => {
+        if (j.done) return;
+        if (j.clone.getAttribute("data-processed") === "true" && j.clone.querySelector("svg")) {
+          j.done = true;
+          if (j.inner.isConnected) {
+            j.inner.innerHTML = j.clone.innerHTML;
+            j.inner.setAttribute("data-processed", "true");
+          }
+        }
+      });
+      if (jobs.every((j) => j.done)) finish();
+    });
+    obs.observe(off, { attributes: true, childList: true, subtree: true });
+    try { Vditor.mermaidRender(off, "vendor/vditor", curTheme); } catch (e) { /* ignore */ }
+    setTimeout(finish, 1500);
   }
 
   function getValue() {
@@ -467,7 +530,8 @@
       outlineHeadingNodes = Array.from(el.querySelectorAll("h1,h2,h3,h4,h5,h6"));
       outlineHeadingNodes.forEach((h, i) => {
         const id = "ryuu-h-" + i;
-        h.setAttribute("data-ryuu-id", id);
+        // 值相同不重写：setAttribute 即使同值也产生 mutation，稳态零扰动
+        if (h.getAttribute("data-ryuu-id") !== id) h.setAttribute("data-ryuu-id", id);
         // textContent 会带上 IR 标记 span 的 "# " 前缀，剔除后再进大纲
         const text = h.textContent.trim().replace(/^#{1,6}\s+/, "");
         list.push({ id, level: parseInt(h.tagName[1], 10), text });
@@ -805,6 +869,7 @@
     focus,
     docVersion: () => docVer,
     isReady: () => ready,
+    isComposing: () => composing,
     enhanceRendered,
     refreshOutline: () => updateOutline(),
     _iv: () => vditor, // 测试/调试探针：撤销栈等内部状态取证用

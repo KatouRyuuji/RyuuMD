@@ -71,8 +71,8 @@ python main.py
 一键打包（自动结束运行中的 RyuuMD + 装依赖 + 单测门禁 + 清理 + 构建；单测不过会中止），两种模式：
 
 ```bash
-build.bat                    REM 单文件 onefile（默认）
-build.bat onedir             REM 单文件夹 onedir
+build.bat                    REM 单文件夹 onedir（默认，启动快）
+build.bat onefile            REM 单文件 onefile（便携分发）
 build.bat onefile nopause    REM 脚本/CI 调用：结尾不等按键（或设 RYUUMD_NOPAUSE=1）
 ```
 
@@ -86,8 +86,8 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 
 | 模式 | 产物 | 体积 | 启动 | 适用 |
 | --- | --- | --- | --- | --- |
-| onefile（`build.bat` 默认） | `dist/RyuuMD.exe`（单个文件） | 约 42 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
-| onedir | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 85 MB | 快 | 整目录拷贝分发 |
+| onefile | `dist/RyuuMD.exe`（单个文件） | 约 42 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
+| onedir（`build.bat` 默认） | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 85 MB | 快 | 整目录拷贝分发 |
 
 两种产物互不覆盖，可同时存在于 `dist/`。
 

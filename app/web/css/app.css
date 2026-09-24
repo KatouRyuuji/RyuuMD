@@ -109,6 +109,8 @@ body {
 
 /* 工具栏按钮显隐与界面状态强相关：首页只留全局动作；无文档不给「所在目录」 */
 body.is-home #btn-sidebar,
+body.is-home #btn-new,
+body.is-home #btn-new-more,
 body.is-home #btn-save,
 body.is-home #btn-push-source,
 body.is-home #btn-merge-source,
@@ -1457,7 +1459,8 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 /* ============================================================
    文件树右键菜单（重命名 / 移动 / 删除真实文件）
    ============================================================ */
-#tree-menu {
+#tree-menu,
+#new-menu {
   position: fixed;
   z-index: 5000;
   min-width: 190px;
@@ -1469,7 +1472,8 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   display: none;
   animation: pop var(--sys-dur-2) var(--sys-ease-smooth);
 }
-#tree-menu.open { display: block; }
+#tree-menu.open,
+#new-menu.open { display: block; }
 .ctx-item {
   display: flex;
   align-items: center;

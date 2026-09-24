@@ -7,6 +7,18 @@
 
 :root {
   --quote-emoji: "\2728"; /* ✨ */
+  /* 亮色代码高亮：GitHub 系固定值（与 hljs github 主题一致，内容区语法色不随色板） */
+  --code-keyword: #d73a49;
+  --code-variable: #005cc5;
+  --code-function: #6f42c1;
+  --code-param: #24292e;
+  --code-string: #032f62;
+  --code-comment: #6a737d;
+  --code-type: #005cc5;
+  --code-property: #005cc5;
+  --code-number: #005cc5;
+  --code-meta: #005cc5;
+  --code-selected-bg: #e5f0fb;
 }
 :root[data-theme="dark"] {
   --quote-emoji: "\1F319"; /* 🌙 */
@@ -401,55 +413,56 @@
   color: var(--el-deep) !important;
 }
 
-/* 暗色代码高亮：用 palette 的 --code-* 盖过 Vditor 注入的 github-dark */
-:root[data-theme="dark"] .vditor-reset .hljs-keyword,
-:root[data-theme="dark"] .vditor-reset .hljs-selector-tag,
-:root[data-theme="dark"] .vditor-reset .hljs-built_in,
-:root[data-theme="dark"] .vditor-reset .hljs-name,
-:root[data-theme="dark"] .vditor-reset .hljs-tag {
+/* 代码高亮（明暗同构）：用 --code-* 盖过 Vditor 注入的 hljs 主题。
+   两主题都盖后，主题切换时 hljs link 的「先卸后装」间隙不再有视觉表现 */
+.vditor-reset .hljs-keyword,
+.vditor-reset .hljs-selector-tag,
+.vditor-reset .hljs-built_in,
+.vditor-reset .hljs-name,
+.vditor-reset .hljs-tag {
   color: var(--code-keyword) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-variable,
-:root[data-theme="dark"] .vditor-reset .hljs-template-variable {
+.vditor-reset .hljs-variable,
+.vditor-reset .hljs-template-variable {
   color: var(--code-variable) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-title,
-:root[data-theme="dark"] .vditor-reset .hljs-section,
-:root[data-theme="dark"] .vditor-reset .hljs-title.function_ {
+.vditor-reset .hljs-title,
+.vditor-reset .hljs-section,
+.vditor-reset .hljs-title.function_ {
   color: var(--code-function) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-params {
+.vditor-reset .hljs-params {
   color: var(--code-param) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-string,
-:root[data-theme="dark"] .vditor-reset .hljs-addition {
+.vditor-reset .hljs-string,
+.vditor-reset .hljs-addition {
   color: var(--code-string) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-comment,
-:root[data-theme="dark"] .vditor-reset .hljs-quote {
+.vditor-reset .hljs-comment,
+.vditor-reset .hljs-quote {
   color: var(--code-comment) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-type,
-:root[data-theme="dark"] .vditor-reset .hljs-class .hljs-title,
-:root[data-theme="dark"] .vditor-reset .hljs-selector-class {
+.vditor-reset .hljs-type,
+.vditor-reset .hljs-class .hljs-title,
+.vditor-reset .hljs-selector-class {
   color: var(--code-type) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-attr,
-:root[data-theme="dark"] .vditor-reset .hljs-attribute,
-:root[data-theme="dark"] .vditor-reset .hljs-property {
+.vditor-reset .hljs-attr,
+.vditor-reset .hljs-attribute,
+.vditor-reset .hljs-property {
   color: var(--code-property) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-number,
-:root[data-theme="dark"] .vditor-reset .hljs-literal {
+.vditor-reset .hljs-number,
+.vditor-reset .hljs-literal {
   color: var(--code-number) !important;
 }
-:root[data-theme="dark"] .vditor-reset .hljs-meta,
-:root[data-theme="dark"] .vditor-reset .hljs-meta-keyword,
-:root[data-theme="dark"] .vditor-reset .hljs-doctag {
+.vditor-reset .hljs-meta,
+.vditor-reset .hljs-meta-keyword,
+.vditor-reset .hljs-doctag {
   color: var(--code-meta) !important;
 }
-:root[data-theme="dark"] .vditor-reset code.hljs::selection,
-:root[data-theme="dark"] .vditor-reset code.hljs *::selection {
+.vditor-reset code.hljs::selection,
+.vditor-reset code.hljs *::selection {
   background: var(--code-selected-bg) !important;
 }
 

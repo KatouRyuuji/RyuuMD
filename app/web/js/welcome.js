@@ -195,10 +195,28 @@
     mask.querySelectorAll(".mode-opt").forEach((o) =>
       o.classList.toggle("selected", o.dataset.mode === chosenEdit)
     );
-    mask.classList.add("open");
+    // 首启时 #app 还在显示闸门（data-ui-ready）内：等闸门放开再开遮罩，
+    // 否则先见「压暗空窗+弹窗」、后主界面硬弹的两段式闪烁
+    const openMask = () => {
+      mask.classList.add("open");
+      const start = document.getElementById("welcome-start");
+      if (start) start.focus();
+    };
+    const root = document.documentElement;
+    if (root.hasAttribute("data-ui-ready")) {
+      openMask();
+    } else {
+      const mo = new MutationObserver(() => {
+        if (root.hasAttribute("data-ui-ready")) {
+          mo.disconnect();
+          openMask();
+        }
+      });
+      mo.observe(root, { attributes: true, attributeFilter: ["data-ui-ready"] });
+      // 兜底：闸门异常时也照常打开（4s 字体超时后必放开，双保险）
+      setTimeout(() => { mo.disconnect(); openMask(); }, 4500);
+    }
     if (window.App && window.App.registerEscape) window.App.registerEscape(close);
-    const start = document.getElementById("welcome-start");
-    if (start) start.focus();
     return new Promise((res) => (resolveFn = res));
   }
 

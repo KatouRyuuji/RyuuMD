@@ -2,9 +2,9 @@
 chcp 65001 >NUL
 cd /d "%~dp0"
 
-REM ---- 选择模式: onefile(默认) | onedir ----
+REM ---- 选择模式: onedir(默认) | onefile ----
 set "MODE=%~1"
-if "%MODE%"=="" set "MODE=onefile"
+if "%MODE%"=="" set "MODE=onedir"
 
 REM ---- 跳过 pause: 第二参数 nopause 或环境变量 RYUUMD_NOPAUSE=1（脚本/CI 调用） ----
 set "NOPAUSE="
@@ -15,8 +15,8 @@ if /i "%MODE%"=="onefile" goto :onefile
 if /i "%MODE%"=="onedir" goto :onedir
 echo [错误] 未知模式 "%MODE%"
 echo 用法: build.bat [onefile^|onedir] [nopause]
-echo   onefile  (默认) 单文件 exe，便于分发，产物在 dist\RyuuMD.exe
-echo   onedir           单文件夹，启动快，产物在 dist\RyuuMD\
+echo   onedir  (默认) 单文件夹，启动快（免每次解压约百 MB），产物在 dist\RyuuMD\
+echo   onefile        单文件 exe，便于分发，产物在 dist\RyuuMD.exe
 echo   nopause          结束时不暂停，供脚本/CI 用，也可设 RYUUMD_NOPAUSE=1
 call :maybe_pause
 exit /b 1
