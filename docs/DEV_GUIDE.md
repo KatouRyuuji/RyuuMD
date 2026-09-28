@@ -33,7 +33,7 @@ app/core/
   webdav.py                 轻量 WebDAV（PROPFIND/GET/PUT/MKCOL，仅标准库）
   cloud_sync.py             可选云同步引擎：门闩 + 三路比对 + 冲突副本
   workdir.py                仓库工作副本（edit_mode=workdir）
-  adv.py                    CLI / TUI / MCP / AISkill，与 AI 共用 invoke_tool
+  adv.py                    CLI / TUI / MCP / AISkill：命令表驱动 CLI、stdio JSON-RPC、工具表（JSON Schema）、exe stdio 重建，与 AI 共用 invoke_tool
   im.py                     六家 IM 通道载荷（feishu/popo/dingtalk/wecom/wechat/qq）
   palette_css.py            从 palettes.css 解析导出 HTML 用色值
 app/web/
@@ -315,6 +315,28 @@ bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同
 - 若引入新的动态 import → 加 `hiddenimports`（Mac 为 `webview.platforms.cocoa`）；
 - 发布前过一遍 `docs/TEST_PLAN.md` 手动清单（含多窗口/关联/拖放真实操作）。
 - GitHub Actions：`.github/workflows/macos-pack.yml`，`v*` tag 或手动触发；产物未公证。
+
+### 7.0 windowed 子系统与 stdio 重建
+
+两个 Windows spec 均 `console=False`（GUI 不能带控制台窗口），但 exe 同时是 CLI/MCP 入口。
+windowed 模式下 `sys.stdout/sys.stderr` 是 NullWriter、`sys.stdin` 是 None，输出会被吞掉。
+`adv.ensure_stdio()` 在 CLI/MCP 分支最前重建标准流，顺序：
+
+1. 已好的流不动（先探测，`fileno()` 可调用即好）；
+2. `GetStdHandle(STD_*)` 有效（管道/重定向场景，如 Claude Code spawn MCP）→ `msvcrt.open_osfhandle` 重建，固定 UTF-8 + `newline="\n"`（MCP 协议硬要求）；
+3. 无效 → `AttachConsole(ATTACH_PARENT_PROCESS)` 挂到父控制台后 `CreateFileW("CONOUT$"/"CONIN$")`（注意：AttachConsole **不更新**进程标准句柄，必须显式开 CON 设备），编码随 `GetConsoleOutputCP`（65001→utf-8，否则 mbcs+replace）；
+4. 都失败 → 保持静默降级（Explorer 带参启动场景），退出码仍有效。
+
+细节：stdout/stderr 同句柄（`2>&1`）共用一个 wrapper，防 double CloseHandle；fd 包装后立即赋给 `sys.*` 保持引用。
+已知限制：cmd 不会等待窗口子系统程序，AttachConsole 后的输出可能与提示符交错（平台固有，文档化于 README「命令行与 MCP」）。
+
+手工验证（打包后）：
+
+```bash
+dist/RyuuMD.exe read note.md > out.txt    # 管道分支（UTF-8）
+dist/RyuuMD.exe vaults                    # AttachConsole 分支
+dist/RyuuMD.exe mcp --print-config        # 客户端配置
+```
 
 ### 7.1 打包指纹
 

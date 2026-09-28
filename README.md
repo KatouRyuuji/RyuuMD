@@ -114,6 +114,35 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 bash build-mac.sh
 ```
 
+## 命令行与 MCP
+
+无参数时启动 GUI；首参数是命令名时走命令行（源码运行把 `RyuuMD` 换成 `python main.py`）：
+
+```bash
+RyuuMD read <path>                              # 读取笔记正文
+RyuuMD write <path> [--content TEXT]            # 写入笔记（无 --content 时读 stdin）
+RyuuMD ls <path>                                # 列出目录下的笔记与子文件夹
+RyuuMD search <query> [--folder PATH]           # 仓库内搜索
+RyuuMD vaults                                   # 列出已注册仓库
+RyuuMD scratch [TEXT]                           # 随手记：无内容时读取，有内容时写入
+RyuuMD send <feishu|popo|dingtalk|wecom|wechat|qq> [--content TEXT]   # 发到 IM 通道
+RyuuMD receive <channel>                        # 取回最近一封发出的 Markdown
+```
+
+入口判定是「命令名优先」：双击、拖拽、文件关联传入的完整路径始终走 GUI；裸词（如 cwd 下名为 `mcp` 的目录）会被当作命令。
+
+### 接入 Claude Code（MCP）
+
+```bash
+RyuuMD mcp --install          # 一键注册（user 级），重开 Claude Code 会话后生效
+RyuuMD mcp --print-config     # 或打印配置手动粘贴
+RyuuMD mcp                    # 手动启动 MCP stdio 服务（调试）
+```
+
+注册后 Claude Code 可直接调用 read_note / write_note / list_notes / search_notes / list_vaults / read_scratch / write_scratch / send_to_im / receive_from_im 九只工具。协议兼容 2024-11-05 ~ 2025-06-18，旧工具名（read_file 等）自动映射。
+
+Windows 打包版是无控制台窗口程序：从终端交互运行时输出可能出现在提示符之后；管道、重定向与 Claude Code 接入场景不受影响。旧前缀 `--cli` / `--tui` / `--mcp` 与旧命令名（list / im-send / im-receive / scratch-read / scratch-write）仍兼容。
+
 ## 快捷键
 
 Mac 上修饰键为 `⌘`（与下表 `Ctrl` 对应）。
