@@ -1,10 +1,16 @@
 """本应用高级功能：CLI / TUI / MCP / AISkill，共用同一套核心读写。
 
 入口仍是 main.py。无参数或首参数为路径时启动 GUI；首参数命中命令表
-（read/write/ls/search/vaults/scratch/send/receive/mcp）时走 CLI；
+（read/write/ls/search/vaults/scratch/send/receive/tools/tool/mcp）时走 CLI；
 ``mcp`` 启动 stdio JSON-RPC 服务。旧前缀 ``--cli`` / ``--tui`` / ``--mcp``
 与旧命令名（list/im-send/im-receive/scratch-read/scratch-write）仍兼容。
 工具表与 AI 路径共用 invoke_tool。
+
+工具表（TOOL_SPECS）覆盖 GUI 全部可自动化能力：笔记读写、文件管理、
+仓库管理、配置、最近打开、搜索与索引、模板、日记、收集箱、图片、AI、
+云同步、工作副本与 IM 通道。具名 CLI 命令是高频操作的人用入口；
+``tool`` / ``tools`` 命令把整张工具表暴露给脚本与 AI（与 MCP 同表）。
+仅系统对话框、窗口生命周期等 GUI 强交互能力不在工具表内。
 """
 
 from __future__ import annotations
@@ -112,6 +118,506 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["provider"],
         },
     },
+    # ------------------------------------------------------------------
+    # 文件管理
+    {
+        "name": "new_note",
+        "description": "在指定目录下新建空 Markdown 笔记（自动补 .md 后缀）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "父目录路径"},
+                "name": {"type": "string", "description": "笔记名（不含路径分隔符）"},
+            },
+            "required": ["folder", "name"],
+        },
+    },
+    {
+        "name": "new_folder",
+        "description": "在已打开的仓库目录下新建子文件夹",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parent": {"type": "string", "description": "父目录路径"},
+                "name": {"type": "string", "description": "文件夹名"},
+            },
+            "required": ["parent", "name"],
+        },
+    },
+    {
+        "name": "rename_note",
+        "description": "重命名 Markdown 笔记（仅同目录改名）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "笔记文件路径"},
+                "new_name": {"type": "string", "description": "新名称"},
+            },
+            "required": ["path", "new_name"],
+        },
+    },
+    {
+        "name": "move_note",
+        "description": "把 Markdown 笔记移动到目标目录",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "笔记文件路径"},
+                "target_folder": {"type": "string", "description": "目标目录路径"},
+            },
+            "required": ["path", "target_folder"],
+        },
+    },
+    {
+        "name": "delete_note",
+        "description": "把 Markdown 笔记移入系统回收站（可恢复）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "笔记文件路径"}},
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "duplicate_note",
+        "description": "在同目录复制一份笔记（自动命名「副本」）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "笔记文件路径"}},
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "preview_note",
+        "description": "有界读取笔记开头（速览用，不改最近打开）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "笔记文件路径"},
+                "max_chars": {"type": "integer", "description": "最大字符数，默认 1600"},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "note_stat",
+        "description": "查询笔记存在性、大小与修改时间（写前冲突检查用）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "笔记文件路径"}},
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "list_all_notes",
+        "description": "平铺列出仓库内全部 Markdown 笔记，可按关键词过滤",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "query": {"type": "string", "description": "过滤关键词"},
+            },
+        },
+    },
+    # ------------------------------------------------------------------
+    # 仓库管理
+    {
+        "name": "add_vault",
+        "description": "把已有目录注册为仓库",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "目录路径"},
+                "name": {"type": "string", "description": "显示名，缺省用目录名"},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "create_vault",
+        "description": "在父目录下新建文件夹并注册为仓库",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parent": {"type": "string", "description": "父目录路径"},
+                "name": {"type": "string", "description": "仓库文件夹名"},
+            },
+            "required": ["parent", "name"],
+        },
+    },
+    {
+        "name": "remove_vault",
+        "description": "从首页移除仓库（不动磁盘文件）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"project_id": {"type": "string", "description": "仓库 id（list_vaults 获取）"}},
+            "required": ["project_id"],
+        },
+    },
+    {
+        "name": "rename_vault",
+        "description": "重命名仓库显示名",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "仓库 id"},
+                "name": {"type": "string", "description": "新显示名"},
+            },
+            "required": ["project_id", "name"],
+        },
+    },
+    {
+        "name": "pin_vault",
+        "description": "置顶或取消置顶仓库",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "仓库 id"},
+                "pinned": {"type": "boolean", "description": "true 置顶 / false 取消"},
+            },
+            "required": ["project_id", "pinned"],
+        },
+    },
+    {
+        "name": "make_dir",
+        "description": "在任意已存在的父目录下新建文件夹（不注册为仓库）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parent": {"type": "string", "description": "父目录路径"},
+                "name": {"type": "string", "description": "文件夹名"},
+            },
+            "required": ["parent", "name"],
+        },
+    },
+    {
+        "name": "open_tutorial",
+        "description": "注册内置学习仓库到首页（幂等，只补缺失文件）",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    # ------------------------------------------------------------------
+    # 配置
+    {
+        "name": "get_config",
+        "description": "读取应用配置（云同步与 AI 密钥已脱敏）",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "update_config",
+        "description": "合并写入应用配置（如 theme/palette/font_ui/daily_note_folder 等）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "values": {"type": "object", "description": "配置键值对，与现有配置合并"},
+            },
+            "required": ["values"],
+        },
+    },
+    # ------------------------------------------------------------------
+    # 最近打开
+    {
+        "name": "list_recent",
+        "description": "列出最近打开的文件与文件夹",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "remove_recent",
+        "description": "从最近打开列表移除一项",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "要移除的路径"}},
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "clear_recent",
+        "description": "清空最近打开列表",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    # ------------------------------------------------------------------
+    # 搜索与仓库索引
+    {
+        "name": "smart_search",
+        "description": "多模式检索：mode=title 标题 / content 正文 / semantic 语义；query 以「ask 」为前缀时走 AI 问答",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "query": {"type": "string", "description": "查询词或「ask 问题」"},
+                "mode": {"type": "string", "description": "title（默认）/ content / semantic"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "vault_index",
+        "description": "仓库索引：kind=tasks 待办 / tags 标签 / broken 断开的双链 / orphans 孤立笔记 / mentions 未链接提及（需 path）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "kind": {"type": "string", "description": "tasks（默认）/ tags / broken / orphans / mentions"},
+                "query": {"type": "string", "description": "过滤关键词"},
+                "path": {"type": "string", "description": "kind=mentions 时的目标笔记路径"},
+            },
+        },
+    },
+    {
+        "name": "vault_stats",
+        "description": "仓库统计（笔记数、字数、标签数等）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"}},
+        },
+    },
+    {
+        "name": "find_backlinks",
+        "description": "查找指定笔记的反向链接（哪些笔记链向它）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "path": {"type": "string", "description": "目标笔记路径"},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "resolve_wikilink",
+        "description": "解析 [[双链]] 名称到仓库内实际笔记路径",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "name": {"type": "string", "description": "双链名称"},
+                "current_file": {"type": "string", "description": "当前笔记路径（相对解析基准）"},
+            },
+            "required": ["name"],
+        },
+    },
+    # ------------------------------------------------------------------
+    # 模板 / 日记 / 收集箱 / 图片
+    {
+        "name": "list_templates",
+        "description": "列出仓库「模板/」下的笔记模板",
+        "input_schema": {
+            "type": "object",
+            "properties": {"folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"}},
+        },
+    },
+    {
+        "name": "new_from_template",
+        "description": "从模板新建笔记（替换 {{title}} {{date}} 等占位符）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "template_path": {"type": "string", "description": "模板文件路径"},
+                "name": {"type": "string", "description": "新笔记名"},
+            },
+            "required": ["template_path", "name"],
+        },
+    },
+    {
+        "name": "daily_note",
+        "description": "打开（必要时创建）今日日记并返回其内容与路径",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "subfolder": {"type": "string", "description": "日记目录名，缺省取配置 daily_note_folder 或「日记」"},
+            },
+        },
+    },
+    {
+        "name": "capture",
+        "description": "把一段文字追加到仓库根的收集箱（默认「收集箱.md」），带时间戳",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "text": {"type": "string", "description": "要收集的文字（≤8000 字符）"},
+                "name": {"type": "string", "description": "收集箱文件名，默认 收集箱.md"},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "save_image",
+        "description": "把 base64 图片落到笔记旁 {文件名}.assets/ 并返回相对引用路径",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "md_path": {"type": "string", "description": "所属笔记路径（决定 assets 目录位置）"},
+                "folder": {"type": "string", "description": "无 md_path 时用的仓库目录"},
+                "filename": {"type": "string", "description": "原文件名（取扩展名）"},
+                "data_b64": {"type": "string", "description": "base64 图片数据（可带 data: 前缀），≤12MB"},
+                "mime": {"type": "string", "description": "MIME 类型（扩展名推断兜底）"},
+            },
+            "required": ["data_b64"],
+        },
+    },
+    # ------------------------------------------------------------------
+    # AI（需在设置中配置 Anthropic Messages 端点）
+    {
+        "name": "ask_ai",
+        "description": "带仓库摘录向 AI 提问；模型可回调本工具表完成读写",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "question": {"type": "string", "description": "问题"},
+            },
+            "required": ["question"],
+        },
+    },
+    {
+        "name": "summarize_note",
+        "description": "AI 概括一篇笔记（path 或 content 二选一）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "笔记路径"},
+                "content": {"type": "string", "description": "直接传入的正文"},
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+            },
+        },
+    },
+    {
+        "name": "summarize_vault",
+        "description": "AI 概括整个仓库的笔记材料",
+        "input_schema": {
+            "type": "object",
+            "properties": {"folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"}},
+        },
+    },
+    {
+        "name": "knowledge_tree",
+        "description": "生成仓库知识谱系（按仓库缓存；refresh=true 重新生成）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "refresh": {"type": "boolean", "description": "是否强制重新生成"},
+            },
+        },
+    },
+    {
+        "name": "test_ai",
+        "description": "测试 AI 端点连通性（最小请求验证地址/密钥/模型）",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    # ------------------------------------------------------------------
+    # 云同步（可选 WebDAV）
+    {
+        "name": "cloud_status",
+        "description": "读取云同步配置状态与最近同步结果",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "sync_cloud",
+        "description": "立即执行一次云同步（空 project_id 同步全部启用仓库）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"project_id": {"type": "string", "description": "仓库 id，缺省同步全部"}},
+        },
+    },
+    {
+        "name": "set_vault_cloud",
+        "description": "按仓库开关云同步",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "仓库 id"},
+                "enabled": {"type": "boolean", "description": "是否启用"},
+            },
+            "required": ["project_id", "enabled"],
+        },
+    },
+    {
+        "name": "test_cloud",
+        "description": "测试 WebDAV 连接",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "configure_cloud",
+        "description": "写入 WebDAV 连接设置（url/username/password 等，密码仅存本机）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "values": {"type": "object", "description": "云同步设置键值对"},
+            },
+            "required": ["values"],
+        },
+    },
+    # ------------------------------------------------------------------
+    # 工作副本（edit_mode=workdir 时生效）
+    {
+        "name": "workdir_status",
+        "description": "查询当前文件相对源文件的同步状态（未回写/源有更新/冲突）",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "文件路径，缺省用当前文件"}},
+        },
+    },
+    {
+        "name": "workdir_summary",
+        "description": "汇总工作副本与源目录的差异",
+        "input_schema": {
+            "type": "object",
+            "properties": {"folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"}},
+        },
+    },
+    {
+        "name": "workdir_push",
+        "description": "把工作副本写回源文件（force=true 覆盖源端更新）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "文件路径，缺省用当前文件"},
+                "force": {"type": "boolean", "description": "冲突时强制覆盖源文件"},
+            },
+        },
+    },
+    {
+        "name": "workdir_merge",
+        "description": "把源文件合并进工作副本（strategy: keep_source / keep_copy / markers）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "文件路径，缺省用当前文件"},
+                "strategy": {"type": "string", "description": "合并策略"},
+            },
+        },
+    },
+    {
+        "name": "workdir_push_all",
+        "description": "把整个仓库的工作副本写回源目录",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "force": {"type": "boolean", "description": "冲突时强制覆盖源文件"},
+            },
+        },
+    },
+    {
+        "name": "workdir_merge_all",
+        "description": "把源目录全部变更合并进工作副本",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "仓库目录，缺省用当前仓库"},
+                "strategy": {"type": "string", "description": "合并策略"},
+            },
+        },
+    },
+    # ------------------------------------------------------------------
+    # IM 通道
+    {
+        "name": "list_im_providers",
+        "description": "列出可用的即时通讯通道（feishu/popo/dingtalk/wecom/wechat/qq）",
+        "input_schema": {"type": "object", "properties": {}},
+    },
     {
         "name": "echo",
         "description": "原样返回 text，供 AI 联调",
@@ -135,13 +641,23 @@ TOOL_ALIASES: dict[str, str] = {
     "im_receive": "receive_from_im",
 }
 
+# AI 技能清单：从工具表精选的主要能力面（全量工具见 TOOL_SPECS）
 SKILLS: list[dict[str, str]] = [
-    {"id": "echo", "tool": "echo", "title": "回声"},
     {"id": "read_note", "tool": "read_note", "title": "读笔记"},
     {"id": "write_note", "tool": "write_note", "title": "写笔记"},
+    {"id": "new_note", "tool": "new_note", "title": "新建笔记"},
     {"id": "search_notes", "tool": "search_notes", "title": "搜笔记"},
+    {"id": "smart_search", "tool": "smart_search", "title": "语义搜索"},
     {"id": "list_vaults", "tool": "list_vaults", "title": "列仓库"},
+    {"id": "vault_index", "tool": "vault_index", "title": "仓库索引"},
+    {"id": "daily_note", "tool": "daily_note", "title": "每日笔记"},
+    {"id": "capture", "tool": "capture", "title": "快速收集"},
     {"id": "scratch", "tool": "read_scratch", "title": "随手记"},
+    {"id": "ask_ai", "tool": "ask_ai", "title": "AI 问答"},
+    {"id": "summarize_note", "tool": "summarize_note", "title": "概括笔记"},
+    {"id": "knowledge_tree", "tool": "knowledge_tree", "title": "知识谱系"},
+    {"id": "send_to_im", "tool": "send_to_im", "title": "发到 IM"},
+    {"id": "echo", "tool": "echo", "title": "回声"},
 ]
 
 
@@ -163,6 +679,84 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
         str(a.get("provider") or ""), str(a.get("markdown") or ""), str(a.get("title") or "")
     ),
     "receive_from_im": lambda api, a: api.im_receive(str(a.get("provider") or "")),
+    # 文件管理
+    "new_note": lambda api, a: api.new_file(str(a.get("folder") or ""), str(a.get("name") or "")),
+    "new_folder": lambda api, a: api.new_folder(str(a.get("parent") or ""), str(a.get("name") or "")),
+    "rename_note": lambda api, a: api.rename_file(str(a.get("path") or ""), str(a.get("new_name") or "")),
+    "move_note": lambda api, a: api.move_file(str(a.get("path") or ""), str(a.get("target_folder") or "")),
+    "delete_note": lambda api, a: api.delete_file(str(a.get("path") or "")),
+    "duplicate_note": lambda api, a: api.duplicate_file(str(a.get("path") or "")),
+    "preview_note": lambda api, a: api.preview_file(str(a.get("path") or ""), int(a.get("max_chars") or 1600)),
+    "note_stat": lambda api, a: api.file_stat(str(a.get("path") or "")),
+    "list_all_notes": lambda api, a: api.list_md_files(str(a.get("folder") or ""), str(a.get("query") or "")),
+    # 仓库管理
+    "add_vault": lambda api, a: api.add_project(str(a.get("path") or ""), str(a.get("name") or "")),
+    "create_vault": lambda api, a: api.create_project(str(a.get("parent") or ""), str(a.get("name") or "")),
+    "remove_vault": lambda api, a: api.remove_project(str(a.get("project_id") or "")),
+    "rename_vault": lambda api, a: api.rename_project(str(a.get("project_id") or ""), str(a.get("name") or "")),
+    "pin_vault": lambda api, a: api.pin_project(str(a.get("project_id") or ""), bool(a.get("pinned"))),
+    "make_dir": lambda api, a: api.create_directory(str(a.get("parent") or ""), str(a.get("name") or "")),
+    "open_tutorial": lambda api, a: api.open_tutorial(),
+    # 配置 / 最近打开
+    "get_config": lambda api, a: api.get_config(),
+    "update_config": lambda api, a: api.update_config(a.get("values") if isinstance(a.get("values"), dict) else {}),
+    "list_recent": lambda api, a: api.get_recent(),
+    "remove_recent": lambda api, a: api.remove_recent(str(a.get("path") or "")),
+    "clear_recent": lambda api, a: api.clear_recent(),
+    # 搜索与仓库索引
+    "smart_search": lambda api, a: api.search_notes(
+        str(a.get("folder") or ""), str(a.get("query") or ""), str(a.get("mode") or "title")
+    ),
+    "vault_index": lambda api, a: api.vault_index(
+        str(a.get("folder") or ""),
+        str(a.get("kind") or "tasks"),
+        str(a.get("query") or ""),
+        str(a.get("path") or ""),
+    ),
+    "vault_stats": lambda api, a: api.vault_stats(str(a.get("folder") or "")),
+    "find_backlinks": lambda api, a: api.find_backlinks(str(a.get("folder") or ""), str(a.get("path") or "")),
+    "resolve_wikilink": lambda api, a: api.resolve_wikilink(
+        str(a.get("folder") or ""), str(a.get("name") or ""), str(a.get("current_file") or "")
+    ),
+    # 模板 / 日记 / 收集箱 / 图片
+    "list_templates": lambda api, a: api.list_templates(str(a.get("folder") or "")),
+    "new_from_template": lambda api, a: api.new_from_template(
+        str(a.get("folder") or ""), str(a.get("template_path") or ""), str(a.get("name") or "")
+    ),
+    "daily_note": lambda api, a: api.open_daily_note(str(a.get("folder") or ""), str(a.get("subfolder") or "")),
+    "capture": lambda api, a: api.append_capture(
+        str(a.get("folder") or ""), str(a.get("text") or ""), str(a.get("name") or "收集箱.md")
+    ),
+    "save_image": lambda api, a: api.save_image(
+        str(a.get("md_path") or ""),
+        str(a.get("folder") or ""),
+        str(a.get("filename") or ""),
+        str(a.get("data_b64") or ""),
+        str(a.get("mime") or ""),
+    ),
+    # AI
+    "ask_ai": lambda api, a: api.ask_ai(str(a.get("folder") or ""), str(a.get("question") or "")),
+    "summarize_note": lambda api, a: api.summarize_document(
+        str(a.get("path") or ""), str(a.get("content") or ""), str(a.get("folder") or "")
+    ),
+    "summarize_vault": lambda api, a: api.summarize_vault(str(a.get("folder") or "")),
+    "knowledge_tree": lambda api, a: api.knowledge_tree(str(a.get("folder") or ""), bool(a.get("refresh"))),
+    "test_ai": lambda api, a: api.test_ai(),
+    # 云同步
+    "cloud_status": lambda api, a: api.get_cloud_status(),
+    "sync_cloud": lambda api, a: api.sync_cloud(str(a.get("project_id") or "")),
+    "set_vault_cloud": lambda api, a: api.set_project_cloud(str(a.get("project_id") or ""), bool(a.get("enabled"))),
+    "test_cloud": lambda api, a: api.test_cloud(),
+    "configure_cloud": lambda api, a: api.save_cloud_settings(a.get("values") if isinstance(a.get("values"), dict) else {}),
+    # 工作副本
+    "workdir_status": lambda api, a: api.workdir_status(str(a.get("path") or "")),
+    "workdir_summary": lambda api, a: api.workdir_summary(str(a.get("folder") or "")),
+    "workdir_push": lambda api, a: api.workdir_push(str(a.get("path") or ""), bool(a.get("force"))),
+    "workdir_merge": lambda api, a: api.workdir_merge(str(a.get("path") or ""), str(a.get("strategy") or "")),
+    "workdir_push_all": lambda api, a: api.workdir_push_all(str(a.get("folder") or ""), bool(a.get("force"))),
+    "workdir_merge_all": lambda api, a: api.workdir_merge_all(str(a.get("folder") or ""), str(a.get("strategy") or "")),
+    # IM 通道
+    "list_im_providers": lambda api, a: api.im_providers(),
 }
 
 
@@ -417,6 +1011,38 @@ def _cmd_receive(api: Api, args: list[str], flags: dict[str, Optional[str]], out
     return 0
 
 
+def _cmd_tools(api: Api, args: list[str], flags: dict[str, Optional[str]], out: TextIO, inn: Optional[TextIO]) -> int:
+    """列出全部 AI 工具（与 MCP tools/list 同表，internal 工具不输出）。"""
+    out.write(json.dumps(list_tools(include_internal=False), ensure_ascii=False, indent=2) + "\n")
+    return 0
+
+
+def _cmd_tool(api: Api, args: list[str], flags: dict[str, Optional[str]], out: TextIO, inn: Optional[TextIO]) -> int:
+    """通用工具调用入口：整张工具表对脚本/AI 可达，无需为每个工具设子命令。"""
+    if not args:
+        out.write("缺少工具名\n")
+        return 2
+    raw = flags.get("args")
+    if raw is None and inn is not None and not _is_tty(inn):
+        piped = inn.read()
+        if piped.strip():
+            raw = piped
+    arguments: dict[str, Any] = {}
+    if raw is not None and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as e:
+            out.write(f"--args 不是合法 JSON: {e}\n")
+            return 2
+        if not isinstance(parsed, dict):
+            out.write("--args 必须是 JSON 对象\n")
+            return 2
+        arguments = parsed
+    res = invoke_tool(api, args[0], arguments)
+    out.write(json.dumps(res, ensure_ascii=False, indent=2) + "\n")
+    return 0 if res.get("ok", True) else 1
+
+
 COMMANDS: list[dict[str, Any]] = [
     {"name": "read", "usage": "read <path>", "help": "读取笔记正文", "handler": _cmd_read},
     {"name": "write", "usage": "write <path> [--content TEXT]", "help": "写入笔记（无 --content 时读 stdin）", "handler": _cmd_write, "flags": ("content",)},
@@ -426,6 +1052,8 @@ COMMANDS: list[dict[str, Any]] = [
     {"name": "scratch", "usage": "scratch [TEXT | --content TEXT]", "help": "随手记：无内容时读取，有内容时写入", "handler": _cmd_scratch, "flags": ("content",)},
     {"name": "send", "usage": "send <feishu|popo|dingtalk|wecom|wechat|qq> [--content TEXT] [--title T]", "help": "把 Markdown 发到即时通讯通道", "handler": _cmd_send, "aliases": ["im-send"], "flags": ("content", "title")},
     {"name": "receive", "usage": "receive <channel>", "help": "取回最近一封发出的 Markdown", "handler": _cmd_receive, "aliases": ["im-receive"]},
+    {"name": "tools", "usage": "tools", "help": "列出全部 AI 工具（JSON，含参数 schema，与 MCP 同表）", "handler": _cmd_tools},
+    {"name": "tool", "usage": "tool <name> [--args JSON]", "help": "调用一只 AI 工具（--args 缺省时读 stdin，均无则按 {} 调用）", "handler": _cmd_tool, "flags": ("args",)},
     # 旧命令名：语义与合并后的 scratch 不同，作为隐藏命令保留旧行为
     {"name": "scratch-read", "usage": "scratch-read", "help": "", "handler": _cmd_scratch_read, "hidden": True},
     {"name": "scratch-write", "usage": "scratch-write [--content TEXT]", "help": "", "handler": _cmd_scratch_write, "hidden": True, "flags": ("content",)},

@@ -129,7 +129,17 @@ RyuuMD send <feishu|popo|dingtalk|wecom|wechat|qq> [--content TEXT]   # 发到 I
 RyuuMD receive <channel>                        # 取回最近一封发出的 Markdown
 ```
 
+上面是高频具名命令；**全部可自动化能力**以工具表形式暴露（58 只工具：笔记读写、文件管理、仓库管理、配置、搜索索引、模板、日记、收集箱、图片、AI、云同步、工作副本、IM），经 `tool` / `tools` 命令或 MCP 访问：
+
+```bash
+RyuuMD tools                                    # 列出全部工具（JSON，含参数 schema）
+RyuuMD tool <name> [--args '<json>']            # 调用工具；--args 缺省时读 stdin
+RyuuMD tool daily_note --args '{"folder":"D:/notes"}'
+```
+
 入口判定是「命令名优先」：双击、拖拽、文件关联传入的完整路径始终走 GUI；裸词（如 cwd 下名为 `mcp` 的目录）会被当作命令。
+
+**给 AI 代理的完整接入与使用文档见根目录 `AI_GUIDE.md`**（MCP 注册、工具总表、典型工作流、能力边界）。
 
 ### 接入 Claude Code（MCP）
 
@@ -139,7 +149,7 @@ RyuuMD mcp --print-config     # 或打印配置手动粘贴
 RyuuMD mcp                    # 手动启动 MCP stdio 服务（调试）
 ```
 
-注册后 Claude Code 可直接调用 read_note / write_note / list_notes / search_notes / list_vaults / read_scratch / write_scratch / send_to_im / receive_from_im 九只工具。协议兼容 2024-11-05 ~ 2025-06-18，旧工具名（read_file 等）自动映射。
+注册后 Claude Code 可调用整张工具表（read_note / write_note / smart_search / vault_index / daily_note / capture 等 57 只公开工具）。协议兼容 2024-11-05 ~ 2025-06-18，旧工具名（read_file 等）自动映射。
 
 Windows 打包版是无控制台窗口程序：从终端交互运行时输出可能出现在提示符之后；管道、重定向与 Claude Code 接入场景不受影响。旧前缀 `--cli` / `--tui` / `--mcp` 与旧命令名（list / im-send / im-receive / scratch-read / scratch-write）仍兼容。
 
@@ -176,6 +186,8 @@ python run_tests.py
 
 ## 文档
 
+- 进度与迭代：`PROGRESS.md`（项目现状、当前迭代、下一步候选、里程碑；单一事实源）
+- AI 自动化指南：`AI_GUIDE.md`（面向 AI 代理：CLI/MCP 接入、工具总表、工作流）
 - 使用手册：`docs/USER_GUIDE.md`（面向用户：首页/仓库/编辑/默认应用设置）
 - 开发手册：`docs/DEV_GUIDE.md`（架构、模块职责、关键机制、调试与打包）
 - 维护手册：`docs/MAINTENANCE.md`（数据目录、注册表、排障、发布流程）
@@ -196,7 +208,7 @@ app/core/fsutil.py      共享常量、md 计数与回收站删除（api/project
 app/core/webdav.py      轻量 WebDAV 客户端（标准库，无额外依赖）
 app/core/cloud_sync.py  可选云同步引擎（默认关闭，用户自备 WebDAV）
 app/core/workdir.py     仓库工作副本
-app/core/adv.py         CLI / TUI / MCP / AISkill
+app/core/adv.py         CLI / TUI / MCP / AISkill（一张工具表两个入口：tool 命令与 MCP 同表）
 app/core/im.py          即时通讯通道载荷
 app/web/index.html      前端外壳（含首页 DOM）
 app/web/css/            主题（app / editor / slash / home）

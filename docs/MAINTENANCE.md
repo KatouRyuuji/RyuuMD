@@ -85,6 +85,17 @@ Remove-Item -Recurse "$env:APPDATA\RyuuMD" -ErrorAction SilentlyContinue
 - 关闭同步：关掉总开关即可，本地文件不受影响。可再删
   `cloud-state.json` 与 config 里的 `cloud_sync.password`。
 
+### 3.8 MCP 接入问题
+
+- Claude Code 里没有 ryuumd 工具：先 `RyuuMD mcp --print-config` 验证本机能输出
+  配置；注册信息在 `~/.claude.json` 的 `mcpServers.ryuumd`（`--install` 写入前会
+  留 `.bak-时间戳` 备份）；改完必须重开会话；
+- 客户端日志报协议错：`RyuuMD mcp` 手动起服务，用一行 JSON 试探
+  （`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`），正常应回工具表；
+- exe 移动位置后 MCP 失效：注册里的 command 指向旧路径，重跑 `--install`；
+- 终端直接运行 exe 看不到输出：窗口子系统程序，cmd 不等待、输出可能与提示符
+  交错；用管道/重定向验证（如 `RyuuMD.exe vaults > out.txt`）。
+
 ## 4. 测试与质量门禁
 
 ```bash
@@ -116,6 +127,8 @@ E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
   `config.get(key, default)`，老配置文件缺键不炸；
 - **仓库数据**（`projects`）结构变更需写迁移（读时兼容旧结构，写时升级）；
 - **注册表命令路径**随安装位置变化：升级替换 exe 位置不变则关联持续有效；
+- **CLI/MCP 兼容面**：旧前缀（--cli/--tui/--mcp）、旧命令名与旧工具名
+  （TOOL_ALIASES 映射）不得删除；新增能力只加工具、不改既有工具语义；
 - 单实例协议（一行 JSON）如需扩展字段，保持旧字段语义不变（老进程可能
   与新进程短暂共存）。
 
