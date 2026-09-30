@@ -18,6 +18,8 @@ os.environ["APPDATA"] = _TMP_APPDATA.name
 from app.core.palette_css import duration_map, load_export_palettes  # noqa: E402
 
 SOURCE = Path(r"..\..\RyuujiDesign\styles")
+# 设计源是本机相邻仓库；不在本机（如 CI）时源对齐用例跳过，vendor 自身用例照常
+_needs_source = unittest.skipUnless(SOURCE.is_dir(), "设计源仓库不在本机")
 VENDOR = ROOT / "app" / "web" / "vendor" / "ryuuji" / "styles"
 SYS_TOKENS = ROOT / "app" / "web" / "css" / "sys-tokens.css"
 
@@ -31,10 +33,12 @@ EXPECTED_DURS = {
 
 
 class TestDesignAlign(unittest.TestCase):
+    @_needs_source
     def test_source_readable(self):
         self.assertTrue((SOURCE / "palettes.css").is_file())
         self.assertTrue((SOURCE / "tokens.css").is_file())
 
+    @_needs_source
     def test_palettes_runtime_matches_source_primary(self):
         src = load_export_palettes(str(SOURCE / "palettes.css"))
         app = load_export_palettes(str(VENDOR / "palettes.css"))
@@ -49,6 +53,7 @@ class TestDesignAlign(unittest.TestCase):
                 )
                 self.assertEqual(src[pal][theme]["bg"], app[pal][theme]["bg"])
 
+    @_needs_source
     def test_duration_tokens_match_source(self):
         src = duration_map((SOURCE / "tokens.css").read_text(encoding="utf-8"))
         vendor = duration_map((VENDOR / "tokens.css").read_text(encoding="utf-8"))
