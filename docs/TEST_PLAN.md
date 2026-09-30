@@ -17,8 +17,10 @@
 
 ## 当前实测结果
 
-- **单元测试：以 `python run_tests.py --unit` 为准**（本仓库实测 219 项通过）。
-- **E2E：以 `python tests/test_e2e.py` 汇总为准**。
+- **单元测试：以 `python run_tests.py --unit` 为准**（2026-09-30 实测 273 项通过、1 项平台跳过；macOS Actions 同集通过，设计源对齐 3 项因 CI 无设计源仓库跳过）。
+- **E2E：以 `python tests/test_e2e.py` 汇总为准**（2026-09-30 实测 165/165）。
+- 路径别名回归：`TMP`/`TEMP` 指向目录联接（`mklink /J`）再跑 `--unit`，模拟 macOS `/var`→`/private/var`，须全绿。
+- 1.8.0 发布产物 SHA256 见 `dist/release/1.8.0/SHA256SUMS.txt`，与 Release 资产 digest 一致；安装包实测静默安装→启动→卸载（快捷方式、注册表清理，用户数据保留），升级安装后界面为新版。
 - 多窗口/单实例已做真实进程冒烟：主实例启动写锁 → 第二进程 254ms 秒退
   （转发成功）→ 主实例新窗口打开目标文档（last_file 证实）。
 - 多窗口链路回归脚本：`python tests/smoke_multiwindow.py` —— 真实双进程验证
