@@ -59,6 +59,13 @@ def _is_under(child: str, parent: str) -> bool:
 
 def _rel_posix(root: str, path: str) -> str:
     rel = os.path.relpath(str(path), str(root))
+    if rel == ".." or rel.startswith(".." + os.sep):
+        # 两侧经不同别名到达同一位置（macOS /var→/private/var、Windows 目录联接）：
+        # 字面相对路径会绕出根，改按真实路径计算，与 _is_under 的判定口径一致
+        try:
+            rel = os.path.relpath(str(Path(path).resolve()), str(Path(root).resolve()))
+        except OSError:
+            pass
     return rel.replace("\\", "/")
 
 
@@ -387,28 +394,27 @@ class WorkdirStore:
     # ------------------------------------------------------------------
     # 路径映射
     # ------------------------------------------------------------------
+    # 映射结果一律以会话根拼出，路径别名（符号链接/目录联接）统一落到根的写法
     def map_to_work(self, sess: dict[str, Any], path: str) -> str:
         work = str(sess["work_root"])
         source = str(sess["source_root"])
-        if _is_under(path, work):
-            return str(Path(path))
-        if _is_under(path, source):
-            rel = _rel_posix(source, path)
-            if rel in (".", ""):
-                return work
-            return str(Path(work) / rel)
+        for root in (work, source):
+            if _is_under(path, root):
+                rel = _rel_posix(root, path)
+                if rel in (".", ""):
+                    return work
+                return str(Path(work) / rel)
         return str(Path(work) / Path(path).name)
 
     def map_to_source(self, sess: dict[str, Any], path: str) -> str:
         work = str(sess["work_root"])
         source = str(sess["source_root"])
-        if _is_under(path, source):
-            return str(Path(path))
-        if _is_under(path, work):
-            rel = _rel_posix(work, path)
-            if rel in (".", ""):
-                return source
-            return str(Path(source) / rel)
+        for root in (source, work):
+            if _is_under(path, root):
+                rel = _rel_posix(root, path)
+                if rel in (".", ""):
+                    return source
+                return str(Path(source) / rel)
         return str(Path(source) / Path(path).name)
 
     def rel_of(self, sess: dict[str, Any], path: str) -> str:

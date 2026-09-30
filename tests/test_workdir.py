@@ -87,7 +87,7 @@ class TestWorkdirCopyAndPush(unittest.TestCase):
 
         self.assertTrue(res["ok"], res)
         self.assertEqual(Path(res["path"]), target_folder / "hello.md")
-        self.assertEqual(Path(res["source_path"]), target_root / "docs" / "hello.md")
+        self.assertEqual(Path(res["source_path"]), target_root.resolve() / "docs" / "hello.md")
 
     def test_push_writes_source(self):
         listed = self.api.list_folder(str(self.root))
