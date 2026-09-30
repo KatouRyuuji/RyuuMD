@@ -373,6 +373,12 @@
   display: inline-block;
   vertical-align: top;
 }
+/* mermaid 节点标签在编辑区外按默认字距测宽，放进正文后会继承正文字距与自动换行，
+   中文标签因此多出一行被 foreignObject 裁掉。标签内恢复测宽时的排版。 */
+.vditor-ir__preview .language-mermaid foreignObject * {
+  letter-spacing: normal !important;
+  white-space: nowrap;
+}
 .vditor-ir { caret-color: var(--el); }
 .vditor-reset::selection,
 .vditor-reset *::selection { background: var(--selection-bg); } /* 与全局选区统一：el-so-shallow 与画布底色几乎无差，选中看不出 */
