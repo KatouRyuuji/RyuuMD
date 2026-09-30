@@ -75,7 +75,7 @@
     mask.innerHTML = `
       <div class="modal welcome" role="dialog" aria-modal="true" aria-label="欢迎使用 RyuuMD">
         <div class="modal-head">
-          <span class="badge">md</span>
+          <img class="app-logo" src="assets/favicon.png" alt="" />
           <div>
             <h2>欢迎使用 RyuuMD</h2>
             <p>轻量、全本地、极速的 Markdown 编辑与阅读工具</p>

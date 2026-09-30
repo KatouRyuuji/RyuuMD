@@ -68,11 +68,12 @@ python main.py
 
 ## 打包
 
-一键打包（自动结束运行中的 RyuuMD + 装依赖 + 单测门禁 + 清理 + 构建；单测不过会中止），两种模式：
+一键打包（自动结束运行中的 RyuuMD + 装依赖 + 单测门禁 + 清理 + 构建；单测不过会中止）：
 
 ```bash
 build.bat                    REM 单文件夹 onedir（默认，启动快）
 build.bat onefile            REM 单文件 onefile（便携分发）
+build.bat installer          REM onedir + Inno Setup 安装包（需 Inno Setup 6）
 build.bat onefile nopause    REM 脚本/CI 调用：结尾不等按键（或设 RYUUMD_NOPAUSE=1）
 ```
 
@@ -88,8 +89,11 @@ python -m PyInstaller --noconfirm --clean RyuuMD-onefile.spec    # onefile
 | --- | --- | --- | --- | --- |
 | onefile | `dist/RyuuMD.exe`（单个文件） | 约 42 MB | 略慢（启动时解压到临时目录） | 单文件便携分发 |
 | onedir（`build.bat` 默认） | `dist/RyuuMD/`（含 `RyuuMD.exe` + `_internal/`） | 约 85 MB | 快 | 整目录拷贝分发 |
+| installer | `dist/installer/RyuuMD-Setup-<版本>.exe` | 约 30 MB | 快（安装后即 onedir） | 安装分发 |
 
-两种产物互不覆盖，可同时存在于 `dist/`。
+各模式产物互不覆盖，可同时存在于 `dist/`。安装包由 `packaging/RyuuMD.iss` 生成：按用户安装到
+`%LOCALAPPDATA%\Programs\RyuuMD`（无需管理员），建开始菜单快捷方式、注册到「打开方式」，
+版本号取自 exe 版本资源；卸载清理快捷方式与注册表，保留 `%APPDATA%\RyuuMD` 用户数据。
 
 **关于杀软误报**：spec 已关闭 UPX 压缩并嵌入版本信息资源（`version_info.txt`），
 可显著降低 Microsoft Defender 启发式误报。若个别环境仍误报（云端声誉机制，

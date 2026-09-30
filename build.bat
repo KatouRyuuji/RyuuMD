@@ -11,12 +11,20 @@ set "NOPAUSE="
 if /i "%~2"=="nopause" set "NOPAUSE=1"
 if "%RYUUMD_NOPAUSE%"=="1" set "NOPAUSE=1"
 
+REM ---- installer 模式 = onedir 打包 + Inno Setup 生成安装包 ----
+set "SETUP="
+if /i "%MODE%"=="installer" (
+    set "SETUP=1"
+    set "MODE=onedir"
+)
+
 if /i "%MODE%"=="onefile" goto :onefile
 if /i "%MODE%"=="onedir" goto :onedir
 echo [错误] 未知模式 "%MODE%"
-echo 用法: build.bat [onefile^|onedir] [nopause]
+echo 用法: build.bat [onefile^|onedir^|installer] [nopause]
 echo   onedir  (默认) 单文件夹，启动快（免每次解压约百 MB），产物在 dist\RyuuMD\
 echo   onefile        单文件 exe，便于分发，产物在 dist\RyuuMD.exe
+echo   installer      onedir + Inno Setup 安装包，产物在 dist\installer\
 echo   nopause          结束时不暂停，供脚本/CI 用，也可设 RYUUMD_NOPAUSE=1
 call :maybe_pause
 exit /b 1
@@ -126,6 +134,29 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM ---- 4.5 生成安装包（仅 installer 模式；ISCC 依次查 PATH 与 Inno Setup 6 默认安装位置） ----
+if not defined SETUP goto :done
+echo.
+echo [4.5/5] 执行 Inno Setup 生成安装包 (packaging\RyuuMD.iss) ...
+set "ISCC="
+for %%I in (ISCC.exe) do set "ISCC=%%~$PATH:I"
+if not defined ISCC if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC (
+    echo [错误] 未找到 Inno Setup 6 ^(ISCC.exe^)，请先安装: winget install JRSoftware.InnoSetup
+    call :maybe_pause
+    exit /b 1
+)
+"%ISCC%" /Q packaging\RyuuMD.iss
+if errorlevel 1 (
+    echo [错误] 安装包生成失败
+    call :maybe_pause
+    exit /b 1
+)
+set "OUTPATH=dist\installer"
+
+:done
 REM ---- 5. 完成 ----
 echo.
 echo [5/5] 打包完成!

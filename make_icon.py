@@ -1,58 +1,61 @@
-"""生成 RyuuMD 应用图标：圆角纯色（phycat sky 蓝）+ 白色 md。
-   输出 assets/icon.ico（多尺寸）与 assets/icon.png（512）。"""
+"""从品牌素材 logo.png 生成 RyuuMD 全部图标。
+
+大尺寸（≥64px）用整张 logo；小尺寸（≤48px）用有希头像特写裁切 + 圆角，
+整张 logo 在小尺寸下文字与人物会糊成一团。
+输出：
+  assets/icon.ico          Windows 多尺寸图标（exe、窗口、文件关联、安装包）
+  assets/icon.png          1024 整张，build-mac.sh 生成 icns 的大尺寸源
+  assets/icon-small.png    256 头像，build-mac.sh 生成 icns 的 16/32pt 源
+  app/web/assets/favicon.png  128 头像，前端 favicon 与标题栏/欢迎页徽标
+  packaging/wizard*.bmp    Inno Setup 向导大图（左侧竖幅）与小图（右上角），2x 尺寸
+"""
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
 
-BLUE = (52, 152, 219, 255)   # phycat sky 核心蓝 #3498db
-WHITE = (255, 255, 255, 255)
-OUT = Path(__file__).parent / "assets"
-OUT.mkdir(parents=True, exist_ok=True)
+from PIL import Image, ImageDraw
 
-
-def find_font(size: int):
-    candidates = [
-        r"C:\Windows\Fonts\segoeuib.ttf",   # Segoe UI Bold
-        r"C:\Windows\Fonts\arialbd.ttf",    # Arial Bold
-        str(Path(__file__).parent / "app" / "web" / "assets" / "fonts" / "Cascadia-Code-Regular.ttf"),
-    ]
-    for c in candidates:
-        try:
-            return ImageFont.truetype(c, size)
-        except Exception:
-            continue
-    return ImageFont.load_default()
+ROOT = Path(__file__).parent
+SRC = ROOT / "logo.png"
+HEAD_BOX = (560, 210, 1420, 1070)  # logo.png（2048²）中头像特写的正方形区域
+SMALL_MAX = 48
+PAPER = (247, 243, 240)  # logo 卡片纸色，向导大图底色
 
 
-def make(size: int) -> Image.Image:
-    # 4x 超采样，保证圆角与文字平滑
-    s = size * 4
-    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    radius = int(s * 0.22)  # 圆角矩形
-    d.rounded_rectangle([0, 0, s - 1, s - 1], radius=radius, fill=BLUE)
+def full(size: int) -> Image.Image:
+    return Image.open(SRC).convert("RGBA").resize((size, size), Image.LANCZOS)
 
-    text = "md"
-    font = find_font(int(s * 0.46))
-    bbox = d.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = (s - tw) / 2 - bbox[0]
-    y = (s - th) / 2 - bbox[1]
-    d.text((x, y), text, font=font, fill=WHITE)
 
+def head(size: int) -> Image.Image:
+    img = Image.open(SRC).convert("RGBA").crop(HEAD_BOX)
+    side = img.width
+    mask = Image.new("L", (side, side), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, side - 1, side - 1], radius=int(side * 0.22), fill=255)
+    img.putalpha(mask)
     return img.resize((size, size), Image.LANCZOS)
 
 
+def icon(size: int) -> Image.Image:
+    return head(size) if size <= SMALL_MAX else full(size)
+
+
+def on_paper(img: Image.Image, w: int, h: int, color=PAPER) -> Image.Image:
+    bg = Image.new("RGB", (w, h), color)
+    bg.paste(img, ((w - img.width) // 2, (h - img.height) // 2), img)
+    return bg
+
+
 def main() -> None:
+    assets = ROOT / "assets"
     sizes = [16, 24, 32, 48, 64, 128, 256]
-    imgs = [make(s) for s in sizes]
-    ico_path = OUT / "icon.ico"
-    imgs[-1].save(ico_path, format="ICO", sizes=[(s, s) for s in sizes])
-    make(512).save(OUT / "icon.png", format="PNG")
-    # 同步一份到 web 资源，供前端 favicon 用
-    web_assets = Path(__file__).parent / "app" / "web" / "assets"
-    web_assets.mkdir(parents=True, exist_ok=True)
-    make(64).save(web_assets / "favicon.png", format="PNG")
-    print("icon.ico ->", ico_path, ico_path.stat().st_size, "bytes")
+    imgs = [icon(s) for s in sizes]
+    imgs[-1].save(assets / "icon.ico", format="ICO", sizes=[(s, s) for s in sizes], append_images=imgs[:-1])
+    full(1024).save(assets / "icon.png", format="PNG")
+    head(256).save(assets / "icon-small.png", format="PNG")
+    head(128).save(ROOT / "app" / "web" / "assets" / "favicon.png", format="PNG")
+    packaging = ROOT / "packaging"
+    on_paper(full(320), 328, 628).save(packaging / "wizard.bmp")
+    # 小图在向导白底顶栏
+    on_paper(head(110), 110, 110, (255, 255, 255)).save(packaging / "wizard-small.bmp")
+    print("icons ->", assets)
 
 
 if __name__ == "__main__":

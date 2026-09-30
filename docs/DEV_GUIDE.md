@@ -322,11 +322,13 @@ python tests/test_e2e.py              # 仅 E2E（须真实窗口，关闭其他
 ```bash
 build.bat            # Windows onedir（默认，启动快）
 build.bat onefile    # Windows onefile（便携分发）
+build.bat installer  # Windows onedir + Inno Setup 安装包（packaging/RyuuMD.iss）
 bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同脚本）
 ```
 
 - Windows 脚本会先跑单元测试作门禁（`[2/5]` 步），单测不过则中止构建，E2E 需手动 `python run_tests.py`；
 - Mac 包用独立 `RyuuMD-mac.spec`（`BUNDLE` + `.icns`）；Windows 用对应 spec；
+- 全部图标（`assets/icon.*`、前端 `favicon.png`、安装包向导图）由 `python make_icon.py` 从品牌素材 `logo.png` 生成：≥64px 用整张，≤48px 用头像特写裁切；换素材后重跑即可；
 - `start_webview()`（`main.py`）在 Windows 传 `gui=edgechromium`，其它平台不传 gui；
   生产入口传 `private_mode=False` 与 `storage_path`（`Config.data_dir / "webview"`），保留字体缓存与 `ryuumd-chrome`；
 - 新增的 `app/web` 静态资源自动随 `('app/web','app/web')` datas 打包；

@@ -110,12 +110,13 @@ E2E 前置：真实窗口环境、关闭其他 RyuuMD/WebView2 实例。
 
 1. `python run_tests.py` 全绿；
 2. 更新 `version_info.txt` 版本号（降低杀软误报的版本资源）；
-3. `build.bat [onefile|onedir] [nopause]`：
+3. `build.bat [onefile|onedir|installer] [nopause]`：
    - 自动结束运行中的 RyuuMD.exe（防止占用 dist 产物导致 PermissionError）；
    - 内置单测闸门（test_api + test_cloud + test_search + test_fonts + test_ai，失败即终止）；
    - 交互双击运行结尾 `pause`；脚本/CI 调用传第二参 `nopause`（或 `RYUUMD_NOPAUSE=1`）；
+   - `installer` 在 onedir 之后调用 Inno Setup 6 的 `ISCC.exe`（未安装时 `winget install JRSoftware.InnoSetup`）；
 4. 手动清单走查（TEST_PLAN 末节）；
-5. 产物：`dist/RyuuMD.exe`（onefile）/ `dist/RyuuMD/`（onedir），两者可共存；
+5. 产物：`dist/RyuuMD.exe`（onefile）/ `dist/RyuuMD/`（onedir）/ `dist/installer/RyuuMD-Setup-<版本>.exe`（安装包），可共存；
 6. **macOS（未公证）**：推送 `v*` tag 或手动跑 Actions **macOS 打包**；
    产物 `RyuuMD-mac-arm64.tar.gz`（推荐）与 `.zip`。无 Apple 签名，用户需右键打开或 `xattr -cr`。
    本机 Windows 不能打 Mac 包。有 Mac 时 `bash build-mac.sh`。

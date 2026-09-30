@@ -92,15 +92,7 @@ body {
 .tb-title .logo {
   width: 24px;
   height: 24px;
-  display: grid;
-  place-items: center;
-  border-radius: 7px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  font-family: var(--font-mono);
+  display: block;
 }
 
 .tb-spacer {
@@ -785,6 +777,12 @@ body:not(.is-workdir) #btn-merge-source {
   font-weight: 700;
   letter-spacing: -1px;
   font-family: var(--font-mono);
+}
+
+.modal-head .app-logo {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
 }
 
 /* 危险操作（移入回收站等）：图标底色随操作性质变红 */

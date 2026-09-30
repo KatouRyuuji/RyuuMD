@@ -7,10 +7,11 @@
 
 ## 1. 安装与启动
 
-### 1.1 直接运行（绿色版）
+### 1.1 安装与运行
 
 **Windows**
 
+- **安装版**：运行 `RyuuMD-Setup-<版本>.exe`，无需管理员，装在 `%LOCALAPPDATA%\Programs\RyuuMD`，开始菜单可启动；卸载在系统「应用」设置里进行，笔记配置保留；
 - **onedir 版**：解压后双击 `RyuuMD/RyuuMD.exe`；
 - **onefile 版**：双击单个 `RyuuMD.exe`（首次启动略慢，需解压到临时目录）。
 

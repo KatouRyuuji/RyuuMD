@@ -130,32 +130,8 @@ button:disabled,
 }
 
 .tb-title .logo {
-  display: inline-flex;
   width: 28px;
   height: 28px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: var(--active-fg);
-  box-shadow: none;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-html[data-theme="light"] .tb-title .logo {
-  border-color: transparent;
-  background: var(--interactive-fg);
-  color: #ffffff;
-}
-
-html[data-theme="dark"] .tb-title .logo {
-  background: var(--primary);
-  color: var(--bg);
 }
 
 .icon-btn {

@@ -38,18 +38,21 @@ echo "[2/6] 单元测试门禁 ..."
 "$PY" run_tests.py --unit
 
 echo
-echo "[3/6] 从 icon.png 生成 icon.icns ..."
-if [[ ! -f assets/icon.png ]]; then
-  echo "[错误] 缺少 assets/icon.png" >&2
-  exit 1
-fi
+echo "[3/6] 从 icon.png / icon-small.png 生成 icon.icns ..."
+for f in assets/icon.png assets/icon-small.png; do
+  if [[ ! -f "$f" ]]; then
+    echo "[错误] 缺少 $f（python make_icon.py 生成）" >&2
+    exit 1
+  fi
+done
 ICONSET="build/RyuuMD.iconset"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
-sips -z 16 16     assets/icon.png --out "$ICONSET/icon_16x16.png" >/dev/null
-sips -z 32 32     assets/icon.png --out "$ICONSET/icon_16x16@2x.png" >/dev/null
-sips -z 32 32     assets/icon.png --out "$ICONSET/icon_32x32.png" >/dev/null
-sips -z 64 64     assets/icon.png --out "$ICONSET/icon_32x32@2x.png" >/dev/null
+# 16/32pt 用头像特写（小尺寸整张 logo 不可辨），128pt 起用整张
+sips -z 16 16     assets/icon-small.png --out "$ICONSET/icon_16x16.png" >/dev/null
+sips -z 32 32     assets/icon-small.png --out "$ICONSET/icon_16x16@2x.png" >/dev/null
+sips -z 32 32     assets/icon-small.png --out "$ICONSET/icon_32x32.png" >/dev/null
+sips -z 64 64     assets/icon-small.png --out "$ICONSET/icon_32x32@2x.png" >/dev/null
 sips -z 128 128   assets/icon.png --out "$ICONSET/icon_128x128.png" >/dev/null
 sips -z 256 256   assets/icon.png --out "$ICONSET/icon_128x128@2x.png" >/dev/null
 sips -z 256 256   assets/icon.png --out "$ICONSET/icon_256x256.png" >/dev/null
