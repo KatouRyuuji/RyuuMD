@@ -72,6 +72,36 @@ def _app_icon() -> str | None:
     return path if os.path.isfile(path) else None
 
 
+def purge_stale_web_cache(storage: Path) -> bool:
+    """程序换版后清掉 WebView2 的 HTTP 缓存，返回是否清理。
+
+    持久模式下 pywebview 固定端口伺服前端，页面 URL 跨版本不变；旧版缓存的
+    index.html / css / js 会被启发式缓存直接复用，升级后仍显示旧界面。
+    以程序本体（打包 exe / 源码 index.html）的 mtime+size 作构建指纹，变了即清。
+    只动 HTTP 缓存与脚本字节码缓存，localStorage 等用户状态不受影响。
+    """
+    import shutil
+
+    build = Path(sys.executable if getattr(sys, "frozen", False) else resource_path("app", "web", "index.html"))
+    try:
+        st = build.stat()
+    except OSError:
+        return False
+    stamp = f"{int(st.st_mtime)}-{st.st_size}"
+    stamp_file = storage / ".build"
+    try:
+        if stamp_file.read_text(encoding="utf-8") == stamp:
+            return False
+    except OSError:
+        pass
+    profile = storage / "EBWebView" / "Default"
+    for name in ("Cache", "Code Cache"):
+        shutil.rmtree(profile / name, ignore_errors=True)
+    storage.mkdir(parents=True, exist_ok=True)
+    stamp_file.write_text(stamp, encoding="utf-8")
+    return True
+
+
 def _initial_path_from_argv() -> str:
     """支持「右键用 RyuuMD 打开」「拖到 exe 图标上」传入路径。"""
     for arg in sys.argv[1:]:
@@ -234,6 +264,7 @@ def main() -> None:
     # 应用图标（标题栏 / 任务栏 / Dock）。Windows 读 .ico；macOS 打包后
     # Dock 图标主要来自 .app 的 icns，此处再传一份给 pywebview。
     # 持久 WebView 用户目录：字体缓存与 localStorage（ryuumd-chrome）跨启动保留。
+    purge_stale_web_cache(config.data_dir / "webview")
     try:
         start_webview(
             debug=False,

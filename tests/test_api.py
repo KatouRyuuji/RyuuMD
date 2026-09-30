@@ -901,6 +901,28 @@ class TestConfig(unittest.TestCase):
         else:
             self.assertIsNone(webview_gui())
 
+    def test_purge_stale_web_cache_only_on_build_change(self):
+        from main import purge_stale_web_cache
+
+        with tempfile.TemporaryDirectory() as d:
+            storage = Path(d) / "webview"
+            cache = storage / "EBWebView" / "Default" / "Cache"
+            local = storage / "EBWebView" / "Default" / "Local Storage"
+            cache.mkdir(parents=True)
+            local.mkdir(parents=True)
+            # 首次（无指纹）视为换版：清缓存、保留 localStorage
+            self.assertTrue(purge_stale_web_cache(storage))
+            self.assertFalse(cache.exists())
+            self.assertTrue(local.exists())
+            # 同一构建再启动：不清
+            cache.mkdir(parents=True)
+            self.assertFalse(purge_stale_web_cache(storage))
+            self.assertTrue(cache.exists())
+            # 指纹变了（换版）：再清
+            (storage / ".build").write_text("old", encoding="utf-8")
+            self.assertTrue(purge_stale_web_cache(storage))
+            self.assertFalse(cache.exists())
+
     def test_data_dir_respects_appdata(self):
         from app.core.config import _data_dir_base
 
