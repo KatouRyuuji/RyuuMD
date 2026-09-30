@@ -371,22 +371,20 @@ dist/RyuuMD.exe mcp --print-config        # 客户端配置
 
 **自编译 bootloader（复现步骤）**
 
-源码目录约定在仓库外：`..\_pyinstaller_build`。需已安装 VS 2022（提供 MSVC）。
+源码目录放在仓库外（下例为仓库同级的 `_pyinstaller_build`）。需已安装 VS 2022（提供 MSVC）。
 
 ```powershell
 git clone --depth 1 --branch v6.21.0 https://github.com/pyinstaller/pyinstaller.git ..\_pyinstaller_build
 & "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64
 cd ..\_pyinstaller_build\bootloader
 python ./waf all
-cd ..\_pyinstaller_build
+cd ..
 pip install . --force-reinstall --no-deps --user
 ```
 
 `--user` 的原因：全局 Scripts 目录可能无写权限；用户 site-packages 优先于全局，`python -m PyInstaller`（`build.bat` 即如此调用）会用到自编译版。
 
-注：2026-08-17 首次实施时，全局 `C:\Python312\Lib\site-packages` 也被覆盖为同一份自编译包（作为用户目录被清空时的兜底）。两处目前完全一致；若日后只升级其中一处会分叉，重装时建议两处一起重装或删掉全局份。
-
-验证：对比安装后 `site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe` 的 SHA256 与官方值（6.21.0 官方为 `184e0d1ade1e772b35531867c4b02215d81ca3df62caf202ee27ae3be94aee60`），**必须不同**（自编译产物每次编译哈希都不同，2026-08-17 本机产物为 `0102256d…`）。然后用 `RyuuMD-onefile.spec` 重新打包，本地 Defender 扫描（`MpCmdRun -Scan -ScanType 3`）应无威胁，再做一次冒烟。
+验证：对比安装后 `site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe` 的 SHA256 与官方值（6.21.0 官方为 `184e0d1ade1e772b35531867c4b02215d81ca3df62caf202ee27ae3be94aee60`），**必须不同**（自编译产物每次编译哈希都不同）。然后用 `RyuuMD-onefile.spec` 重新打包，本地 Defender 扫描（`MpCmdRun -Scan -ScanType 3`）应无威胁，再做一次冒烟。
 
 > **警告**：`pip install -U pyinstaller` 或重装官方版会退回官方 bootloader，误报风险回归，须重新执行上述编译安装。`build.bat` 的 `[1/5]` 步在检测不到 PyInstaller 时会从 pip 装官方版——装回的同样是官方 bootloader。
 

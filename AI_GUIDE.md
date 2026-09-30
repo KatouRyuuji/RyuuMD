@@ -193,7 +193,6 @@ RyuuMD tool knowledge_tree  --args '{"folder":"D:/notes/research","refresh":true
 
 ## 相关文档
 
-- `PROGRESS.md`：项目进度与迭代计划（单一事实源；迭代开始先读，收尾更新）
 - `README.md`：产品功能与安装
 - `docs/USER_GUIDE.md`：用户使用手册
 - `docs/DEV_GUIDE.md`：架构与模块职责

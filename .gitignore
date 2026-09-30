@@ -14,3 +14,7 @@ tests/ui-shots/
 plan/
 /视频素材/
 /_tmp/
+/PROGRESS.md
+/.maestroignore
+/.rdwignore
+/claude-*.bat

@@ -190,7 +190,6 @@ python run_tests.py
 
 ## 文档
 
-- 进度与迭代：`PROGRESS.md`（项目现状、当前迭代、下一步候选、里程碑；单一事实源）
 - AI 自动化指南：`AI_GUIDE.md`（面向 AI 代理：CLI/MCP 接入、工具总表、工作流）
 - 使用手册：`docs/USER_GUIDE.md`（面向用户：首页/仓库/编辑/默认应用设置）
 - 开发手册：`docs/DEV_GUIDE.md`（架构、模块职责、关键机制、调试与打包）
@@ -241,3 +240,17 @@ app/web/vendor/vditor/  内置 Vditor 运行时（index.min.js + method.min.js +
 
 > 赞助二维码：将图片放到 `app/web/assets/QRCode.png` 即会在欢迎窗口显示，否则显示占位文字。
 > 欢迎窗口首次启动自动弹出，之后可从「设置 → 欢迎页」随时重开。
+
+## 许可证
+
+RyuuMD 以 [Apache License 2.0](LICENSE) 发布。随附的第三方组件保留各自许可证：
+
+| 组件 | 位置 | 许可证 |
+| --- | --- | --- |
+| Vditor 3.11.2（含本地补丁，见 `PATCHES.md`） | `app/web/vendor/vditor/` | MIT（`LICENSE`；内含 highlight.js、MathJax 等依赖各带许可证） |
+| Noto Sans SC | `app/web/assets/fonts/noto-sans-sc/` | SIL OFL 1.1（`OFL.txt`） |
+| 霞鹜文楷 LXGW WenKai | `app/web/assets/fonts/LXGWWenKai-Regular.ttf` | SIL OFL 1.1（`LXGWWenKai-OFL.txt`） |
+| Cascadia Code | `app/web/assets/fonts/Cascadia-Code-Regular.ttf` | SIL OFL 1.1（`Cascadia-Code-OFL.txt`） |
+| Inno Setup 简体中文语言文件 | `packaging/ChineseSimplified.isl` | Inno Setup 许可 |
+
+应用图标与「墨读」形象素材（`logo.png` 及由它生成的图标、安装向导图）版权归作者所有，不在 Apache-2.0 授权范围内。
