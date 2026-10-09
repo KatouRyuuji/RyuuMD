@@ -80,8 +80,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "RyuuMD",
         "CFBundleDisplayName": "RyuuMD",
-        "CFBundleShortVersionString": "1.8.1",  # 与 version_info.txt 同步
-        "CFBundleVersion": "1.8.1",
+        "CFBundleShortVersionString": "1.8.2",  # 与 version_info.txt 同步
+        "CFBundleVersion": "1.8.2",
         "NSHighResolutionCapable": True,
         "NSRequiresAquaSystemAppearance": False,
         "LSMinimumSystemVersion": "11.0",
