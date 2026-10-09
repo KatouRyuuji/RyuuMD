@@ -1379,7 +1379,7 @@ html[data-lang="a"] .mode-opt code {
 .vditor-ir .vditor-reset,
 .vditor-wysiwyg .vditor-reset,
 .vditor-sv {
-  width: min(100%, 980px);
+  width: 100%;
   padding: 40px clamp(68px, 7vw, 80px) 96px !important;
   font-size: 16px !important;
   line-height: 1.78 !important;
@@ -1742,10 +1742,13 @@ html[data-lang="a"] .mode-opt code {
   overflow: auto;
 }
 
+/* 默认随主视图铺满可用宽度。Typora 式限宽由 #editor-wrap.readable-width 控制（palette.css），
+   不得在此写死 48rem/980px，否则宽屏无法伸展、可读宽度开关也失去对比。 */
 .vditor-ir .vditor-reset,
 .vditor-wysiwyg .vditor-reset,
 .vditor-sv {
-  width: min(100%, 48rem);
+  width: 100%;
+  max-width: none;
   margin-right: auto !important;
   margin-left: auto !important;
   padding: 40px clamp(24px, 4vw, 48px) 96px !important;
@@ -1753,7 +1756,7 @@ html[data-lang="a"] .mode-opt code {
 
 .vditor-reset pre,
 .vditor-reset table {
-  max-width: min(100%, 72rem);
+  max-width: 100%;
 }
 
 .vditor-reset pre {

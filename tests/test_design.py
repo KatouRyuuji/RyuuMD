@@ -118,6 +118,24 @@ class TestDesignAlign(unittest.TestCase):
         self.assertIn("async function loadConfig()", js)
         self.assertIn('typeof a.get_config === "function"', js)
 
+    def test_editor_content_defaults_to_adaptive_width(self):
+        css = (ROOT / "app" / "web" / "css" / "ryuuji-a.css").read_text(encoding="utf-8")
+        self.assertNotIn("width: min(100%, 48rem)", css)
+        self.assertNotIn("width: min(100%, 980px)", css)
+        self.assertNotIn("max-width: min(100%, 72rem)", css)
+        self.assertRegex(
+            css,
+            r"\.vditor-ir \.vditor-reset,\s*\n\.vditor-wysiwyg \.vditor-reset,\s*\n\.vditor-sv \{\s*\n  width: 100%;",
+        )
+
+    def test_readable_width_option_is_preserved(self):
+        palette = (ROOT / "app" / "web" / "css" / "palette.css").read_text(encoding="utf-8")
+        self.assertIn("#editor-wrap.readable-width", palette)
+        self.assertIn("width: min(100%, 42rem)", palette)
+        self.assertIn("max-width: 42rem !important", palette)
+        cfg = (ROOT / "app" / "core" / "config.py").read_text(encoding="utf-8")
+        self.assertIn('"readable_width": False', cfg)
+
     def test_window_background_follows_config(self):
         from app.core.config import Config
         from app.core.palette_css import load_export_palettes

@@ -293,11 +293,15 @@
   flex-shrink: 0;
 }
 
+/* 可读宽度：可选 Typora 式行宽。需压过 editor-theme.css 的 max-width: none !important，
+   以及 ryuuji-a.css 默认 width: 100%。 */
 #editor-wrap.readable-width #editor .vditor-ir .vditor-reset,
+#editor-wrap.readable-width #editor .vditor-wysiwyg .vditor-reset,
 #editor-wrap.readable-width #editor .vditor-sv {
-  max-width: 42rem;
-  margin-left: auto;
-  margin-right: auto;
+  width: min(100%, 42rem);
+  max-width: 42rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .wiki-link {
