@@ -99,7 +99,7 @@ jobs:
           copy /y dist\RyuuMD.exe "out\RyuuMD-${{ steps.ver.outputs.version }}-win-x64-portable.exe"
 
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: RyuuMD-windows-x64
           path: out/*
@@ -134,7 +134,7 @@ jobs:
           ls -l out
 
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: RyuuMD-macos-arm64
           path: out/*
