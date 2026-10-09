@@ -22,6 +22,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -41,7 +42,7 @@ def A(s: str) -> str:
     return s.encode("ascii", "replace").decode("ascii")
 
 
-def fail_all(msg: str) -> "NoReturn":  # type: ignore[name-defined]
+def fail_all(msg: str) -> NoReturn:
     print("E2E 环境错误:", A(msg), flush=True)
     sys.exit(1)
 

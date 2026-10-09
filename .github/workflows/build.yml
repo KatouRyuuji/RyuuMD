@@ -1,0 +1,142 @@
+# 可复用构建流程：Windows + macOS 打包与启动冒烟。
+# 由 ci.yml（PR / master 推送，只出 onedir + mac 包）和 release.yml（发版，额外出安装包和便携版）调用。
+# 两个平台的打包脚本自带单元测试门禁，这里不再单独跑测试。
+name: 构建
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: 发版模式：额外生成 Windows 安装包与单文件便携版
+        type: boolean
+        default: false
+      retention-days:
+        description: 构建产物保留天数
+        type: number
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      RYUUMD_NOPAUSE: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 读取版本号
+        id: ver
+        shell: bash
+        run: echo "version=$(python scripts/check_version.py --print)" >> "$GITHUB_OUTPUT"
+
+      - name: 安装依赖
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: 安装 Inno Setup
+        if: inputs.release
+        shell: pwsh
+        run: |
+          $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+          if (-not $iscc -and -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: 打包 onedir（含单测门禁）
+        if: ${{ !inputs.release }}
+        shell: cmd
+        run: build.bat onedir nopause
+
+      - name: 打包 onedir + 安装包（含单测门禁）
+        if: inputs.release
+        shell: cmd
+        run: build.bat installer nopause
+
+      - name: 单测失败时输出详细日志
+        if: failure()
+        run: python run_tests.py --unit
+
+      - name: 启动冒烟
+        shell: pwsh
+        run: |
+          $exe = "dist\RyuuMD\RyuuMD.exe"
+          if (-not (Test-Path $exe)) { throw "未生成 $exe" }
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { throw "冒烟失败：进程 10 秒内退出，退出码 $($p.ExitCode)" }
+          Write-Host "smoke: 进程仍在运行"
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process RyuuMD -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 2
+
+      - name: 压缩 onedir
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Compress-Archive -Path dist\RyuuMD -DestinationPath "out\RyuuMD-${{ steps.ver.outputs.version }}-win-x64.zip"
+
+      - name: 收集安装包
+        if: inputs.release
+        shell: pwsh
+        run: Copy-Item dist\installer\RyuuMD-Setup-*.exe out\
+
+      - name: 打包单文件便携版
+        if: inputs.release
+        shell: cmd
+        run: |
+          call build.bat onefile nopause || exit /b 1
+          copy /y dist\RyuuMD.exe "out\RyuuMD-${{ steps.ver.outputs.version }}-win-x64-portable.exe"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: RyuuMD-windows-x64
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+  macos:
+    name: macOS arm64
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 打包 .app（含单测门禁与启动冒烟）
+        run: bash build-mac.sh
+
+      - name: 产物加版本号
+        run: |
+          VER="$(python3 scripts/check_version.py --print)"
+          mkdir -p out
+          for f in dist/RyuuMD-mac-*.tar.gz dist/RyuuMD-mac-*.zip; do
+            base="$(basename "$f")"
+            cp "$f" "out/${base/RyuuMD-mac-/RyuuMD-${VER}-mac-}"
+          done
+          ls -l out
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: RyuuMD-macos-arm64
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}

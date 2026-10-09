@@ -1,0 +1,71 @@
+# 发版：推送 v* tag → 校验版本号 → 双平台完整打包 → 生成校验和 → 发布 GitHub Release。
+# 发版步骤：同步 version_info.txt 与 RyuuMD-mac.spec 的版本号 → 合入 master → git tag vX.Y.Z && git push origin vX.Y.Z
+# 手动运行（workflow_dispatch）只构建全部产物，不发布 Release。
+name: 发版
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: 校验版本号
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: tag 与代码版本一致
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 scripts/check_version.py --tag "$GITHUB_REF_NAME"
+
+      - name: 三处版本号一致
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: python3 scripts/check_version.py
+
+  build:
+    name: 构建
+    needs: verify
+    uses: ./.github/workflows/build.yml
+    with:
+      release: true
+      retention-days: 30
+
+  publish:
+    name: 发布 Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: 下载产物
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: 生成校验和
+        working-directory: release
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: 发布
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

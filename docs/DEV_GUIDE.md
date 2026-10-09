@@ -335,7 +335,13 @@ bash build-mac.sh    # 仅 macOS：生成 icns + .app + zip（GitHub Actions 同
 - 新增 Python 模块经 import 自动分析，无需改 spec；
 - 若引入新的动态 import → 加 `hiddenimports`（Mac 为 `webview.platforms.cocoa`）；
 - 发布前过一遍 `docs/TEST_PLAN.md` 手动清单（含多窗口/关联/拖放真实操作）。
-- GitHub Actions：`.github/workflows/macos-pack.yml`，`v*` tag 或手动触发；产物未公证。
+- GitHub Actions（CI/CD）：
+  - `ci.yml`：PR 与 master 推送触发。先做静态检查（版本号一致性、Python 编译、Ruff 错误级规则、JS 语法、actionlint），再调用 `build.yml` 在 Windows 与 macOS 上打包并启动冒烟；构建产物保留 7 天，可在 Actions 页下载试用；
+  - `release.yml`：推送 `v*` tag 触发。校验 tag 与代码版本一致 → 双平台完整打包（Windows onedir zip、安装包、单文件便携版；macOS tar.gz / zip）→ 生成 `SHA256SUMS.txt` → 发布 GitHub Release（tag 含 `-` 时标为预发布）；手动运行只构建不发布；
+  - `build.yml`：上面两者共用的构建流程；打包脚本自带单测门禁；
+  - `dependabot.yml`：每周检查 pip 依赖与 Actions 版本并自动提 PR；
+  - 发版步骤：同步 `version_info.txt` 与 `RyuuMD-mac.spec` 版本号（`python scripts/check_version.py` 自查）→ 合入 master → `git tag vX.Y.Z && git push origin vX.Y.Z`；
+  - macOS 产物未公证。
 
 ### 7.0 windowed 子系统与 stdio 重建
 

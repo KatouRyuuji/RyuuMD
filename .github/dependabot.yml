@@ -1,0 +1,15 @@
+# 每周检查 pip 依赖与 GitHub Actions 版本，自动提 PR（会触发 CI 构建验证）。
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
