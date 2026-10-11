@@ -59,6 +59,7 @@ echo '{"action":"read","path":"a.md"}' | RyuuMD tool note  # --args 缺省时读
 | `move` | 移到目标目录 | `path`, `target_folder` | `move_note` |
 | `delete` | 移入回收站 | `path` | `delete_note` |
 | `image` | base64 图片存到笔记旁 .assets/，返回相对路径 | `data_b64`, `md_path?`, `folder?`, `filename?`, `mime?` | `save_image` |
+| `scratch` | 读随手记；给 content 则覆盖写入 | `content?` | `read_scratch` / `write_scratch` |
 
 ### `vault`：仓库级检索、索引与组织（folder 缺省为当前仓库）
 
@@ -103,7 +104,7 @@ echo '{"action":"read","path":"a.md"}' | RyuuMD tool note  # --args 缺省时读
 
 以下操作偏 GUI 设置或代理自身就能完成（如 AI 概括），不进工具列表以节省上下文，但仍可按原名直接调用，参数见 `docs/DEV_GUIDE.md` 或源码 `TOOL_SPECS`：
 
-`ask_ai`、`clear_recent`、`configure_cloud`、`duplicate_note`、`get_config`、`knowledge_tree`、`list_im_providers`、`list_recent`、`make_dir`、`open_tutorial`、`pin_vault`、`read_scratch`、`remove_recent`、`remove_vault`、`rename_vault`、`search_notes`、`set_vault_cloud`、`summarize_note`、`summarize_vault`、`test_ai`、`test_cloud`、`update_config`、`write_scratch`。
+`ask_ai`、`clear_recent`、`configure_cloud`、`duplicate_note`、`get_config`、`knowledge_tree`、`list_im_providers`、`list_recent`、`make_dir`、`open_tutorial`、`pin_vault`、`remove_recent`、`remove_vault`、`rename_vault`、`search_notes`、`set_vault_cloud`、`summarize_note`、`summarize_vault`、`test_ai`、`test_cloud`、`update_config`。
 
 ## 典型工作流（CLI 示例，MCP 同名同参）
 

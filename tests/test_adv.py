@@ -449,6 +449,12 @@ class TestNewToolHandlers(unittest.TestCase):
         self.assertTrue(part.get("ok"), part)
         self.assertLessEqual(len(part.get("preview") or part.get("content") or ""), 200)
 
+    def test_scratch_routes_by_content(self):
+        w = self.call("note", action="scratch", content="SCRATCH_ROUTE")
+        self.assertTrue(w.get("ok"), w)
+        r = self.call("note", action="scratch")
+        self.assertIn("SCRATCH_ROUTE", r.get("content") or "")
+
     def test_unlisted_operations_still_callable(self):
         self.assertTrue(self.call("list_recent").get("ok"))
         self.assertNotEqual(self.call("get_config").get("ok"), False)

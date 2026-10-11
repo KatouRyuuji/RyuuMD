@@ -657,6 +657,10 @@ def _route_read(args: dict[str, Any]) -> str:
     return "preview_note" if args.get("max_chars") not in (None, "") else "read_note"
 
 
+def _route_scratch(args: dict[str, Any]) -> str:
+    return "write_scratch" if "content" in args else "read_scratch"
+
+
 TOOL_GROUPS: list[dict[str, Any]] = [
     {
         "name": "note",
@@ -673,6 +677,8 @@ TOOL_GROUPS: list[dict[str, Any]] = [
             "move": {"op": "move_note", "desc": "移到目标目录"},
             "delete": {"op": "delete_note", "desc": "移入回收站"},
             "image": {"op": "save_image", "desc": "base64 图片存到笔记旁 .assets/，返回相对路径"},
+            "scratch": {"op": ["read_scratch", "write_scratch"], "route": _route_scratch,
+                        "desc": "读随手记；给 content 则覆盖写入"},
         },
     },
     {
