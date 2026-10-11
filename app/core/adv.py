@@ -8,7 +8,7 @@
 
 细粒度操作表（TOOL_SPECS）覆盖 GUI 全部可自动化能力：笔记读写、文件管理、
 仓库管理、配置、最近打开、搜索与索引、模板、日记、收集箱、图片、AI、
-云同步、工作副本与 IM 通道。对外只列 4 只面向 AI 代理的分组工具（TOOL_GROUPS：note / vault / sync / im，
+云同步、工作副本与 IM 通道。对外只列 4 只面向 AI 代理的分组工具（TOOL_GROUPS：ryuumd_note / ryuumd_vault / ryuumd_sync / ryuumd_im，
 用 action 选操作），MCP、AI 与 ``tools`` 命令同表；全部细粒度名仍可调用。
 具名 CLI 命令是高频操作的人用入口。
 仅系统对话框、窗口生命周期等 GUI 强交互能力不在工具表内。
@@ -651,6 +651,10 @@ TOOL_ALIASES: dict[str, str] = {
 # 等 GUI 向操作，以及代理自己就能完成的 AI 概括类操作不再列出——它们与全部细粒度名、
 # TOOL_ALIASES 旧名一样仍可直接调用，既有 MCP 客户端与脚本不受影响。
 #
+# 触发收敛：工具名统一 ryuumd_ 前缀；MCP 边界在每只工具描述前加触发约束，并在
+# initialize 下发 instructions，让外部代理只在用户提到 RyuuMD 或显式要求使用时才调用，
+# 不把它当作通用的文件 / Markdown 工具。RyuuMD 内置 AI 侧栏本就在应用内，不加此约束。
+#
 # action 条目：op 为细粒度操作名（或多个，route 按参数选择），desc 为一句话说明。
 
 def _route_read(args: dict[str, Any]) -> str:
@@ -663,9 +667,9 @@ def _route_scratch(args: dict[str, Any]) -> str:
 
 TOOL_GROUPS: list[dict[str, Any]] = [
     {
-        "name": "note",
+        "name": "ryuumd_note",
         "title": "笔记",
-        "description": "单篇 Markdown 笔记与目录",
+        "description": "RyuuMD 单篇笔记与目录",
         "actions": {
             "read": {"op": ["read_note", "preview_note"], "route": _route_read,
                      "desc": "读正文；给 max_chars 则只读开头且不记入最近打开"},
@@ -682,9 +686,9 @@ TOOL_GROUPS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "vault",
+        "name": "ryuumd_vault",
         "title": "仓库",
-        "description": "仓库级检索、索引与组织（folder 缺省为当前仓库）",
+        "description": "RyuuMD 仓库级检索、索引与组织（folder 缺省为当前仓库）",
         "actions": {
             "list": {"op": "list_vaults", "desc": "列已注册仓库"},
             "add": {"op": "add_vault", "desc": "把已有目录注册为仓库"},
@@ -703,9 +707,9 @@ TOOL_GROUPS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "sync",
+        "name": "ryuumd_sync",
         "title": "同步",
-        "description": "WebDAV 云同步与工作副本（工作副本仅 edit_mode=workdir 时可用）",
+        "description": "RyuuMD 的 WebDAV 云同步与工作副本（工作副本仅 edit_mode=workdir 时可用）",
         "actions": {
             "status": {"op": "cloud_status", "desc": "云同步配置与最近结果"},
             "cloud": {"op": "sync_cloud", "desc": "立即云同步，缺省全部启用仓库"},
@@ -718,9 +722,9 @@ TOOL_GROUPS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "im",
+        "name": "ryuumd_im",
         "title": "即时通讯",
-        "description": "Markdown 发到或取自飞书/POPO/钉钉/企业微信/微信/QQ",
+        "description": "经 RyuuMD 把 Markdown 发到或取自飞书/POPO/钉钉/企业微信/微信/QQ",
         "actions": {
             "send": {"op": "send_to_im", "desc": "发送"},
             "receive": {"op": "receive_from_im", "desc": "取回最近一封"},
@@ -735,6 +739,15 @@ _OPS_BY_NAME: dict[str, dict[str, Any]] = {t["name"]: t for t in TOOL_SPECS}
 def _action_ops(entry: dict[str, Any]) -> list[str]:
     op = entry["op"]
     return list(op) if isinstance(op, (list, tuple)) else [op]
+
+
+MCP_TRIGGER_NOTE = "仅当用户提到 RyuuMD 或明确要求使用本工具时调用；一般文件/Markdown 读写用你自带的工具。"
+
+MCP_INSTRUCTIONS = (
+    "RyuuMD 是用户的本地 Markdown 笔记应用（仓库、双链、日记、收集箱、云同步）。"
+    "只有当用户在请求里提到 RyuuMD，或明确要求使用 RyuuMD 的工具时才调用这些工具；"
+    "否则不要调用，即使任务涉及 Markdown、笔记或本地文件——这些用你自带的文件工具处理。"
+)
 
 
 def grouped_operations() -> set[str]:
@@ -1349,12 +1362,12 @@ MCP_PROTOCOL_LATEST = MCP_PROTOCOL_VERSIONS[-1]
 
 
 def _mcp_tools() -> list[dict[str, Any]]:
-    """MCP 边界的 tools/list 载荷：隐藏 internal 工具，键名转 inputSchema。"""
+    """MCP 边界的 tools/list 载荷：隐藏 internal 工具，键名转 inputSchema，描述前加触发约束。"""
     out: list[dict[str, Any]] = []
     for spec in list_tools(include_internal=False):
         out.append({
             "name": spec["name"],
-            "description": spec["description"],
+            "description": MCP_TRIGGER_NOTE + spec["description"],
             "inputSchema": spec["input_schema"],
         })
     return out
@@ -1386,6 +1399,7 @@ def handle_mcp_message(msg: dict[str, Any], api: Api) -> Optional[dict[str, Any]
                 "protocolVersion": version,
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "RyuuMD", "version": "1"},
+                "instructions": MCP_INSTRUCTIONS,
             },
         }
     if method == "ping":
