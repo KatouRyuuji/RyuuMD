@@ -212,11 +212,38 @@ class TestCliTuiMcp(unittest.TestCase):
         reply = handle_mcp_message({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, self.api)
         tools = reply["result"]["tools"]
         names = [t["name"] for t in tools]
-        self.assertIn("read_note", names)
+        self.assertIn("note", names)
+        self.assertNotIn("read_note", names)  # 细粒度操作并入分组工具，不再逐只列出
         self.assertNotIn("echo", names)  # internal 工具不出现在 MCP 边界
+        self.assertLessEqual(len(tools), 12)
         for t in tools:
             self.assertIn("inputSchema", t)
             self.assertEqual(t["inputSchema"]["type"], "object")
+            self.assertIn("action", t["inputSchema"]["required"])
+
+    def test_mcp_call_grouped_tool(self):
+        msg = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "note", "arguments": {"action": "read", "path": str(self.md)}},
+        }
+        reply = handle_mcp_message(msg, self.api)
+        result = reply.get("result") or {}
+        self.assertFalse(result.get("isError"), result)
+        payload = json.loads(result["content"][0]["text"])
+        self.assertIn("CLI_BODY_TOKEN", payload.get("content") or "")
+
+    def test_mcp_call_grouped_tool_bad_action_is_tool_error(self):
+        msg = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "note", "arguments": {"action": "nope"}},
+        }
+        result = handle_mcp_message(msg, self.api).get("result") or {}
+        self.assertTrue(result.get("isError"), result)
+        self.assertIn("read", result["content"][0]["text"])  # 错误信息列出可用 action
 
     def test_mcp_call_read_note(self):
         msg = {
@@ -314,9 +341,8 @@ class TestToolCommands(unittest.TestCase):
         self.assertEqual(rc, 0)
         tools = json.loads(buf.getvalue())
         names = [t["name"] for t in tools]
-        self.assertIn("read_note", names)
-        self.assertIn("smart_search", names)
-        self.assertIn("vault_index", names)
+        for expect in ("note", "search", "vault"):
+            self.assertIn(expect, names)
         self.assertNotIn("echo", names)  # internal 不输出
         for t in tools:
             self.assertEqual(t["input_schema"]["type"], "object")
@@ -391,12 +417,38 @@ class TestNewToolHandlers(unittest.TestCase):
             for req in schema.get("required", []):
                 self.assertIn(req, schema.get("properties", {}), (t["name"], req))
 
-    def test_mcp_lists_new_tools(self):
+    def test_groups_cover_every_operation(self):
+        from app.core.adv import TOOL_GROUPS, TOOL_SPECS, _TOOL_HANDLERS
+
+        mapped = [op for g in TOOL_GROUPS for op in g["actions"].values()]
+        self.assertEqual(len(mapped), len(set(mapped)), "同一操作不应挂在多个分组下")
+        for op in mapped:
+            self.assertIn(op, _TOOL_HANDLERS)
+        public_ops = {t["name"] for t in TOOL_SPECS if not t.get("internal")}
+        self.assertEqual(set(mapped), public_ops, "每个非 internal 操作都应能经分组工具调用")
+        # 分组名不得与细粒度操作名 / 旧别名冲突，否则旧调用会被劫持
+        from app.core.adv import TOOL_ALIASES
+
+        for g in TOOL_GROUPS:
+            self.assertNotIn(g["name"], _TOOL_HANDLERS)
+            self.assertNotIn(g["name"], TOOL_ALIASES)
+
+    def test_grouped_and_legacy_calls_agree(self):
+        target = self.root / "g.md"
+        w = self.call("note", action="write", path=str(target), content="GROUPED")
+        self.assertTrue(w.get("ok"), w)
+        self.assertEqual(self.call("read_note", path=str(target)).get("content"), "GROUPED")
+        self.assertEqual(self.call("note", action="read", path=str(target)).get("content"), "GROUPED")
+        self.assertFalse(self.call("note", path=str(target)).get("ok"))  # 缺 action
+
+    def test_mcp_lists_grouped_tools(self):
         reply = handle_mcp_message({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, self.api)
-        names = [t["name"] for t in reply["result"]["tools"]]
-        for expect in ("smart_search", "vault_index", "daily_note", "capture", "workdir_status"):
-            self.assertIn(expect, names)
-        self.assertNotIn("echo", names)
+        tools = {t["name"]: t for t in reply["result"]["tools"]}
+        for expect in ("note", "folder", "search", "vault", "journal", "ai", "cloud", "workdir", "im", "app"):
+            self.assertIn(expect, tools)
+        self.assertIn("smart", tools["search"]["inputSchema"]["properties"]["action"]["enum"])
+        self.assertIn("daily", tools["journal"]["inputSchema"]["properties"]["action"]["enum"])
+        self.assertNotIn("echo", tools)
 
     def test_file_management_cycle(self):
         r = self.call("new_note", folder=str(self.vault), name="新建")

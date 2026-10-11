@@ -133,12 +133,12 @@ RyuuMD send <feishu|popo|dingtalk|wecom|wechat|qq> [--content TEXT]   # 发到 I
 RyuuMD receive <channel>                        # 取回最近一封发出的 Markdown
 ```
 
-上面是高频具名命令；**全部可自动化能力**以工具表形式暴露（58 只工具：笔记读写、文件管理、仓库管理、配置、搜索索引、模板、日记、收集箱、图片、AI、云同步、工作副本、IM），经 `tool` / `tools` 命令或 MCP 访问：
+上面是高频具名命令；**全部可自动化能力**按领域合并为 10 只分组工具（`note` `folder` `search` `vault` `journal` `ai` `cloud` `workdir` `im` `app`，用 `action` 选操作），经 `tool` / `tools` 命令或 MCP 访问：
 
 ```bash
-RyuuMD tools                                    # 列出全部工具（JSON，含参数 schema）
+RyuuMD tools                                    # 列出 10 只分组工具（JSON，含参数 schema）
 RyuuMD tool <name> [--args '<json>']            # 调用工具；--args 缺省时读 stdin
-RyuuMD tool daily_note --args '{"folder":"D:/notes"}'
+RyuuMD tool journal --args '{"action":"daily","folder":"D:/notes"}'
 ```
 
 入口判定是「命令名优先」：双击、拖拽、文件关联传入的完整路径始终走 GUI；裸词（如 cwd 下名为 `mcp` 的目录）会被当作命令。
@@ -153,7 +153,7 @@ RyuuMD mcp --print-config     # 或打印配置手动粘贴
 RyuuMD mcp                    # 手动启动 MCP stdio 服务（调试）
 ```
 
-注册后 Claude Code 可调用整张工具表（read_note / write_note / smart_search / vault_index / daily_note / capture 等 57 只公开工具）。协议兼容 2024-11-05 ~ 2025-06-18，旧工具名（read_file 等）自动映射。
+注册后 Claude Code 可调用 10 只分组工具（工具说明约 8K 字符，合并前 57 只约 13K）。协议兼容 2024-11-05 ~ 2025-06-18；合并前的细粒度工具名（read_note / smart_search 等）与更早的旧名（read_file 等）仍可调用。
 
 Windows 打包版是无控制台窗口程序：从终端交互运行时输出可能出现在提示符之后；管道、重定向与 Claude Code 接入场景不受影响。旧前缀 `--cli` / `--tui` / `--mcp` 与旧命令名（list / im-send / im-receive / scratch-read / scratch-write）仍兼容。
 
@@ -211,7 +211,7 @@ app/core/fsutil.py      共享常量、md 计数与回收站删除（api/project
 app/core/webdav.py      轻量 WebDAV 客户端（标准库，无额外依赖）
 app/core/cloud_sync.py  可选云同步引擎（默认关闭，用户自备 WebDAV）
 app/core/workdir.py     仓库工作副本
-app/core/adv.py         CLI / TUI / MCP / AISkill（一张工具表两个入口：tool 命令与 MCP 同表）
+app/core/adv.py         CLI / TUI / MCP / AISkill（10 只分组工具两个入口：tool 命令与 MCP 同表）
 app/core/im.py          即时通讯通道载荷
 app/web/index.html      前端外壳（含首页 DOM）
 app/web/css/            主题（app / editor / slash / home）

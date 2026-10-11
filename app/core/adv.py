@@ -6,10 +6,11 @@
 与旧命令名（list/im-send/im-receive/scratch-read/scratch-write）仍兼容。
 工具表与 AI 路径共用 invoke_tool。
 
-工具表（TOOL_SPECS）覆盖 GUI 全部可自动化能力：笔记读写、文件管理、
+细粒度操作表（TOOL_SPECS）覆盖 GUI 全部可自动化能力：笔记读写、文件管理、
 仓库管理、配置、最近打开、搜索与索引、模板、日记、收集箱、图片、AI、
-云同步、工作副本与 IM 通道。具名 CLI 命令是高频操作的人用入口；
-``tool`` / ``tools`` 命令把整张工具表暴露给脚本与 AI（与 MCP 同表）。
+云同步、工作副本与 IM 通道。对外按领域合并成 10 只分组工具（TOOL_GROUPS，
+用 action 选操作），MCP、AI 与 ``tools`` 命令只列分组工具；细粒度名仍可调用。
+具名 CLI 命令是高频操作的人用入口。
 仅系统对话框、窗口生命周期等 GUI 强交互能力不在工具表内。
 """
 
@@ -641,23 +642,203 @@ TOOL_ALIASES: dict[str, str] = {
     "im_receive": "receive_from_im",
 }
 
-# AI 技能清单：从工具表精选的主要能力面（全量工具见 TOOL_SPECS）
-SKILLS: list[dict[str, str]] = [
-    {"id": "read_note", "tool": "read_note", "title": "读笔记"},
-    {"id": "write_note", "tool": "write_note", "title": "写笔记"},
-    {"id": "new_note", "tool": "new_note", "title": "新建笔记"},
-    {"id": "search_notes", "tool": "search_notes", "title": "搜笔记"},
-    {"id": "smart_search", "tool": "smart_search", "title": "语义搜索"},
-    {"id": "list_vaults", "tool": "list_vaults", "title": "列仓库"},
-    {"id": "vault_index", "tool": "vault_index", "title": "仓库索引"},
-    {"id": "daily_note", "tool": "daily_note", "title": "每日笔记"},
-    {"id": "capture", "tool": "capture", "title": "快速收集"},
-    {"id": "scratch", "tool": "read_scratch", "title": "随手记"},
-    {"id": "ask_ai", "tool": "ask_ai", "title": "AI 问答"},
-    {"id": "summarize_note", "tool": "summarize_note", "title": "概括笔记"},
-    {"id": "knowledge_tree", "tool": "knowledge_tree", "title": "知识谱系"},
-    {"id": "send_to_im", "tool": "send_to_im", "title": "发到 IM"},
-    {"id": "echo", "tool": "echo", "title": "回声"},
+# ---------------------------------------------------------------------------
+# 对外工具：按领域合并成少量「分组工具」，用 action 选择具体操作
+#
+# TOOL_SPECS 里的细粒度操作仍是唯一实现与参数来源（_TOOL_HANDLERS 一一对应），
+# 但不再逐只暴露：57 只工具的 schema 约 1.3 万字符，接入 MCP / AI 时每轮都占上下文，
+# 选工具的认知负担也重。对外只列下面 10 只分组工具，schema 由细粒度操作自动合成；
+# 旧的细粒度工具名与 TOOL_ALIASES 仍可直接调用（不列出），既有 MCP 客户端与脚本不受影响。
+
+TOOL_GROUPS: list[dict[str, Any]] = [
+    {
+        "name": "note",
+        "title": "笔记",
+        "description": "单篇 Markdown 笔记的读写与管理",
+        "actions": {
+            "read": "read_note",
+            "write": "write_note",
+            "preview": "preview_note",
+            "stat": "note_stat",
+            "create": "new_note",
+            "from_template": "new_from_template",
+            "rename": "rename_note",
+            "move": "move_note",
+            "duplicate": "duplicate_note",
+            "delete": "delete_note",
+            "save_image": "save_image",
+        },
+    },
+    {
+        "name": "folder",
+        "title": "目录",
+        "description": "列目录、平铺列笔记、建文件夹、列模板",
+        "actions": {
+            "list": "list_notes",
+            "list_all": "list_all_notes",
+            "create": "new_folder",
+            "mkdir": "make_dir",
+            "templates": "list_templates",
+        },
+    },
+    {
+        "name": "search",
+        "title": "搜索与双链",
+        "description": "关键词 / 多模式检索与 [[双链]] 查询",
+        "actions": {
+            "text": "search_notes",
+            "smart": "smart_search",
+            "backlinks": "find_backlinks",
+            "resolve_link": "resolve_wikilink",
+        },
+    },
+    {
+        "name": "vault",
+        "title": "仓库",
+        "description": "仓库注册管理、索引与统计",
+        "actions": {
+            "list": "list_vaults",
+            "index": "vault_index",
+            "stats": "vault_stats",
+            "add": "add_vault",
+            "create": "create_vault",
+            "rename": "rename_vault",
+            "pin": "pin_vault",
+            "remove": "remove_vault",
+            "open_tutorial": "open_tutorial",
+        },
+    },
+    {
+        "name": "journal",
+        "title": "日记与收集",
+        "description": "今日日记、收集箱、随手记",
+        "actions": {
+            "daily": "daily_note",
+            "inbox": "capture",
+            "scratch_read": "read_scratch",
+            "scratch_write": "write_scratch",
+        },
+    },
+    {
+        "name": "ai",
+        "title": "AI",
+        "description": "AI 问答、概括与知识谱系（需在设置中配置 AI）",
+        "actions": {
+            "ask": "ask_ai",
+            "summarize_note": "summarize_note",
+            "summarize_vault": "summarize_vault",
+            "knowledge_tree": "knowledge_tree",
+            "test": "test_ai",
+        },
+    },
+    {
+        "name": "cloud",
+        "title": "云同步",
+        "description": "WebDAV 云同步",
+        "actions": {
+            "status": "cloud_status",
+            "sync": "sync_cloud",
+            "set_vault": "set_vault_cloud",
+            "test": "test_cloud",
+            "configure": "configure_cloud",
+        },
+    },
+    {
+        "name": "workdir",
+        "title": "工作副本",
+        "description": "工作副本与源文件的差异、回写与合并（edit_mode=workdir 时生效）",
+        "actions": {
+            "status": "workdir_status",
+            "summary": "workdir_summary",
+            "push": "workdir_push",
+            "merge": "workdir_merge",
+            "push_all": "workdir_push_all",
+            "merge_all": "workdir_merge_all",
+        },
+    },
+    {
+        "name": "im",
+        "title": "即时通讯",
+        "description": "把 Markdown 发到飞书/POPO/钉钉/企业微信/微信/QQ 或取回",
+        "actions": {
+            "providers": "list_im_providers",
+            "send": "send_to_im",
+            "receive": "receive_from_im",
+        },
+    },
+    {
+        "name": "app",
+        "title": "应用设置",
+        "description": "应用配置与最近打开",
+        "actions": {
+            "get_config": "get_config",
+            "update_config": "update_config",
+            "recent": "list_recent",
+            "remove_recent": "remove_recent",
+            "clear_recent": "clear_recent",
+        },
+    },
+]
+
+_GROUPS_BY_NAME: dict[str, dict[str, Any]] = {g["name"]: g for g in TOOL_GROUPS}
+_OPS_BY_NAME: dict[str, dict[str, Any]] = {t["name"]: t for t in TOOL_SPECS}
+
+# 分组 schema 里语义自明的参数只保留类型（名字已出现在 action 签名中），
+# 跨操作含义略有差异的参数用统一说明，进一步压缩体积。
+_PLAIN_PARAMS = frozenset({
+    "path", "content", "name", "new_name", "target_folder", "parent", "query",
+    "text", "question", "template_path", "md_path", "filename", "project_id",
+})
+_PARAM_DESC_OVERRIDES: dict[str, str] = {
+    "folder": "目录路径；多数操作缺省为当前仓库",
+    "strategy": "keep_source / keep_copy / markers",
+}
+
+# AI 侧栏内不提供的分组：ai 组会让问答回调自身（递归、重复计费）
+_AI_EXCLUDED_GROUPS = frozenset({"ai"})
+
+
+def _group_spec(group: dict[str, Any]) -> dict[str, Any]:
+    """由细粒度操作合成一只分组工具的 schema：action 枚举 + 参数并集。
+
+    每个 action 的必填参数写进描述（「read(path)」），参数说明只保留首次出现的一条，
+    语义自明的参数不重复说明，控制体积；具体语义以 action 签名为准。
+    """
+    lines: list[str] = []
+    props: dict[str, Any] = {}
+    for action, op_name in group["actions"].items():
+        op = _OPS_BY_NAME[op_name]
+        schema = op.get("input_schema") or {}
+        required = list(schema.get("required") or [])
+        optional = [k for k in (schema.get("properties") or {}) if k not in required]
+        sig = ", ".join(required + [k + "?" for k in optional])
+        lines.append(f"{action}({sig}) {op.get('description') or ''}")
+        for key, prop in (schema.get("properties") or {}).items():
+            if key in props:
+                continue
+            merged = dict(prop)
+            if key in _PLAIN_PARAMS:
+                merged.pop("description", None)
+            elif key in _PARAM_DESC_OVERRIDES:
+                merged["description"] = _PARAM_DESC_OVERRIDES[key]
+            props[key] = merged
+    properties: dict[str, Any] = {
+        "action": {"type": "string", "enum": list(group["actions"]), "description": "要执行的操作"},
+    }
+    properties.update(props)
+    return {
+        "name": group["name"],
+        "description": group["description"] + "。按 action 选择操作（? 为可选参数）：\n" + "\n".join(lines),
+        "input_schema": {"type": "object", "properties": properties, "required": ["action"]},
+    }
+
+
+GROUP_SPECS: list[dict[str, Any]] = [_group_spec(g) for g in TOOL_GROUPS]
+
+# AI 技能清单：直接由分组工具生成，不再单独维护
+SKILLS: list[dict[str, Any]] = [
+    {"id": g["name"], "tool": g["name"], "title": g["title"], "actions": list(g["actions"])}
+    for g in TOOL_GROUPS
 ]
 
 
@@ -760,28 +941,67 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
 }
 
 
+def resolve_tool(name: str, arguments: Optional[dict[str, Any]] = None) -> tuple[Optional[str], dict[str, Any], str]:
+    """把对外工具名解析为细粒度操作：(操作名, 参数, 错误)。
+
+    分组工具按 action 定位操作并去掉 action 参数；细粒度名与旧别名直接放行。
+    """
+    args = dict(arguments or {})
+    n = (name or "").strip()
+    group = _GROUPS_BY_NAME.get(n)
+    if group is not None:
+        action = str(args.pop("action", "") or "").strip()
+        op = group["actions"].get(action)
+        if op is None:
+            choices = " / ".join(group["actions"])
+            hint = f"未知 action: {action}" if action else "缺少 action"
+            return None, args, f"{hint}（{n} 可用: {choices}）"
+        return op, args, ""
+    op = _canonical(n)
+    if op in _TOOL_HANDLERS:
+        return op, args, ""
+    return None, args, f"未知工具: {name}"
+
+
+def is_known_tool(name: str) -> bool:
+    n = (name or "").strip()
+    return n in _GROUPS_BY_NAME or _canonical(n) in _TOOL_HANDLERS
+
+
 def invoke_tool(api: Api, name: str, arguments: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-    """按工具名调用与 GUI 相同的 Api 方法；旧名经 TOOL_ALIASES 归一。"""
-    handler = _TOOL_HANDLERS.get(_canonical(name))
-    if handler is None:
-        return {"ok": False, "error": f"未知工具: {name}"}
-    return handler(api, dict(arguments or {}))
+    """按工具名调用与 GUI 相同的 Api 方法；支持分组工具（action）、细粒度名与旧别名。"""
+    op, args, err = resolve_tool(name, arguments)
+    if op is None:
+        return {"ok": False, "error": err}
+    return _TOOL_HANDLERS[op](api, args)
 
 
 def list_tools(include_internal: bool = True) -> list[dict[str, Any]]:
+    """对外工具表：10 只分组工具；include_internal 时附带 internal 联调工具（echo）。"""
+    out = list(GROUP_SPECS)
     if include_internal:
-        return list(TOOL_SPECS)
-    return [t for t in TOOL_SPECS if not t.get("internal")]
+        out.extend(t for t in TOOL_SPECS if t.get("internal"))
+    return out
 
 
-def list_skills() -> list[dict[str, str]]:
+def list_operations() -> list[dict[str, Any]]:
+    """细粒度操作全表（仍可按名直接调用，不对外列出）。"""
+    return list(TOOL_SPECS)
+
+
+def list_skills() -> list[dict[str, Any]]:
     return list(SKILLS)
 
 
+def ai_tools() -> list[dict[str, Any]]:
+    """AI 侧栏可用的工具：分组工具去掉 ai 组，附 internal 联调工具。"""
+    return [t for t in list_tools(include_internal=True) if t["name"] not in _AI_EXCLUDED_GROUPS]
+
+
 def to_anthropic_tools(specs: Optional[list[dict[str, Any]]] = None) -> list[dict[str, Any]]:
-    """把本应用工具表透传成 Messages API 的 tools 数组（含 internal 工具，供 AI 联调）。"""
+    """把工具表透传成 Messages API 的 tools 数组；缺省为 AI 侧栏可用的分组工具。"""
     out: list[dict[str, Any]] = []
-    for spec in specs if specs is not None else TOOL_SPECS:
+    for spec in specs if specs is not None else ai_tools():
         name = str(spec.get("name") or "")
         if not name:
             continue
@@ -816,7 +1036,7 @@ def ask_with_tools(
         excerpts = "\n\n".join(f"## {n['rel']}\n{n['excerpt']}" for n in notes)
     user = (
         "你是 RyuuMD 笔记助手。根据仓库摘录回答用户问题；摘录不足时请明确说明。用中文回答。"
-        "需要读写笔记、搜索、列仓库或随手记时，调用提供的工具。\n\n"
+        "需要读写笔记、搜索、列仓库或随手记时，调用提供的工具（用 action 参数选择具体操作）。\n\n"
         f"仓库摘录：\n{excerpts or '（当前没有打开仓库）'}\n\n"
         f"用户问题：\n{q}"
     )
@@ -1207,15 +1427,14 @@ def handle_mcp_message(msg: dict[str, Any], api: Api) -> Optional[dict[str, Any]
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": _mcp_tools()}}
     if method in ("tools/call", "call_tool"):
         raw_name = str(params.get("name") or "")
-        name = _canonical(raw_name)
-        if name not in _TOOL_HANDLERS:
+        if not is_known_tool(raw_name):
             return {
                 "jsonrpc": "2.0",
                 "id": mid,
                 "error": {"code": -32602, "message": f"Unknown tool: {raw_name}"},
             }
         arguments = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
-        res = invoke_tool(api, name, arguments)
+        res = invoke_tool(api, raw_name, arguments)
         return {
             "jsonrpc": "2.0",
             "id": mid,
