@@ -33,7 +33,7 @@ app/core/
   webdav.py                 轻量 WebDAV（PROPFIND/GET/PUT/MKCOL，仅标准库）
   cloud_sync.py             可选云同步引擎：门闩 + 三路比对 + 冲突副本
   workdir.py                仓库工作副本（edit_mode=workdir）
-  adv.py                    CLI / TUI / MCP / AISkill：命令表驱动 CLI、stdio JSON-RPC、10 只分组工具（由 57 个细粒度操作合成，覆盖全部可自动化能力）、exe stdio 重建，与 AI 共用 invoke_tool
+  adv.py                    CLI / TUI / MCP / AISkill：命令表驱动 CLI、stdio JSON-RPC、4 只面向 AI 代理的分组工具（由细粒度操作合成；其余操作不列出但可调用）、exe stdio 重建，与 AI 共用 invoke_tool
   im.py                     六家 IM 通道载荷（feishu/popo/dingtalk/wecom/wechat/qq）
   palette_css.py            从 palettes.css 解析导出 HTML 用色值
 app/web/
@@ -270,15 +270,17 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 internal 的 `echo`）是唯一实现与参数来源，与 `_TOOL_HANDLERS` 一一对应，薄包装到
 `Api` 公开方法——与 GUI 前端调用的是同一批方法，不存在第二套读写实现。
 
-对外不再逐只暴露操作：`TOOL_GROUPS` 把它们按领域并成 10 只分组工具
-（note / folder / search / vault / journal / ai / cloud / workdir / im / app），
-`_group_spec` 自动合成 schema（`action` 枚举 + 参数并集，每个 action 的签名写进描述）。
-MCP `tools/list`、CLI `tools` 只列分组工具（约 8K 字符，合并前约 13K）；
-`tools/call` 与 `tool <name>` 经 `resolve_tool` 把「分组名 + action」或细粒度名 / 旧别名
-解析到操作后汇入 `invoke_tool`。AI 侧栏（`ai_tools`）用同一组工具但去掉 `ai` 组，避免问答回调自身。
+对外不再逐只暴露操作：`TOOL_GROUPS` 只列 AI 代理真正用得上的能力，合成 4 只工具
+——note（单篇笔记与目录）/ vault（仓库级检索、索引与组织）/ sync（云同步与工作副本）/ im。
+`_group_spec` 自动合成 schema（`action` 枚举 + 参数并集，签名与一句话说明写进描述，
+自明参数只留类型）。MCP `tools/list`、CLI `tools` 与 AI 侧栏同表（约 3.6K 字符，合并前约 13K）。
+GUI 向操作（主题配置、最近打开、置顶、教程、连通性测试）与代理自己能做的 AI 概括类
+操作不列出，但与全部细粒度名、旧别名一样可直接调用。`tools/call` 与 `tool <name>` 经
+`resolve_tool` 把「分组名 + action」（必要时由 `route` 按参数选操作，如 `note.read` 带
+`max_chars` 走 `preview_note`）或细粒度名解析到操作后汇入 `invoke_tool`。
 
-新增能力：在 `TOOL_SPECS` + `_TOOL_HANDLERS` 加操作，再挂到某个分组的 `actions`；
-`test_groups_cover_every_operation` 会检查漏挂、重复与命名冲突。
+新增能力：在 `TOOL_SPECS` + `_TOOL_HANDLERS` 加操作，代理需要时再挂到某个分组的 `actions`；
+`test_groups_are_consistent` 检查重复与命名冲突，`test_tools_list_is_compact` 守住体积。
 
 - 覆盖面：笔记读写、文件管理、仓库管理、配置、最近打开、搜索与索引、
   模板、日记、收集箱、图片、AI、云同步、工作副本、IM 通道。

@@ -117,7 +117,7 @@ class TestMessagesTools(unittest.TestCase):
         names = [t["name"] for t in body["tools"]]
         self.assertIn("echo", names)
         self.assertIn("note", names)
-        self.assertNotIn("ai", names)  # AI 侧栏不回调 ai 组自身
+        self.assertNotIn("ask_ai", names)  # AI 侧栏不回调问答自身
 
     def test_extract_tool_use(self):
         payload = tool_use_payload("echo", {"text": "x"})
@@ -537,7 +537,7 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             self.assertTrue(rec["url"].endswith("/v1/messages"))
             names = [t.get("name") for t in (body.get("tools") or [])]
             self.assertIn("echo", names)
-            self.assertIn("journal", names)
+            self.assertIn("vault", names)
             schema = next(t["input_schema"] for t in body["tools"] if t["name"] == "echo")
             self.assertEqual(schema["properties"]["text"]["type"], "string")
         finally:
