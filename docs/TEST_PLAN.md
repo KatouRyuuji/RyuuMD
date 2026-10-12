@@ -52,7 +52,7 @@
 | A4 | 命令行/拖图标传路径 | argv 解析为初始路径，前端 boot 时经 `get_initial_path()` 主动拉取后打开 | 手动 | ⬜ 右键「打开方式」/拖到 exe 验证 |
 | A5 | 窗口尺寸记忆 | 关闭时写回 window_width/height | 手动 | ⬜ |
 | A6 | CLI/MCP 工具表 | tools 列表与 schema 合法；spec↔handler 一一对应；分组无重复/重名、体积上限、未列出操作仍可调用、分组调用与细粒度调用结果一致；tool 命令三种传参（--args/stdin/空）；文件/仓库/配置/索引/日记/收集/图片 handler 闭环；旧名映射 | 单测 | ✅ test_adv.py（TestToolCommands / TestNewToolHandlers） |
-| A7 | MCP 协议 | initialize 版本协商、ping、notification 不应答、tools/list 只列分组工具且隐 internal、tools/call 分组调用与错误 action、tools/call 错误码、stdio 重建 | 单测 | ✅ test_adv.py |
+| A7 | MCP 协议 | initialize 版本协商、ping、notification 不应答、tools/list 只列分组工具且隐 internal、工具名 ryuumd_ 前缀 + 描述触发约束 + initialize instructions（侧栏不加）、tools/call 分组调用与错误 action、tools/call 错误码、stdio 重建 | 单测 | ✅ test_adv.py |
 
 ## B. 文件与文件夹 API(Python)
 

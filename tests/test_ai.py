@@ -116,7 +116,7 @@ class TestMessagesTools(unittest.TestCase):
         self.assertEqual(body["model"], "m")
         names = [t["name"] for t in body["tools"]]
         self.assertIn("echo", names)
-        self.assertIn("note", names)
+        self.assertIn("ryuumd_note", names)
         self.assertNotIn("ask_ai", names)  # AI 侧栏不回调问答自身
 
     def test_extract_tool_use(self):
@@ -520,7 +520,7 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             body = json.loads(server.requests[0]["body"])  # type: ignore[attr-defined]
             names = [t.get("name") for t in (body.get("tools") or [])]
             self.assertIn("echo", names)
-            self.assertIn("note", names)
+            self.assertIn("ryuumd_note", names)
         finally:
             stop_mock(server)
 
@@ -537,7 +537,7 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             self.assertTrue(rec["url"].endswith("/v1/messages"))
             names = [t.get("name") for t in (body.get("tools") or [])]
             self.assertIn("echo", names)
-            self.assertIn("vault", names)
+            self.assertIn("ryuumd_vault", names)
             schema = next(t["input_schema"] for t in body["tools"] if t["name"] == "echo")
             self.assertEqual(schema["properties"]["text"]["type"], "string")
         finally:

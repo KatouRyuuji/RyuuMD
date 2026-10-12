@@ -271,12 +271,16 @@ internal 的 `echo`）是唯一实现与参数来源，与 `_TOOL_HANDLERS` 一�
 `Api` 公开方法——与 GUI 前端调用的是同一批方法，不存在第二套读写实现。
 
 对外不再逐只暴露操作：`TOOL_GROUPS` 只列 AI 代理真正用得上的能力，合成 4 只工具
-——note（单篇笔记与目录）/ vault（仓库级检索、索引与组织）/ sync（云同步与工作副本）/ im。
+——ryuumd_note（单篇笔记与目录）/ ryuumd_vault（仓库级检索、索引与组织）/ ryuumd_sync（云同步与工作副本）/ ryuumd_im。
 `_group_spec` 自动合成 schema（`action` 枚举 + 参数并集，签名与一句话说明写进描述，
 自明参数只留类型）。MCP `tools/list`、CLI `tools` 与 AI 侧栏同表（约 3.6K 字符，合并前约 13K）。
+
+**触发收敛：** 外部代理只应在用户提到 RyuuMD 或显式要求时调用。为此工具名统一 `ryuumd_`
+前缀；MCP 边界在每只工具描述前加 `MCP_TRIGGER_NOTE`，并在 `initialize` 结果里下发
+`instructions`（`MCP_INSTRUCTIONS`）。应用内 AI 侧栏用户本就在 RyuuMD 里，不加此约束。
 GUI 向操作（主题配置、最近打开、置顶、教程、连通性测试）与代理自己能做的 AI 概括类
 操作不列出，但与全部细粒度名、旧别名一样可直接调用。`tools/call` 与 `tool <name>` 经
-`resolve_tool` 把「分组名 + action」（必要时由 `route` 按参数选操作，如 `note.read` 带
+`resolve_tool` 把「分组名 + action」（必要时由 `route` 按参数选操作，如 `ryuumd_note.read` 带
 `max_chars` 走 `preview_note`）或细粒度名解析到操作后汇入 `invoke_tool`。
 
 新增能力：在 `TOOL_SPECS` + `_TOOL_HANDLERS` 加操作，代理需要时再挂到某个分组的 `actions`；

@@ -133,12 +133,12 @@ RyuuMD send <feishu|popo|dingtalk|wecom|wechat|qq> [--content TEXT]   # 发到 I
 RyuuMD receive <channel>                        # 取回最近一封发出的 Markdown
 ```
 
-上面是高频具名命令；面向 AI 代理的能力合并为 4 只工具（`note` 单篇笔记、`vault` 仓库检索与组织、`sync` 云同步与工作副本、`im` 即时通讯，用 `action` 选操作），经 `tool` / `tools` 命令或 MCP 访问：
+上面是高频具名命令；面向 AI 代理的能力合并为 4 只工具（`ryuumd_note` 单篇笔记、`ryuumd_vault` 仓库检索与组织、`ryuumd_sync` 云同步与工作副本、`ryuumd_im` 即时通讯，用 `action` 选操作），经 `tool` / `tools` 命令或 MCP 访问：
 
 ```bash
 RyuuMD tools                                    # 列出 4 只工具（JSON，含参数 schema）
 RyuuMD tool <name> [--args '<json>']            # 调用工具；--args 缺省时读 stdin
-RyuuMD tool vault --args '{"action":"daily","folder":"D:/notes"}'
+RyuuMD tool ryuumd_vault --args '{"action":"daily","folder":"D:/notes"}'
 ```
 
 入口判定是「命令名优先」：双击、拖拽、文件关联传入的完整路径始终走 GUI；裸词（如 cwd 下名为 `mcp` 的目录）会被当作命令。
@@ -153,7 +153,7 @@ RyuuMD mcp --print-config     # 或打印配置手动粘贴
 RyuuMD mcp                    # 手动启动 MCP stdio 服务（调试）
 ```
 
-注册后 Claude Code 可调用 4 只工具（工具说明约 3.6K 字符，合并前 57 只约 13K）。协议兼容 2024-11-05 ~ 2025-06-18；合并前的细粒度工具名（read_note / smart_search 等）与更早的旧名（read_file 等）仍可调用。
+注册后 Claude Code 可调用 4 只工具（工具说明约 3.9K 字符，合并前 57 只约 13K）。工具只在你对代理提到 RyuuMD 或明确要求使用时才会被调用，普通的文件和 Markdown 读写不会误触发。协议兼容 2024-11-05 ~ 2025-06-18；合并前的细粒度工具名（read_note / smart_search 等）与更早的旧名（read_file 等）仍可调用。
 
 Windows 打包版是无控制台窗口程序：从终端交互运行时输出可能出现在提示符之后；管道、重定向与 Claude Code 接入场景不受影响。旧前缀 `--cli` / `--tui` / `--mcp` 与旧命令名（list / im-send / im-receive / scratch-read / scratch-write）仍兼容。
 
