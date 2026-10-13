@@ -585,7 +585,7 @@ body.ryuu-block-dragging #editor { user-select: none; }
 /* 竖排里引用块/标题的边框从左边改到右边/上边 */
 #editor-wrap.vertical-layout .vditor-reset blockquote {
   border-left: none;
-  border-top: 4px solid var(--border, #ddd);
+  border-top: 4px solid var(--border);
   padding: 0.6em 1em 0 0;
 }
 #editor-wrap.vertical-layout .vditor-reset hr { width: auto; height: auto; }
@@ -595,7 +595,7 @@ body.ryuu-block-dragging #editor { user-select: none; }
 
 /* ---- 脚注引用：主流的上标 [1] 样式 + 悬停预览 ---- */
 .vditor-reset sup[data-type="footnotes-ref"] {
-  color: var(--accent, #3b82f6);
+  color: var(--primary);
   cursor: pointer;
 }
 .vditor-reset sup[data-type="footnotes-ref"]:not(.vditor-ir__node--expand)::before { content: "["; }
@@ -610,9 +610,9 @@ body.ryuu-block-dragging #editor { user-select: none; }
   border-radius: 6px;
   font-size: 13px;
   line-height: 1.6;
-  background: var(--bg-elev, #fff);
-  color: var(--fg, #222);
-  border: 1px solid var(--border, #ddd);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   pointer-events: none;
   writing-mode: horizontal-tb;
