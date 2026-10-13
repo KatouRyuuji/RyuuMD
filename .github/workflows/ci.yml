@@ -60,6 +60,9 @@ jobs:
             node --check "$f"
           done
 
+      - name: 单元测试
+        run: python run_tests.py --unit
+
       - name: 工作流配置检查（actionlint）
         run: |
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7

@@ -25,6 +25,18 @@ os.environ["APPDATA"] = _TMP_APPDATA.name
 from app.core.api import IGNORE_DIRS, MAX_TREE_DEPTH, MAX_TREE_ENTRIES, Api  # noqa: E402
 from app.core.config import Config  # noqa: E402
 
+try:
+    import webview.dom  # noqa: F401
+
+    HAS_WEBVIEW = True
+except Exception:  # noqa: BLE001
+    HAS_WEBVIEW = False
+
+
+def _case_insensitive_fs(path: Path) -> bool:
+    """Windows / 默认 macOS 卷大小写不敏感；Linux 敏感。"""
+    return Path(str(path).upper()).exists() and Path(str(path).lower()).exists()
+
 
 def make_api() -> Api:
     cfg = Config()
@@ -177,6 +189,7 @@ class TestFolderTree(unittest.TestCase):
         self.assertFalse(self.api.list_folder(str(self.root / "nope"))["ok"])
 
 
+@unittest.skipUnless(HAS_WEBVIEW, "需要 pywebview（拖放状态在 webview.dom 内）")
 class TestOpenDroppedFiles(unittest.TestCase):
     """拖入打开（前端捕获转发通道）:open_dropped_files 从 _dnd_state['paths']
     按文件名匹配真实路径,取首个可打开项(md 文件或文件夹)注入前端。"""
@@ -509,6 +522,8 @@ class TestProjects(unittest.TestCase):
 
     def test_add_dedupe_same_path(self):
         d = self._mkrepo("noteB")
+        if not _case_insensitive_fs(d):
+            self.skipTest("大小写敏感文件系统上大写路径是另一个目录")
         self.api.add_project(str(d), "")
         # 同路径不同大小写（Windows 同一目录）→ 判定已存在
         res = self.api.add_project(str(d).upper(), "")

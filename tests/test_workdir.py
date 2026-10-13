@@ -58,6 +58,28 @@ class TestWorkdirCopyAndPush(unittest.TestCase):
         work_hello = Path(res["root"]) / "hello.md"
         self.assertTrue(work_hello.is_file())
 
+    def test_push_all_brings_pasted_images_back(self):
+        import base64
+
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        listed = self.api.list_folder(str(self.root))
+        work = Path(listed["root"])
+        res = self.api.save_image(str(work / "hello.md"), str(work), "c.png", base64.b64encode(png).decode(), "image/png")
+        self.assertTrue(res["ok"], res)
+        self.assertFalse((self.root / res["rel"]).exists())
+        self.api.save_file(str(work / "hello.md"), "# 源\n\n![](%s)\n" % res["rel"])
+        out = self.api.workdir_push_all(str(self.root))
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(out.get("images_pushed"), 1)
+        self.assertTrue((self.root / res["rel"]).is_file())
+        # 源上被改过的同名图片不被覆盖
+        (self.root / res["rel"]).write_bytes(b"user-edited")
+        Path(res["path"]).write_bytes(png + b"x")
+        self.api.workdir_push_all(str(self.root))
+        self.assertEqual((self.root / res["rel"]).read_bytes(), b"user-edited")
+
     def test_save_writes_copy_not_source(self):
         listed = self.api.list_folder(str(self.root))
         work = Path(listed["root"]) / "hello.md"
@@ -151,6 +173,16 @@ class TestWorkdirCopyAndPush(unittest.TestCase):
         res = api.workdir_push(str(self.root / "hello.md"))
         self.assertFalse(res["ok"])
         self.assertIn("直改", res["error"])
+
+    def test_file_session_copies_referenced_images(self):
+        (self.root / "image").mkdir()
+        (self.root / "image" / "a.png").write_bytes(b"\x89PNG fake")
+        (self.root / "hello.md").write_text("# 源\n\n![](image/a.png)\n![](../outside.png)\n", encoding="utf-8")
+        lone = self.api.read_file(str(self.root / "hello.md"))
+        self.assertTrue(lone["ok"], lone)
+        work_dir = Path(lone["path"]).parent
+        self.assertTrue((work_dir / "image" / "a.png").is_file())
+        self.assertFalse((work_dir.parent / "outside.png").exists())
 
     def test_file_session_does_not_steal_folder(self):
         lone = self.api.read_file(str(self.root / "hello.md"))

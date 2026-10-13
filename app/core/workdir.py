@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from .fsutil import IGNORE_DIRS, MD_EXTS, atomic_write_bytes, atomic_write_text
+from .fsutil import IGNORE_DIRS, IMAGE_EXTS, MD_EXTS, atomic_write_bytes, atomic_write_text
 
 EDIT_SOURCE = "source"
 EDIT_WORKDIR = "workdir"
@@ -357,6 +357,42 @@ class WorkdirStore:
             self._drop_session(fs)
         return folder_sess
 
+    def _copy_referenced_images(self, src: Path, work: Path, files: dict[str, Any]) -> int:
+        """单文件会话：把笔记里以相对路径引用的图片（如 image/x.png）复制进副本，
+        否则附件不在 `{stem}.assets/` 时副本里图片全是坏链。"""
+        try:
+            text = src.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return 0
+        import re
+        from urllib.parse import unquote
+
+        refs = re.findall(r"!\[[^\]]*\]\(\s*<?([^)\s>]+)", text)
+        refs += re.findall(r"<img[^>]+src=[\"']([^\"']+)", text, flags=re.I)
+        base = src.parent.resolve()
+        added = 0
+        for ref in refs:
+            ref = unquote(ref.split("#", 1)[0].split("?", 1)[0])
+            if not ref or re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", ref) or ref.startswith(("/", "\\")):
+                continue
+            s_img = (base / ref).resolve()
+            if s_img.suffix.lower() not in IMAGE_EXTS or not _is_under(str(s_img), str(base)):
+                continue
+            rel = _rel_posix(str(base), str(s_img))
+            d = work / rel
+            if d.exists() or not s_img.is_file():
+                continue
+            try:
+                if s_img.stat().st_size > MAX_COPY_BYTES:
+                    continue
+                d.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(s_img, d)
+                files[rel] = {"base_hash": file_hash(s_img)}
+                added += 1
+            except OSError:
+                continue
+        return added
+
     def _refresh_file_session(self, sess: dict[str, Any], src: Path) -> int:
         work = Path(sess["work_root"])
         rel = src.name
@@ -369,6 +405,7 @@ class WorkdirStore:
             shutil.copy2(src, dst)
             files[rel] = {"base_hash": file_hash(src)}
             added += 1
+        added += self._copy_referenced_images(src, work, files)
         assets = src.with_name(src.stem + ".assets")
         if assets.is_dir():
             dest_assets = work / assets.name
@@ -499,7 +536,53 @@ class WorkdirStore:
             sess.clear()
             sess.update(fresh)
         info = self.file_status(sess, path)
-        return {**info, "ok": True, "message": "已保存至源文件", "pushed": True}
+        images = self.push_images(sess)
+        return {**info, "ok": True, "message": "已保存至源文件", "pushed": True, "images_pushed": images}
+
+    def push_images(self, sess: dict[str, Any]) -> int:
+        """把副本里新增/改动的图片带回源：粘贴进副本的图片否则只活在副本里，原件成坏链。
+
+        源里没有 → 复制；源有且自上次同步后未被改动（hash 等于基线）→ 覆盖；
+        源那边也改过 → 跳过，不覆盖用户在源上的图片。
+        """
+        work = Path(sess["work_root"])
+        source = Path(sess["source_root"])
+        if not work.is_dir() or not source.is_dir():
+            return 0
+        pushed = 0
+        updates: dict[str, Any] = {}
+        files = sess.get("files") or {}
+        for dirpath, dirnames, filenames in os.walk(work):
+            dirnames[:] = [d for d in dirnames if not _skip_copy_dir(d)]
+            for name in filenames:
+                if Path(name).suffix.lower() not in IMAGE_EXTS:
+                    continue
+                w = Path(dirpath) / name
+                rel = _rel_posix(str(work), str(w))
+                dst = source / rel
+                try:
+                    wh = file_hash(w)
+                    if dst.exists():
+                        sh = file_hash(dst)
+                        if sh == wh:
+                            continue
+                        base = (files.get(rel) or {}).get("base_hash")
+                        if base and sh != base:
+                            continue
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(w, dst)
+                    updates[rel] = {"base_hash": wh}
+                    pushed += 1
+                except OSError:
+                    continue
+        if updates:
+            with self._lock:
+                fresh = self._load_manifest(sess["id"]) or sess
+                fresh.setdefault("files", {}).update(updates)
+                self._save_manifest(fresh)
+                sess.clear()
+                sess.update(fresh)
+        return pushed
 
     def merge_file(self, sess: dict[str, Any], path: str, strategy: str = "") -> dict[str, Any]:
         info = self.file_status(sess, path)
@@ -626,10 +709,12 @@ class WorkdirStore:
 
     def push_all(self, sess: dict[str, Any], force: bool = False) -> dict[str, Any]:
         pushed = 0
+        images_via_files = 0
         pushed_rels: list[str] = []
         skipped: list[dict[str, Any]] = []
         for rel in self.iter_md_rels(sess):
             res = self.push_file(sess, str(Path(sess["work_root"]) / rel), force=force)
+            images_via_files += int(res.get("images_pushed") or 0)
             if res.get("pushed"):
                 pushed += 1
                 pushed_rels.append(rel)
@@ -637,9 +722,11 @@ class WorkdirStore:
                 skipped.append({"rel": rel, "reason": res.get("reason"), "error": res.get("error")})
             elif not res.get("ok") and res.get("status") not in ("in_sync", "source_only", "missing"):
                 skipped.append({"rel": rel, "error": res.get("error")})
+        images = images_via_files + self.push_images(sess)
         return {
             "ok": True,
             "pushed": pushed,
+            "images_pushed": images,
             "pushed_rels": pushed_rels,
             "skipped": skipped,
             "message": f"已保存 {pushed} 个文件至源" + (f"，{len(skipped)} 个需确认" if skipped else ""),
