@@ -34,12 +34,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
 
@@ -61,7 +61,10 @@ jobs:
           done
 
       - name: 单元测试
-        run: python run_tests.py --unit
+        # 装上 pywebview 让拖放通道等依赖其内部结构的测试真正跑起来（只 import，不起 GUI）
+        run: |
+          python -m pip install -r requirements.txt
+          python run_tests.py --unit
 
       - name: 工作流配置检查（actionlint）
         run: |

@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -99,7 +99,7 @@ jobs:
           copy /y dist\RyuuMD.exe "out\RyuuMD-${{ steps.ver.outputs.version }}-win-x64-portable.exe"
 
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: RyuuMD-windows-x64
           path: out/*
@@ -115,7 +115,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -134,7 +134,7 @@ jobs:
           ls -l out
 
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: RyuuMD-macos-arm64
           path: out/*
