@@ -444,7 +444,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
     },
     {
         "name": "save_image",
-        "description": "把 base64 图片落到笔记旁 {文件名}.assets/ 并返回相对引用路径",
+        "description": "把 base64 图片落到附件目录（默认笔记同级 image/，按 attachment_mode 配置）并返回相对引用路径",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -680,7 +680,7 @@ TOOL_GROUPS: list[dict[str, Any]] = [
             "rename": {"op": "rename_note", "desc": "同目录改名"},
             "move": {"op": "move_note", "desc": "移到目标目录"},
             "delete": {"op": "delete_note", "desc": "移入回收站"},
-            "image": {"op": "save_image", "desc": "base64 图片存到笔记旁 .assets/，返回相对路径"},
+            "image": {"op": "save_image", "desc": "base64 图片存到附件目录（默认 image/），返回相对路径"},
             "scratch": {"op": ["read_scratch", "write_scratch"], "route": _route_scratch,
                         "desc": "读随手记；给 content 则覆盖写入"},
         },

@@ -220,7 +220,7 @@ refresh() → Promise.all(list_projects, get_recent) → renderRepos / renderRec
 - `[[wikilink]]`：当前文件旁相对路径 → 仓库根相对路径 → 全库词干匹配（同目录优先）。
 - 未链接提及：去掉 `[[wikilink]]` 与 md 链接后再匹配当前笔记名；自身文件不计。
 - 快速收集：`append_capture` 只允许仓库根文件名（禁止路径分隔符），追加 `## YYYY-MM-DD HH:MM` 分节。
-- 贴图：已保存文档 → `{stem}.assets/`；否则仓库 `assets/`。前端把相对 `img src` 改写为 `file://` 以便 WebView2 显示。
+- 贴图：已保存文档 → 按 `attachment_mode`（subfolder/vault/assets/same，默认 subfolder）与 `attachment_folder`（默认 `image`）；否则仓库根下 `{attachment_folder}/`。前端把相对 `img src` 改写为 `file://` 以便 WebView2 显示。
 - 外链点击走 `open_external`，在系统浏览器打开。
 
 ### 4.8 主题、配色与设置分组
