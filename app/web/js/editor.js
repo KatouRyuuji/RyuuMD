@@ -169,6 +169,10 @@
         window.SlashMenu.setEditor(vditor);
         window.SlashMenu.attach();
       }
+      try { const l = lute(); if (l) { l.SetSup(true); l.SetSub(true); } } catch (e) { /* ignore */ }
+      bindFootnotePreview();
+      bindVerticalWheel();
+      applyLayout();
       bindCheckboxGuard();
       bindEditorClicks();
       bindImeGuard();
@@ -368,6 +372,7 @@
       // 组词期跳过写编辑器 DOM 的部分（大纲 id、双链/媒体重写）
       if (composing) { deferEnhance = true; return; }
       updateOutline(v);
+      applyLayout(v);
       enhanceRendered();
     }, changeDelay);
   }
@@ -483,6 +488,7 @@
     }
     noteSize((md || "").length);
     vditor.setValue(md || "");
+    applyLayout(md || "");
     // Vditor setValue 的撤销记录走 800ms 防抖管线，lastText 不会立即刷新；
     // 同步落一条边界，使随后的结构操作边界以最新文本为 diff 基准
     // （管线随后醒来算得空 diff，被 Vditor 自动跳过）。
@@ -744,6 +750,84 @@
     return left.join("\\");
   }
 
+  /* ---- 竖排（直排）：config.vertical_layout 为全局开关，frontmatter layout 单篇覆盖 ---- */
+  let verticalDefault = false;
+  function setVerticalDefault(on) { verticalDefault = !!on; applyLayout(); }
+  function docLayout(md) {
+    const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(md || "");
+    if (!m) return "";
+    const hit = /^layout\s*:\s*["']?(vertical|horizontal)["']?\s*$/mi.exec(m[1]);
+    return hit ? hit[1].toLowerCase() : "";
+  }
+  function applyLayout(md) {
+    const wrap = document.getElementById("editor-wrap");
+    if (!wrap) return;
+    const v = docLayout(md == null ? getValue() : md);
+    const on = v ? v === "vertical" : verticalDefault;
+    if (wrap.classList.contains("vertical-layout") !== on) wrap.classList.toggle("vertical-layout", on);
+  }
+  let wheelBound = false;
+  function bindVerticalWheel() {
+    if (wheelBound) return;
+    wheelBound = true;
+    document.addEventListener("wheel", (e) => {
+      const wrap = document.getElementById("editor-wrap");
+      if (!wrap || !wrap.classList.contains("vertical-layout") || e.ctrlKey) return;
+      const sc = activePanel();
+      if (!sc || !sc.contains(e.target)) return;
+      // 嵌在竖排里的横排块（代码/表格）自身可纵向滚动时让它自己滚
+      const inner = e.target.closest && e.target.closest("pre, table, .vditor-ir__preview");
+      if (inner && inner !== sc && inner.scrollHeight > inner.clientHeight + 1) return;
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      // vertical-rl：内容从右起，向下滚 = 往左读下一列（scrollLeft 递减为负）
+      sc.scrollLeft -= e.deltaY;
+    }, { passive: false, capture: true });
+  }
+
+  /* ---- 脚注：悬停预览注释内容，点击跳到文末定义 ---- */
+  let fnBound = false;
+  function bindFootnotePreview() {
+    if (fnBound) return;
+    fnBound = true;
+    let tip = null;
+    const hide = () => { if (tip) { tip.remove(); tip = null; } };
+    const findDef = (ref) => {
+      const sc = activePanel();
+      const label = ref.getAttribute("data-footnotes-label");
+      if (!sc || !label) return null;
+      // Vditor：引用带 data-footnotes-label（如 "^1"），定义块用 data-marker 存同一标签
+      const q = CSS.escape(label);
+      return sc.querySelector('[data-type="footnotes-def"][data-marker="' + q + '"]')
+        || sc.querySelector('[data-type="footnotes-def"][data-footnotes-label="' + q + '"]');
+    };
+    document.addEventListener("mouseover", (e) => {
+      const ref = e.target.closest && e.target.closest('sup[data-type="footnotes-ref"]');
+      if (!ref) return;
+      const def = findDef(ref);
+      if (!def) return;
+      hide();
+      tip = document.createElement("div");
+      tip.className = "fn-preview";
+      const body = def.cloneNode(true);
+      body.querySelectorAll(".vditor-ir__marker, [data-type=footnotes-def] > .vditor-ir__marker--link").forEach((n) => n.remove());
+      tip.innerHTML = body.innerHTML;
+      document.body.appendChild(tip);
+      const r = ref.getBoundingClientRect();
+      const w = Math.min(360, window.innerWidth - 24);
+      tip.style.maxWidth = w + "px";
+      tip.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + "px";
+      tip.style.top = (r.bottom + 6) + "px";
+      ref.addEventListener("mouseleave", hide, { once: true });
+    });
+    document.addEventListener("click", (e) => {
+      const ref = e.target.closest && e.target.closest('sup[data-type="footnotes-ref"]');
+      if (!ref || ref.classList.contains("vditor-ir__node--expand")) return;
+      const def = findDef(ref);
+      if (def) { hide(); def.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" }); }
+    });
+  }
+
   function enhanceRendered() {
     if (curMode !== "ir") return;
     const el = activePanel();
@@ -871,6 +955,8 @@
     isReady: () => ready,
     isComposing: () => composing,
     enhanceRendered,
+    applyLayout: () => applyLayout(),
+    setVerticalDefault,
     refreshOutline: () => updateOutline(),
     _iv: () => vditor, // 测试/调试探针：撤销栈等内部状态取证用
   };

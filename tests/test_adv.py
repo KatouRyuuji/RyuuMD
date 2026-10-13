@@ -610,7 +610,7 @@ class TestNewToolHandlers(unittest.TestCase):
         r = self.call("save_image", md_path=str(self.vault / "甲.md"), filename="p.png", data_b64=png)
         self.assertTrue(r.get("ok"), r)
         rel = r.get("rel") or ""
-        self.assertTrue(rel.startswith("甲.assets/"), rel)
+        self.assertTrue(rel.startswith("image/"), rel)
         self.assertTrue((self.vault / rel.replace("/", os.sep)).is_file())
 
     def test_vault_index_and_stats(self):

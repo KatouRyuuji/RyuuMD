@@ -183,9 +183,35 @@ class TestSaveImageAndDaily(unittest.TestCase):
         b64 = base64.b64encode(PNG_1x1).decode("ascii")
         res = self.api.save_image(str(self.md), "", "clip.png", b64, "image/png")
         self.assertTrue(res["ok"], res)
-        self.assertTrue(res["rel"].startswith("文章.assets/"))
+        self.assertTrue(res["rel"].startswith("image/"))
         self.assertTrue(Path(res["path"]).is_file())
         self.assertGreater(Path(res["path"]).stat().st_size, 10)
+
+    def test_save_image_attachment_modes(self):
+        b64 = base64.b64encode(PNG_1x1).decode("ascii")
+        cases = {
+            ("assets", "image"): "文章.assets/",
+            ("subfolder", "pics"): "pics/",
+            ("same", "image"): "pasted-",
+            ("subfolder", "../evil"): "image/",
+        }
+        for (mode, folder), prefix in cases.items():
+            self.api.config.set("attachment_mode", mode)
+            self.api.config.set("attachment_folder", folder)
+            res = self.api.save_image(str(self.md), "", "c.png", b64, "image/png")
+            self.assertTrue(res["ok"], res)
+            self.assertTrue(res["rel"].startswith(prefix), (mode, folder, res["rel"]))
+
+    def test_save_image_vault_mode(self):
+        sub = self.root / "子目录"
+        sub.mkdir()
+        md = touch(sub / "深.md", "# 深")
+        self.api.config.set("attachment_mode", "vault")
+        b64 = base64.b64encode(PNG_1x1).decode("ascii")
+        res = self.api.save_image(str(md), str(self.root), "c.png", b64, "image/png")
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(Path(res["path"]).parent, self.root / "image")
+        self.assertTrue(res["rel"].startswith("../image/"), res["rel"])
 
     def test_save_image_rejects_empty_and_needs_target(self):
         self.assertFalse(self.api.save_image("", "", "a.png", "", "image/png")["ok"])

@@ -56,6 +56,7 @@
     applyFonts();
     applyZoom(state.config.editor_zoom || 100, true);
     applyReadable(!!state.config.readable_width, true);
+    window.Editor.setVerticalDefault(!!state.config.vertical_layout);
     applySidebarWidth(state.config.sidebar_width || 256);
     syncViewToggles();
     window.SlashMenu.setStyle(state.config.operation_style);
@@ -1169,6 +1170,7 @@
     }
     if ("editor_zoom" in partial) applyZoom(partial.editor_zoom, true);
     if ("readable_width" in partial) applyReadable(partial.readable_width, true);
+    if ("vertical_layout" in partial) window.Editor.setVerticalDefault(!!partial.vertical_layout);
     if ("sidebar_width" in partial) applySidebarWidth(partial.sidebar_width);
     if ("edit_mode" in partial) {
       const adopted = await adoptEditMode(partial.edit_mode, prevEditMode);
@@ -1731,6 +1733,17 @@
     });
   }
 
+  function dataUriToFile(uri) {
+    try {
+      const i = uri.indexOf(",");
+      const mime = uri.slice(5, uri.indexOf(";"));
+      const bin = atob(uri.slice(i + 1));
+      const buf = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) buf[k] = bin.charCodeAt(k);
+      return new File([buf], "image." + (mime.split("/")[1] || "png").replace("jpeg", "jpg").replace("svg+xml", "svg"), { type: mime });
+    } catch (err) { return null; }
+  }
+
   function bindPasteImages() {
     document.addEventListener("paste", (e) => {
       const host = document.getElementById("editor");
@@ -1751,7 +1764,25 @@
           }
         }
       }
-      if (!files.length) return;
+      // 兜底：网页/IM 复制常只给 HTML，图片以 data: URI 内嵌，没有二进制条目
+      if (!files.length && cd && cd.getData) {
+        const html = cd.getData("text/html") || "";
+        const re = /<img[^>]+src=["'](data:image\/[a-z0-9.+-]+;base64,[^"']+)["']/gi;
+        let m;
+        while ((m = re.exec(html))) {
+          const f = dataUriToFile(m[1]);
+          if (f) files.push(f);
+        }
+      }
+      if (!files.length) {
+        // 资源管理器里复制的图片文件：WebView2 可能只给 "Files" 类型而 files 为空
+        const types = (cd && cd.types) ? Array.prototype.slice.call(cd.types) : [];
+        if (types.indexOf("Files") >= 0 && !(cd.getData("text/plain") || "").trim()) {
+          e.preventDefault();
+          toast("无法读取复制的图片文件，请改为拖入编辑器，或复制图片本身（截图/右键复制图片）");
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       saveImages(files).then((md) => { if (md) window.Editor.insertValue(md); });
@@ -1762,7 +1793,7 @@
     const a = apiOrToast();
     if (!a || !a.save_image) return "";
     if (!state.currentPath && !state.currentFolder) {
-      toast("请先保存文档或打开仓库，再插入图片");
+      toast("粘贴图片失败：新文档请先保存（Ctrl+S），或先打开一个仓库");
       return "";
     }
     let md = "";

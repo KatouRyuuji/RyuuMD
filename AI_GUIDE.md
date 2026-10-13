@@ -60,7 +60,7 @@ echo '{"action":"read","path":"a.md"}' | RyuuMD tool ryuumd_note  # --args 缺�
 | `rename` | 同目录改名 | `path`, `new_name` | `rename_note` |
 | `move` | 移到目标目录 | `path`, `target_folder` | `move_note` |
 | `delete` | 移入回收站 | `path` | `delete_note` |
-| `image` | base64 图片存到笔记旁 .assets/，返回相对路径 | `data_b64`, `md_path?`, `folder?`, `filename?`, `mime?` | `save_image` |
+| `image` | base64 图片存到附件目录（默认 image/），返回相对路径 | `data_b64`, `md_path?`, `folder?`, `filename?`, `mime?` | `save_image` |
 | `scratch` | 读随手记；给 content 则覆盖写入 | `content?` | `read_scratch` / `write_scratch` |
 
 ### `ryuumd_vault`：仓库级检索、索引与组织（folder 缺省为当前仓库）
@@ -145,7 +145,7 @@ RyuuMD tool ryuumd_vault  --args '{"action":"backlinks","folder":"D:/notes/resea
 
 ```bash
 RyuuMD tool ryuumd_note --args '{"action":"image","md_path":"D:/notes/research/reading-list.md","filename":"cover.png","data_b64":"<base64>"}'
-# 返回 {"ok":true,"rel":"reading-list.assets/pasted-....png"}，正文引用 ![](reading-list.assets/pasted-....png)
+# 返回 {"ok":true,"rel":"image/pasted-....png"}，正文引用 ![](image/pasted-....png)
 ```
 
 ## 行为边界（这些只能 GUI 做）
