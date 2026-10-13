@@ -796,7 +796,10 @@
       const sc = activePanel();
       const label = ref.getAttribute("data-footnotes-label");
       if (!sc || !label) return null;
-      return sc.querySelector('[data-type="footnotes-def"][data-footnotes-label="' + CSS.escape(label) + '"]');
+      // Vditor：引用带 data-footnotes-label（如 "^1"），定义块用 data-marker 存同一标签
+      const q = CSS.escape(label);
+      return sc.querySelector('[data-type="footnotes-def"][data-marker="' + q + '"]')
+        || sc.querySelector('[data-type="footnotes-def"][data-footnotes-label="' + q + '"]');
     };
     document.addEventListener("mouseover", (e) => {
       const ref = e.target.closest && e.target.closest('sup[data-type="footnotes-ref"]');
