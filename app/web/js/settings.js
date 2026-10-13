@@ -154,6 +154,30 @@
               <div class="desc">相对当前仓库，每日笔记保存为 YYYY-MM-DD.md</div>
               <input class="field-input" id="set-daily-folder" placeholder="日记" spellcheck="false" />
             </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">图片存放位置</div>
+                <div class="desc">粘贴 / 拖入图片保存到哪里（同 Obsidian「附件文件夹」）</div>
+              </div>
+              <select class="field-input" id="set-attach-mode">
+                <option value="subfolder">笔记同级子文件夹</option>
+                <option value="vault">仓库根下固定文件夹</option>
+                <option value="assets">{笔记名}.assets（Typora 式）</option>
+                <option value="same">与笔记同目录</option>
+              </select>
+            </div>
+            <div class="write-panel">
+              <div class="label">图片文件夹名</div>
+              <div class="desc">用于「子文件夹」与「仓库根固定文件夹」两种方式</div>
+              <input class="field-input" id="set-attach-folder" placeholder="image" spellcheck="false" />
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="label">竖排</div>
+                <div class="desc">直排阅读与编辑：从上到下、从右往左，滚轮左右滑动。单篇可在 frontmatter 写 layout: vertical / horizontal 覆盖</div>
+              </div>
+              <button type="button" class="toggle" id="set-vertical" title="竖排"></button>
+            </div>
           </div>
           <div class="settings-pane" id="settings-pane-appearance" data-pane="appearance" role="tabpanel" aria-labelledby="settings-tab-appearance" tabindex="0">
             <div class="setting-row">
@@ -478,6 +502,30 @@
       daily.value = v;
       cfg.daily_note_folder = v;
       if (onApply) onApply({ daily_note_folder: v });
+    });
+    const am = document.getElementById("set-attach-mode");
+    const af = document.getElementById("set-attach-folder");
+    am.value = cfg.attachment_mode || "subfolder";
+    am.addEventListener("change", () => {
+      cfg.attachment_mode = am.value;
+      if (onApply) onApply({ attachment_mode: am.value });
+    });
+    af.value = cfg.attachment_folder || "image";
+    af.addEventListener("change", () => {
+      let v = af.value.trim().replace(/[\\/]+$/, "");
+      if (!v || v.indexOf("..") >= 0 || /^([a-zA-Z]:|[\\/])/.test(v)) v = "image";
+      af.value = v;
+      cfg.attachment_folder = v;
+      if (onApply) onApply({ attachment_folder: v });
+    });
+    const vt = document.getElementById("set-vertical");
+    const setV = (on) => { vt.classList.toggle("on", on); vt.setAttribute("aria-pressed", on ? "true" : "false"); };
+    setV(!!cfg.vertical_layout);
+    vt.addEventListener("click", () => {
+      const next = !vt.classList.contains("on");
+      setV(next);
+      cfg.vertical_layout = next;
+      if (onApply) onApply({ vertical_layout: next });
     });
   }
 

@@ -1562,7 +1562,7 @@ class Api:
         data_b64: str = "",
         mime: str = "",
     ) -> dict[str, Any]:
-        """把粘贴/拖入的图片落到 Typora 式 `{文件名}.assets/`（未保存文档则用仓库 `assets/`）。"""
+        """把粘贴/拖入的图片落到 按 attachment_mode 决定的附件目录（默认笔记同级 `image/`；未保存文档用仓库根下同名目录）。"""
         try:
             raw = _decode_b64(data_b64)
         except Exception:
@@ -1575,24 +1575,24 @@ class Api:
         io_md, _logical_md, _sess = self._resolve_io(md_path, create=False) if md_path else ("", "", None)
         md = Path(io_md) if io_md else None
         if md and md.is_file():
-            dest_dir = md.parent / f"{md.stem}.assets"
             base = md.parent
+            dest_dir = self._attachment_dir(md, folder)
         elif folder:
             io_folder, _logical_folder, _fsess = self._resolve_io(folder, create=True)
             if io_folder and Path(io_folder).is_dir():
-                dest_dir = Path(io_folder) / "assets"
+                dest_dir = Path(io_folder) / self._attachment_name()
                 base = Path(io_folder)
             else:
                 last = self._vault_root("")
                 if last:
-                    dest_dir = Path(last) / "assets"
+                    dest_dir = Path(last) / self._attachment_name()
                     base = Path(last)
                 else:
                     return {"ok": False, "error": "请先保存文档或打开仓库，再插入图片"}
         else:
             last = self._vault_root("")
             if last:
-                dest_dir = Path(last) / "assets"
+                dest_dir = Path(last) / self._attachment_name()
                 base = Path(last)
             else:
                 return {"ok": False, "error": "请先保存文档或打开仓库，再插入图片"}
@@ -1611,6 +1611,27 @@ class Api:
             return {"ok": True, "path": str(dest), "rel": rel, "name": dest.stem}
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
+
+    def _attachment_name(self) -> str:
+        name = str(self.config.get("attachment_folder") or "image").strip() or "image"
+        np = Path(name)
+        if np.is_absolute() or ".." in np.parts:
+            return "image"
+        return name
+
+    def _attachment_dir(self, md: Path, folder: str = "") -> Path:
+        """按配置 attachment_mode / attachment_folder 决定笔记图片目录。"""
+        mode = str(self.config.get("attachment_mode") or "subfolder").strip()
+        name = self._attachment_name()
+        if mode == "assets":
+            return md.parent / f"{md.stem}.assets"
+        if mode == "same":
+            return md.parent
+        if mode == "vault":
+            root = self._vault_root(folder)
+            if root:
+                return Path(root) / name
+        return md.parent / name
 
     def open_daily_note(self, folder: str = "", subfolder: str = "") -> dict[str, Any]:
         """打开（必要时创建）今日日记：`{仓库}/{日记目录}/YYYY-MM-DD.md`。"""

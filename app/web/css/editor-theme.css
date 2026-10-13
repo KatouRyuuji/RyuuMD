@@ -552,3 +552,69 @@
   text-overflow: ellipsis;
 }
 body.ryuu-block-dragging #editor { user-select: none; }
+
+/* ---- 竖排（直排）：从上到下、从右往左；滚轮映射为横向滚动（见 editor.js） ---- */
+#editor-wrap.vertical-layout .vditor-ir,
+#editor-wrap.vertical-layout .vditor-wysiwyg,
+#editor-wrap.vertical-layout .vditor-sv {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+#editor-wrap.vertical-layout .vditor-reset {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  height: 100%;
+  box-sizing: border-box;
+  max-width: none !important;
+  line-height: 1.9;
+  letter-spacing: 0.05em;
+}
+/* 两位以内数字横排合字（年份月日等） */
+#editor-wrap.vertical-layout .vditor-reset .tcy { text-combine-upright: digits 2; }
+/* 代码、表格、公式、图表保持横排，嵌在竖排行内 */
+#editor-wrap.vertical-layout .vditor-reset pre,
+#editor-wrap.vertical-layout .vditor-reset table,
+#editor-wrap.vertical-layout .vditor-reset .katex-display,
+#editor-wrap.vertical-layout .vditor-reset .language-mermaid,
+#editor-wrap.vertical-layout .vditor-reset .vditor-ir__preview {
+  writing-mode: horizontal-tb;
+  max-height: 90%;
+  overflow: auto;
+}
+#editor-wrap.vertical-layout .vditor-reset img { max-height: 80%; max-width: none; }
+/* 竖排里引用块/标题的边框从左边改到右边/上边 */
+#editor-wrap.vertical-layout .vditor-reset blockquote {
+  border-left: none;
+  border-top: 4px solid var(--border, #ddd);
+  padding: 0.6em 1em 0 0;
+}
+#editor-wrap.vertical-layout .vditor-reset hr { width: auto; height: auto; }
+
+/* ---- 上下标 ---- */
+.vditor-reset sup, .vditor-reset sub { font-size: 0.75em; line-height: 0; }
+
+/* ---- 脚注引用：主流的上标 [1] 样式 + 悬停预览 ---- */
+.vditor-reset sup[data-type="footnotes-ref"] {
+  color: var(--accent, #3b82f6);
+  cursor: pointer;
+}
+.vditor-reset sup[data-type="footnotes-ref"]:not(.vditor-ir__node--expand)::before { content: "["; }
+.vditor-reset sup[data-type="footnotes-ref"]:not(.vditor-ir__node--expand)::after { content: "]"; }
+#editor-wrap.vertical-layout .vditor-reset sup[data-type="footnotes-ref"] {
+  text-combine-upright: all;
+}
+.fn-preview {
+  position: fixed;
+  z-index: 9999;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg-elev, #fff);
+  color: var(--fg, #222);
+  border: 1px solid var(--border, #ddd);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  writing-mode: horizontal-tb;
+}
+.fn-preview p { margin: 0; }

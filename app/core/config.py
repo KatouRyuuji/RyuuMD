@@ -77,6 +77,15 @@ DEFAULTS: dict[str, Any] = {
     "edit_mode": "source",
     # 每日笔记子目录（相对当前仓库根），默认「日记」
     "daily_note_folder": "日记",
+    # 粘贴/拖入图片的存放方式（Obsidian 式）：
+    #   subfolder = 笔记同级子文件夹（默认，名取 attachment_folder）
+    #   assets    = Typora 式 `{笔记名}.assets/`
+    #   vault     = 仓库根下固定文件夹（名取 attachment_folder）
+    #   same      = 与笔记同目录
+    "attachment_mode": "subfolder",
+    "attachment_folder": "image",
+    # 竖排阅读/编辑（直排，从上到下、从右往左）；单篇可用 frontmatter `layout: vertical|horizontal` 覆盖
+    "vertical_layout": False,
     # 编辑区缩放百分比（Ctrl+= / Ctrl+- / Ctrl+0）
     "editor_zoom": 100,
     # Typora 式可读宽度：正文限制最大行宽，居中排版
