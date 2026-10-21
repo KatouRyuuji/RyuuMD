@@ -3217,10 +3217,12 @@ CASES += [
          js2=("(function(){var sc=document.querySelector('#editor .vditor-sv');"
               "if(!sc)return 'no sv panel';"
               "if(sc.scrollTop<=500)return 'scrollTop='+sc.scrollTop;"
-              "var ta=sc.querySelector('textarea');if(!ta)return 'no textarea';"
-              "var lineNo=ta.value.slice(0,ta.selectionStart).split('\\n').length-1;"
-              "var line=ta.value.split('\\n')[lineNo]||'';"
-              "return line.indexOf('章节60')>=0?true:'caret line='+line;})()")),
+              "var sel=window.getSelection();if(!sel.rangeCount)return 'no sel';"
+              "var r=sel.getRangeAt(0);var pre=r.cloneRange();"
+              "pre.selectNodeContents(sc);pre.setEnd(r.startContainer,r.startOffset);"
+              "var lineNo=pre.toString().split('\\n').length-1;"
+              "var line=(sc.textContent.split('\\n')[lineNo])||'';"
+              "return line.indexOf('章节59')>=0?true:'caret line='+line;})()")),
 
     dict(name="T164 大纲跳转:目标标题停在视口上部呼吸位而非贴顶",
          setup=("window.Editor.setMode('ir');"

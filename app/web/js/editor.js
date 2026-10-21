@@ -652,15 +652,32 @@
     } catch (e) { /* ignore */ }
   }
 
+  /* sv 面板是 contenteditable <pre>（非 textarea）：按行号折算全文字符偏移，
+     TreeWalker 定位到对应文本节点。 */
   function placeSvCaret(line) {
     const sc = activePanel();
-    const ta = sc && sc.querySelector("textarea");
-    if (!ta || line == null) return;
-    const lines = ta.value.split("\n");
+    if (!sc || line == null) return;
+    const lines = sc.textContent.split("\n");
     let off = 0;
-    for (let i = 0; i < Math.min(line, lines.length); i++) off += lines[i].length + 1;
-    ta.focus({ preventScroll: true });
-    ta.setSelectionRange(off, off);
+    for (let i = 0; i < Math.min(line, lines.length - 1); i++) off += lines[i].length + 1;
+    const walker = document.createTreeWalker(sc, NodeFilter.SHOW_TEXT);
+    let node;
+    let rest = off;
+    let hit = null;
+    while ((node = walker.nextNode())) {
+      if (rest <= node.nodeValue.length) { hit = { node, at: rest }; break; }
+      rest -= node.nodeValue.length;
+    }
+    try {
+      const range = document.createRange();
+      if (hit) range.setStart(hit.node, hit.at);
+      else range.selectNodeContents(sc);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      sc.focus({ preventScroll: true });
+    } catch (e) { /* ignore */ }
   }
 
   /* 大纲项身份 = (文本, 同文本序号)。data-ryuu-id 是提取时刻的 DOM 序号：
