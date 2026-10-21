@@ -3216,7 +3216,11 @@ CASES += [
          sleep2=0.6, timeout2=15,
          js2=("(function(){var sc=document.querySelector('#editor .vditor-sv');"
               "if(!sc)return 'no sv panel';"
-              "return sc.scrollTop>500?true:'scrollTop='+sc.scrollTop;})()")),
+              "if(sc.scrollTop<=500)return 'scrollTop='+sc.scrollTop;"
+              "var ta=sc.querySelector('textarea');if(!ta)return 'no textarea';"
+              "var lineNo=ta.value.slice(0,ta.selectionStart).split('\\n').length-1;"
+              "var line=ta.value.split('\\n')[lineNo]||'';"
+              "return line.indexOf('章节60')>=0?true:'caret line='+line;})()")),
 
     dict(name="T164 大纲跳转:目标标题停在视口上部呼吸位而非贴顶",
          setup=("window.Editor.setMode('ir');"
@@ -3234,7 +3238,10 @@ CASES += [
               "for(var i=0;i<hs.length;i++){if(hs[i].textContent.replace(/^#+\\s*/,'')==='章节60'){t=hs[i];break;}}"
               "if(!t)return 'heading not found';"
               "var d=t.getBoundingClientRect().top-sc.getBoundingClientRect().top;"
-              "return (d>=40&&d<=170)?true:'delta='+d;})()")),
+              "if(d<40||d>170)return 'delta='+d;"
+              "var sel=window.getSelection();"
+              "if(!sel.rangeCount||!t.contains(sel.anchorNode))return 'caret not in heading';"
+              "return true;})()")),
 
     dict(name="T165 大纲跳转:竖排模式沿横轴滚动",
          setup=("window.Editor.setMode('ir');window.Editor.setVerticalDefault(true);"
