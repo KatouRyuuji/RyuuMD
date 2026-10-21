@@ -689,6 +689,16 @@
     const srcLoc = oDrag.loc;
     endOutlineDrag();
     if (!wasActive || !drop) return;
+    // 拖拽的 mouseup 会紧跟一次 click：吞掉落在大纲项上的那一次。
+    // 若 mouseup 发生在列表外，浏览器把 click 派发到公共祖先（非大纲项），
+    // 此时只移除吞口不放拦——吞口残留会吃掉下一次无关点击。
+    document.addEventListener("click", function swallow(ev) {
+      document.removeEventListener("click", swallow, true);
+      const onOutline = ev.target && ev.target.closest && ev.target.closest(".outline-item");
+      if (!onOutline) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+    }, true);
     const dstLoc = outlineLoc(drop.item);
     if (!dstLoc) { toast("定位失败，移动已取消"); return; }
     if (drop.kind === "child") {

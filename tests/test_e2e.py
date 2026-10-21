@@ -106,6 +106,8 @@ WORKDIR_EDGE.mkdir(parents=True, exist_ok=True)
 WORKDIR_ORPHAN = TMP / "e2e-workdir-orphan"
 WORKDIR_ORPHAN.mkdir(parents=True, exist_ok=True)
 (WORKDIR_ORPHAN / "hello.md").write_text("# 孤儿\n\nOrphanSrc\n", encoding="utf-8")
+# 另存为用例目标：故意不预建，由用例经 stub 对话框真实写盘产生
+SAVEAS_MD = TMP / "save-as.md"
 _W116_KEY = {"key": ""}
 
 
@@ -3200,6 +3202,99 @@ CASES.append(dict(
     sleep3=0.3,
     js3="!document.getElementById('input-modal-mask').classList.contains('open')",
 ))
+
+# 大纲跳转修复的回归用例：sv 跳转 / 落点呼吸位 / 竖排横轴 / 另存为
+CASES += [
+    dict(name="T163 大纲跳转:源码模式点击滚动到目标标题",
+         setup=("var s='# 起点\\n\\n';for(var i=0;i<80;i++){s+='## 章节'+i+'\\n\\n正文 '+i+'\\n\\n';}"
+                "window.Editor.setValue(s);window.Editor.setMode('sv');"),
+         sleep=1.0, timeout=15,
+         js=("window.Editor.getMode()==='sv'&&window.Editor.isReady()"
+             "&&document.querySelectorAll('#outline-list .outline-item').length>=81"),
+         setup2=("(function(){var it=document.querySelectorAll('#outline-list .outline-item');"
+                 "it[60].click();})()"),
+         sleep2=0.6, timeout2=15,
+         js2=("(function(){var sc=document.querySelector('#editor .vditor-sv');"
+              "if(!sc)return 'no sv panel';"
+              "if(sc.scrollTop<=500)return 'scrollTop='+sc.scrollTop;"
+              "var sel=window.getSelection();if(!sel.rangeCount)return 'no sel';"
+              "var r=sel.getRangeAt(0);var pre=r.cloneRange();"
+              "pre.selectNodeContents(sc);pre.setEnd(r.startContainer,r.startOffset);"
+              "var lineNo=pre.toString().split('\\n').length-1;"
+              "var line=(sc.textContent.split('\\n')[lineNo])||'';"
+              "return line.indexOf('章节59')>=0?true:'caret line='+line;})()")),
+
+    dict(name="T164 大纲跳转:目标标题停在视口上部呼吸位而非贴顶",
+         setup=("window.Editor.setMode('ir');"
+                "var s='';for(var i=0;i<80;i++){s+='## 章节'+i+'\\n\\n正文\\n\\n';}"
+                "window.Editor.setValue(s);"),
+         sleep=1.0, timeout=15,
+         js=("window.Editor.getMode()==='ir'&&window.Editor.isReady()"
+             "&&document.querySelectorAll('#outline-list .outline-item').length>=61"),
+         setup2=("(function(){var it=document.querySelectorAll('#outline-list .outline-item');"
+                 "it[60].click();})()"),
+         sleep2=1.2, timeout2=15,
+         js2=("(function(){var sc=document.querySelector('#editor .vditor-ir .vditor-reset');"
+              "if(!sc)return 'no panel';"
+              "var hs=sc.querySelectorAll('h2');var t=null;"
+              "for(var i=0;i<hs.length;i++){if(hs[i].textContent.replace(/^#+\\s*/,'')==='章节60'){t=hs[i];break;}}"
+              "if(!t)return 'heading not found';"
+              "var d=t.getBoundingClientRect().top-sc.getBoundingClientRect().top;"
+              "if(d<40||d>170)return 'delta='+d;"
+              "var sel=window.getSelection();"
+              "if(!sel.rangeCount||!t.contains(sel.anchorNode))return 'caret not in heading';"
+              "return true;})()")),
+
+    dict(name="T165 大纲跳转:竖排模式沿横轴滚动",
+         setup=("window.Editor.setMode('ir');window.Editor.setVerticalDefault(true);"
+                "var s='';for(var i=0;i<80;i++){s+='## 章节'+i+'\\n\\n正文\\n\\n';}"
+                "window.Editor.setValue(s);"),
+         sleep=1.0, timeout=15,
+         js=("document.getElementById('editor-wrap').classList.contains('vertical-layout')"
+             "&&document.querySelectorAll('#outline-list .outline-item').length>=61"),
+         setup2=("(function(){var it=document.querySelectorAll('#outline-list .outline-item');"
+                 "it[60].click();})()"),
+         sleep2=1.2, timeout2=15,
+         js2=("(function(){var sc=document.querySelector('#editor .vditor-ir .vditor-reset');"
+              "return sc&&sc.scrollLeft<-200?true:'scrollLeft='+(sc?sc.scrollLeft:'null');})()"),
+         setup3="window.Editor.setVerticalDefault(false);window.Editor.setValue('# 复位\\n\\n正文');",
+         sleep3=0.8, timeout3=15,
+         js3="!document.getElementById('editor-wrap').classList.contains('vertical-layout')"),
+
+    dict(name="T166 另存为:Ctrl+Shift+S 切换文档身份并直写新路径",
+         setup=("(async function(){await window.App.openPath(" + JV(str(SMALL_MD)) + ");"
+                "window.Home.hide();"
+                # 原生保存对话框无法自动化：stub 掉入口，内部仍走真 save_file 落盘
+                "window.pywebview.api.save_file_dialog=function(content,suggested){"
+                "window.__saveAsSuggested=suggested;"
+                "return window.pywebview.api.save_file(" + JV(str(SAVEAS_MD)) + ",content);};"
+                "window.Editor.setValue('# 另存测试\\n\\n正文 XYZ');})();"),
+         sleep=0.8, timeout=15,
+         js="window.Editor.getValue().indexOf('XYZ')>=0",
+         setup2=("window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,shiftKey:true,bubbles:true}));"),
+         sleep2=0.8, timeout2=15,
+         js2=("(function(){"
+              "if(window.__saveAsSuggested!=='small.md')return 'suggested='+window.__saveAsSuggested;"
+              "var dn=document.getElementById('doc-name').textContent;"
+              "if(dn.indexOf('save-as.md')<0)return 'doc-name='+dn;"
+              "if(document.getElementById('sb-save').textContent!=='已保存')return 'sb-save='+document.getElementById('sb-save').textContent;"
+              "return true;})()"),
+         setup3=("window.Editor.setValue('# 另存测试\\n\\n正文 XYZ 再改');"
+                 "window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true}));"),
+         sleep3=0.8, timeout3=15,
+         js3="document.getElementById('doc-name').textContent.indexOf('save-as.md')>=0",
+         py=lambda api, ev: SAVEAS_MD.read_text(encoding="utf-8").find("再改") >= 0 or "disk content stale"),
+
+    dict(name="T167 命令面板:另存为在列且标注 Ctrl+Shift+S",
+         setup=("window.Palette.openCommands();var i=document.getElementById('pal-input');"
+                "i.value='另存为';i.dispatchEvent(new Event('input',{bubbles:true}));"),
+         sleep=0.5, timeout=10,
+         js=("document.getElementById('pal-list').textContent.indexOf('另存为')>=0"
+             "&&document.getElementById('pal-list').textContent.indexOf('Ctrl+Shift+S')>=0"),
+         setup2="window.Palette.close();",
+         sleep2=0.3,
+         js2="!window.Palette.isOpen()"),
+]
 
 # 执行器
 # ----------------------------------------------------------------------------

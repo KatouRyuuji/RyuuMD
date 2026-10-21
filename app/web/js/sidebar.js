@@ -262,10 +262,15 @@
     applyOutlineActive();
   }
 
-  // 大纲点击（委托，仅绑定一次）：大纲会随编辑频繁重建，不逐项绑监听
+  // 大纲点击（委托，仅绑定一次）：大纲会随编辑频繁重建，不逐项绑监听。
+  // 身份用 (文本, 同文本序号)：DOM 序号 id 在 Vditor 重绘/防抖滞后时会错位。
   outlineList.addEventListener("click", (e) => {
     const item = e.target.closest(".outline-item");
-    if (item && onJumpHeading) onJumpHeading(item.dataset.id);
+    if (!item || !onJumpHeading) return;
+    const items = Array.from(outlineList.querySelectorAll(".outline-item"));
+    const idx = items.indexOf(item);
+    const ordinal = items.slice(0, idx).filter((el) => el.textContent === item.textContent).length;
+    onJumpHeading({ id: item.dataset.id, line: item.dataset.line, text: item.textContent, ordinal });
   });
 
   // —— 最近打开 ——

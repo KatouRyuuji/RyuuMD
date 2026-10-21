@@ -64,7 +64,7 @@
 
     window.Sidebar.setHandlers({
       openFile: openFileByPath,
-      jumpHeading: (id) => window.Editor.jumpTo(id),
+      jumpHeading: (ref) => window.Editor.jumpTo(ref),
       openRecent: openRecentItem,
       renameFile: renameFileFlow,
       moveFile: moveFileFlow,
@@ -632,6 +632,12 @@
     }
     if (silent) return false; // 未保存新文档不自动弹另存对话框
     const res = await a.save_file_dialog(content, "未命名.md");
+    return adoptSaveDialog(res, content);
+  }
+
+  /* 保存对话框结果的采纳路径：未命名首存与另存为共用。
+     成功后文档身份切换到新路径，后续 Ctrl+S 直写不再弹框。 */
+  function adoptSaveDialog(res, content) {
     if (res.ok) {
       state.currentPath = res.path;
       state.sourcePath = res.source_path || res.path;
@@ -647,6 +653,17 @@
     }
     if (!res.cancelled) toast("保存失败：" + (res.error || ""));
     return false;
+  }
+
+  async function saveAs() {
+    const a = apiOrToast();
+    if (!a) return false;
+    if (!(await ensureEditor())) return false;
+    const content = window.Editor.getValue();
+    state.latestContent = content;
+    const suggested = state.currentPath ? basename(state.currentPath) : "未命名.md";
+    const res = await a.save_file_dialog(content, suggested);
+    return adoptSaveDialog(res, content);
   }
 
   function markSaved(content) {
@@ -1497,7 +1514,7 @@
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
-      if (k === "s") { e.preventDefault(); if (e.shiftKey) pushCurrentToSource(); else save(); }
+      if (k === "s") { e.preventDefault(); if (e.shiftKey) saveAs(); else save(); }
       else if (k === "o") { e.preventDefault(); openFile(); }
       else if (k === "n") { e.preventDefault(); newDoc(); }
       else if (k === "p") {
@@ -1882,9 +1899,10 @@
   function appCommands() {
     return [
       { id: "save", title: "保存", keys: "Ctrl+S", group: "文件", run: save },
+      { id: "save-as", title: "另存为…", keys: "Ctrl+Shift+S", group: "文件", run: saveAs },
       { id: "edit-mode-source", title: "使用直改源文件", keys: "", group: "工作副本", run: () => setEditMode("source") },
       { id: "edit-mode-workdir", title: "使用工作副本", keys: "", group: "工作副本", run: () => setEditMode("workdir") },
-      { id: "push-source", title: "保存当前至源文件", keys: "Ctrl+Shift+S", group: "工作副本", run: () => pushCurrentToSource() },
+      { id: "push-source", title: "保存当前至源文件", keys: "", group: "工作副本", run: () => pushCurrentToSource() },
       { id: "merge-source", title: "合并当前源文件", keys: "", group: "工作副本", run: () => mergeCurrentFromSource() },
       { id: "push-all-source", title: "全部保存至源文件", keys: "", group: "工作副本", run: () => pushAllToSource() },
       { id: "merge-all-source", title: "全部合并源文件", keys: "", group: "工作副本", run: () => mergeAllFromSource() },
@@ -2718,6 +2736,7 @@
     openPath,
     ensureEditor,
     save,
+    saveAs,
     toast,
     confirm: confirmDialog,
     choice: choiceDialog,
