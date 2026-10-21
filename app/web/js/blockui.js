@@ -689,6 +689,12 @@
     const srcLoc = oDrag.loc;
     endOutlineDrag();
     if (!wasActive || !drop) return;
+    // 拖拽的 mouseup 会紧跟一次 click：吞掉它，移动整节不应再触发大纲跳转
+    document.addEventListener("click", function swallow(ev) {
+      ev.stopPropagation();
+      ev.preventDefault();
+      document.removeEventListener("click", swallow, true);
+    }, true);
     const dstLoc = outlineLoc(drop.item);
     if (!dstLoc) { toast("定位失败，移动已取消"); return; }
     if (drop.kind === "child") {

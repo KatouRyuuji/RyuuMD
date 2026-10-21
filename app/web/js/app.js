@@ -64,7 +64,7 @@
 
     window.Sidebar.setHandlers({
       openFile: openFileByPath,
-      jumpHeading: (id) => window.Editor.jumpTo(id),
+      jumpHeading: (ref) => window.Editor.jumpTo(ref),
       openRecent: openRecentItem,
       renameFile: renameFileFlow,
       moveFile: moveFileFlow,

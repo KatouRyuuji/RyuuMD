@@ -600,21 +600,100 @@
     return key;
   }
 
+  /* 大纲点击的落点：视口上部留呼吸位（取 12% 视口高、上限 96px），
+     而非贴顶——预览.app 目录跳转的纯置顶在编辑器里会让首行贴边。
+     竖排（vertical-rl）滚动轴为横向 scrollLeft，向文档后方为负向。 */
+  function isVertical() {
+    const wrap = document.getElementById("editor-wrap");
+    return !!(wrap && wrap.classList.contains("vertical-layout"));
+  }
+
+  function headingOffset(sc) {
+    const span = isVertical() ? sc.clientWidth : sc.clientHeight;
+    return Math.min(96, Math.round(span * 0.12));
+  }
+
+  function scrollBehavior() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  }
+
   function scrollPanelTo(node) {
     const sc = activePanel();
     if (!sc || !node) return;
+    if (isVertical()) {
+      const delta = node.getBoundingClientRect().right - sc.getBoundingClientRect().right + headingOffset(sc);
+      sc.scrollTo({ left: sc.scrollLeft + delta, behavior: scrollBehavior() });
+      return;
+    }
     const delta = node.getBoundingClientRect().top - sc.getBoundingClientRect().top;
-    sc.scrollTop = Math.max(0, sc.scrollTop + delta - 10);
+    sc.scrollTo({ top: Math.max(0, sc.scrollTop + delta - headingOffset(sc)), behavior: scrollBehavior() });
   }
 
-  function jumpTo(id) {
-    if (!id) return;
-    let el = document.querySelector(`[data-ryuu-id="${id}"]`);
-    if (!el) {
-      updateOutline();
-      el = document.querySelector(`[data-ryuu-id="${id}"]`);
+  /* sv 无标题 DOM，按行号×行高折算滚动（与 currentOutlineKey 的 sv 折算互逆）。 */
+  function scrollSvToLine(line) {
+    const sc = activePanel();
+    if (!sc || line == null) return;
+    const cs = getComputedStyle(sc);
+    const lh = parseFloat(cs.lineHeight) || 20;
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const dist = Math.max(0, padTop + line * lh - headingOffset(sc));
+    sc.scrollTo(isVertical() ? { left: -dist, behavior: scrollBehavior() } : { top: dist, behavior: scrollBehavior() });
+  }
+
+  /* 跳转后把光标落到标题处（编辑器惯例）：否则点击大纲后键盘输入落在旧光标处。 */
+  function placeCaretAtHeading(node) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) { /* ignore */ }
+  }
+
+  function placeSvCaret(line) {
+    const sc = activePanel();
+    const ta = sc && sc.querySelector("textarea");
+    if (!ta || line == null) return;
+    const lines = ta.value.split("\n");
+    let off = 0;
+    for (let i = 0; i < Math.min(line, lines.length); i++) off += lines[i].length + 1;
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(off, off);
+  }
+
+  /* 大纲项身份 = (文本, 同文本序号)。data-ryuu-id 是提取时刻的 DOM 序号：
+     Vditor 异步重绘会刷掉属性、大纲列表随防抖滞后于 DOM，旧序号会错位到
+     相邻标题。点击时重取最新大纲按文本对匹配，对准用户看到的那一项。
+     字符串入参为兼容路径（jumpToHeading 内部已先刷新大纲，id 是新鲜的）。 */
+  function jumpTo(ref) {
+    if (!ref) return;
+    updateOutline();
+    let idx = -1;
+    if (typeof ref === "object") {
+      let seen = 0;
+      for (let i = 0; i < lastOutline.length; i++) {
+        if (lastOutline[i].text !== ref.text) continue;
+        if (seen === (ref.ordinal || 0)) { idx = i; break; }
+        seen++;
+      }
+    } else {
+      for (let i = 0; i < lastOutline.length; i++) {
+        if (lastOutline[i].id && lastOutline[i].id === ref) { idx = i; break; }
+      }
     }
-    if (el) scrollPanelTo(el);
+    if (idx < 0) return;
+    const it = lastOutline[idx];
+    if (curMode === "sv") {
+      scrollSvToLine(it.line);
+      placeSvCaret(it.line);
+      return;
+    }
+    const node = outlineHeadingNodes[idx];
+    if (!node) return;
+    scrollPanelTo(node);
+    placeCaretAtHeading(node);
   }
 
   function headingMatches(text, want) {
