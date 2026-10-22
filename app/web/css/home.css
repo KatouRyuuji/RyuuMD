@@ -1,7 +1,7 @@
-/* ============================================================
+/*
    RyuuMD 首页 —— 仓库列表（卡片/列表视图）+ 快速操作 + 最近打开
    覆盖在编辑器之上（#body 内 absolute），与 phycat 主题变量联动
-   ============================================================ */
+ */
 
 #home {
   position: absolute;
@@ -29,7 +29,6 @@
   padding: var(--sys-space-6) var(--sys-space-6) var(--sys-space-8);
 }
 
-/* —— Hero：问候 + 快速操作 —— */
 .home-hero {
   margin-bottom: var(--sys-space-5);
 }
@@ -53,7 +52,6 @@
   max-width: 560px;
 }
 
-/* 随手记保存：主色描边的轻量按钮，与全局描边体系一致 */
 #home-scratch-save {
   border-color: transparent;
   background: transparent;
@@ -107,7 +105,6 @@
   color: var(--text-muted);
 }
 
-/* —— 区块标题行 —— */
 .home-section { margin-top: 34px; }
 .home-sec-head {
   display: flex;
@@ -176,7 +173,6 @@
   padding: 0 8px;
 }
 
-/* 视图切换（卡片/列表） */
 .view-toggle {
   display: inline-flex;
   background: var(--bg-elevated);
@@ -204,7 +200,6 @@
   color: var(--sys-on-primary, #fff);
 }
 
-/* —— 仓库卡片视图 —— */
 .repo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -240,7 +235,6 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  /* 底色由 ryuuji-a.css 统一为 --primary-bg：跨主题同色，不随路径哈希换色相 */
   color: var(--sys-on-primary, #fff);
   font-size: 17px;
   font-weight: 600;
@@ -281,7 +275,6 @@
   font-size: 12px;
 }
 
-/* 卡片操作按钮（hover 浮现） */
 .repo-actions {
   position: absolute;
   top: 12px;
@@ -316,7 +309,6 @@
 .repo-actions button svg { width: 14px; height: 14px; }
 .repo-actions button.pinned { color: var(--primary); }
 
-/* —— 仓库列表视图 —— */
 .repo-list { display: flex; flex-direction: column; gap: 6px; }
 .repo-row {
   position: relative;
@@ -352,7 +344,6 @@
   padding: 0;
 }
 
-/* —— 空态 —— */
 .home-empty {
   padding: 18px 20px;
   border: 1.5px dashed var(--border);
@@ -421,7 +412,6 @@ html[data-reduced-motion] #home.show {
   animation: none;
 }
 
-/* —— 最近打开 —— */
 .home-recent {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -481,7 +471,6 @@ html[data-reduced-motion] #home.show {
 .recent-row:hover .rr-save { display: inline-flex; }
 .recent-row .rr-save svg { width: 12px; height: 12px; }
 
-/* —— 最近打开分组：最近文件卡片 + 其他 —— */
 /* .home-recent 是多列 grid：分组标签与卡片区须跨满整行，否则会与 recent-row 挤进同一行网格 */
 .recent-group-label,
 .recent-files { grid-column: 1 / -1; }
@@ -541,7 +530,6 @@ html[data-reduced-motion] #home.show {
   white-space: nowrap;
 }
 
-/* —— 首页内联小弹窗（重命名） —— */
 .mini-modal {
   width: min(420px, 92vw);
 }
@@ -566,13 +554,11 @@ html[data-reduced-motion] #home.show {
 .mm-path-row .mm-input { flex: 1; min-width: 0; }
 .mm-path-row .btn { flex: none; white-space: nowrap; }
 
-/* 工具栏首页按钮激活态 */
 #btn-home.active {
   background: var(--primary-bg);
   color: var(--primary);
 }
 
-/* 窄窗口适配 */
 @media (max-width: 760px) {
   .home-inner { padding: 24px 20px 48px; }
   .recent-files { grid-template-columns: 1fr; }

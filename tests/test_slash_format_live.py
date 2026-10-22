@@ -1,11 +1,4 @@
-# -*- coding: utf-8 -*-
-"""真实窗口：空行 / 选格式后再输入，是否还留在该格式。
-
-复现用户路径：空文档 → 斜杠选一级标题/列表/引用 → 再键入内容或回车。
-对照路径：已有正文最前面插 / 再转标题。
-
-运行: python tests/test_slash_format_live.py
-"""
+"""真实窗口：斜杠 / 选中格式化实际插入，是否落在光标格式处。"""
 
 from __future__ import annotations
 
@@ -186,7 +179,6 @@ def _run(window) -> None:
             window.destroy()
             return
 
-        # —— 对照：已有内容最前面插 / 转标题 ——
         ev(window, "window.Editor.setValue(" + JV("已有段落 XYZ\n") + ");")
         time.sleep(0.4)
         ev(
@@ -221,7 +213,6 @@ def _run(window) -> None:
         )
         record("L1 已有内容行首 / 转一级标题", ok, last if not ok else "")
 
-        # —— 空行：/ 选一级标题，看壳 ——
         focus_empty(window)
         slash_choose(window, "一级标题")
         snap = dump(window)
@@ -236,7 +227,6 @@ def _run(window) -> None:
         )
         record("L2 空行 / 选一级标题后仍是 h1", ok, last if not ok else snap)
 
-        # —— 再输入内容 ——
         type_text(window, "空行标题ABC")
         snap2 = dump(window)
         print("DUMP after type in h1:", snap2, flush=True)
@@ -252,7 +242,6 @@ def _run(window) -> None:
         )
         record("L3 空行标题里键入后源码仍是标题", ok, last if not ok else "")
 
-        # —— 空行 / 选标题后立刻回车，再输入 ——
         focus_empty(window)
         slash_choose(window, "一级标题")
         press_enter(window)
@@ -270,7 +259,6 @@ def _run(window) -> None:
         )
         record("L4 空行选标题后回车再输入仍在标题", ok, last if not ok else "")
 
-        # —— 空行无序列表再输入 ——
         focus_empty(window)
         slash_choose(window, "无序列表")
         type_text(window, "列表项GHI")
@@ -291,7 +279,6 @@ def _run(window) -> None:
         slash_choose(window, "一级标题")
         type_text(window, "写完标题JKL")
         time.sleep(0.25)
-        # 空壳回车由 holdEmptyEnter 拦下；写完后浏览器会走 insertParagraph
         ev(window, "document.execCommand('insertParagraph');")
         time.sleep(0.35)
         type_text(window, "这是正文MNO")
@@ -324,7 +311,6 @@ def _run(window) -> None:
         )
         record("L7 空行 / 选引用后键入仍是引用", ok, last if not ok else "")
 
-        # —— 空标题壳按住回车不得吞掉查找条 Enter ——
         focus_empty(window)
         slash_choose(window, "一级标题")
         ok, last = wait(

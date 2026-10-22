@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""运行时样式与设计源 tokens/palettes 对齐（色值从源文件解析，不另写色表）。"""
+"""设计样式资源 tokens/palettes 编译：色值与源文件一致，不写死色。"""
 
 from __future__ import annotations
 
@@ -17,8 +16,6 @@ os.environ["APPDATA"] = _TMP_APPDATA.name
 
 from app.core.palette_css import duration_map, load_export_palettes  # noqa: E402
 
-# 设计源 RyuujiDesign 的 styles 目录：RYUUJI_DESIGN_STYLES 指定，缺省取工作区中的相邻仓库；
-# 不存在（如 CI）时源对齐用例跳过，vendor 自身用例照常
 SOURCE = Path(os.environ.get("RYUUJI_DESIGN_STYLES") or ROOT.parent.parent / "RyuujiDesign" / "styles")
 _needs_source = unittest.skipUnless(SOURCE.is_dir(), "设计源仓库不存在")
 VENDOR = ROOT / "app" / "web" / "vendor" / "ryuuji" / "styles"

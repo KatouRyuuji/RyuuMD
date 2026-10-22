@@ -1,6 +1,3 @@
-/* ============================================================
-   斜杠命令菜单（Notion 风格弹出面板）
-   ============================================================ */
 
 #slash-menu {
   position: fixed;
@@ -27,7 +24,6 @@
   user-select: none;
 }
 
-/* 右键（context）模式顶部的打字过滤提示：不占焦点，按键在 document 捕获 */
 .slash-filter {
   padding: 6px 10px;
   margin: -2px 0 4px;
@@ -107,9 +103,6 @@
   color: var(--text-muted);
 }
 
-/* ============================================================
-   Vditor 原生 hint 面板（键入 "/" 触发）
-   ============================================================ */
 .vditor-hint {
   background: var(--bg-elevated) !important;
   border: 1px solid var(--border) !important;
@@ -170,7 +163,6 @@
   border-radius: 5px;
 }
 
-/* 剪贴板项禁用态（无选区时复制/剪切不可点） */
 .slash-item.disabled { opacity: 0.38; cursor: default; }
 .slash-item.disabled.active { background: transparent; }
 .slash-item.disabled.active .si-icon {

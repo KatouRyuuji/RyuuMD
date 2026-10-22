@@ -1,18 +1,7 @@
-"""本应用高级功能：CLI / TUI / MCP / AISkill，共用同一套核心读写。
+"""CLI / TUI / MCP / AISkill 高级功能，共用同一套核心读写（invoke_tool）。
 
-入口仍是 main.py。无参数或首参数为路径时启动 GUI；首参数命中命令表
-（read/write/ls/search/vaults/scratch/send/receive/tools/tool/mcp）时走 CLI；
-``mcp`` 启动 stdio JSON-RPC 服务。旧前缀 ``--cli`` / ``--tui`` / ``--mcp``
-与旧命令名（list/im-send/im-receive/scratch-read/scratch-write）仍兼容。
-工具表与 AI 路径共用 invoke_tool。
-
-细粒度操作表（TOOL_SPECS）覆盖 GUI 全部可自动化能力：笔记读写、文件管理、
-仓库管理、配置、最近打开、搜索与索引、模板、日记、收集箱、图片、AI、
-云同步、工作副本与 IM 通道。对外只列 4 只面向 AI 代理的分组工具（TOOL_GROUPS：ryuumd_note / ryuumd_vault / ryuumd_sync / ryuumd_im，
-用 action 选操作），MCP、AI 与 ``tools`` 命令同表；全部细粒度名仍可调用。
-具名 CLI 命令是高频操作的人用入口。
-仅系统对话框、窗口生命周期等 GUI 强交互能力不在工具表内。
-"""
+无参数或首参数为路径时走 GUI；首参数命中命令表走 CLI；mcp 启动 stdio JSON-RPC 服务。
+对外只列 4 只分组工具（ryuumd_note/vault/sync/im），全部细粒度名与旧名仍可调用。"""
 
 from __future__ import annotations
 
@@ -32,8 +21,6 @@ from .fsutil import atomic_write_text
 
 Dispatch = Callable[[str, dict[str, Any]], dict[str, Any]]
 
-# ---------------------------------------------------------------------------
-# 工具表（标准 JSON Schema；MCP 与 Anthropic Messages 直接消费）
 
 TOOL_SPECS: list[dict[str, Any]] = [
     {
@@ -119,8 +106,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["provider"],
         },
     },
-    # ------------------------------------------------------------------
-    # 文件管理
     {
         "name": "new_note",
         "description": "在指定目录下新建空 Markdown 笔记（自动补 .md 后缀）",
@@ -219,8 +204,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             },
         },
     },
-    # ------------------------------------------------------------------
-    # 仓库管理
     {
         "name": "add_vault",
         "description": "把已有目录注册为仓库",
@@ -295,8 +278,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": "注册内置学习仓库到首页（幂等，只补缺失文件）",
         "input_schema": {"type": "object", "properties": {}},
     },
-    # ------------------------------------------------------------------
-    # 配置
     {
         "name": "get_config",
         "description": "读取应用配置（云同步与 AI 密钥已脱敏）",
@@ -313,8 +294,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["values"],
         },
     },
-    # ------------------------------------------------------------------
-    # 最近打开
     {
         "name": "list_recent",
         "description": "列出最近打开的文件与文件夹",
@@ -334,8 +313,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": "清空最近打开列表",
         "input_schema": {"type": "object", "properties": {}},
     },
-    # ------------------------------------------------------------------
-    # 搜索与仓库索引
     {
         "name": "smart_search",
         "description": "多模式检索：mode=title 标题 / content 正文 / semantic 语义；query 以「ask 」为前缀时走 AI 问答",
@@ -395,8 +372,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["name"],
         },
     },
-    # ------------------------------------------------------------------
-    # 模板 / 日记 / 收集箱 / 图片
     {
         "name": "list_templates",
         "description": "列出仓库「模板/」下的笔记模板",
@@ -457,8 +432,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["data_b64"],
         },
     },
-    # ------------------------------------------------------------------
-    # AI（需在设置中配置 Anthropic Messages 端点）
     {
         "name": "ask_ai",
         "description": "带仓库摘录向 AI 提问；模型可回调本工具表完成读写",
@@ -507,8 +480,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": "测试 AI 端点连通性（最小请求验证地址/密钥/模型）",
         "input_schema": {"type": "object", "properties": {}},
     },
-    # ------------------------------------------------------------------
-    # 云同步（可选 WebDAV）
     {
         "name": "cloud_status",
         "description": "读取云同步配置状态与最近同步结果",
@@ -550,8 +521,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "required": ["values"],
         },
     },
-    # ------------------------------------------------------------------
-    # 工作副本（edit_mode=workdir 时生效）
     {
         "name": "workdir_status",
         "description": "查询当前文件相对源文件的同步状态（未回写/源有更新/冲突）",
@@ -612,8 +581,6 @@ TOOL_SPECS: list[dict[str, Any]] = [
             },
         },
     },
-    # ------------------------------------------------------------------
-    # IM 通道
     {
         "name": "list_im_providers",
         "description": "列出可用的即时通讯通道（feishu/popo/dingtalk/wecom/wechat/qq）",
@@ -642,19 +609,9 @@ TOOL_ALIASES: dict[str, str] = {
     "im_receive": "receive_from_im",
 }
 
-# ---------------------------------------------------------------------------
-# 对外工具：面向 AI 代理只列 4 只分组工具，用 action 选择操作
-#
-# TOOL_SPECS 里的细粒度操作仍是唯一实现与参数来源（_TOOL_HANDLERS 一一对应）。
-# 对外只列代理真正用得上的能力：note（单篇笔记）、vault（仓库级检索与组织）、
-# sync（云同步与工作副本）、im（发到即时通讯）。主题/最近打开/置顶/教程/连通性测试
-# 等 GUI 向操作，以及代理自己就能完成的 AI 概括类操作不再列出——它们与全部细粒度名、
-# TOOL_ALIASES 旧名一样仍可直接调用，既有 MCP 客户端与脚本不受影响。
-#
-# 触发收敛：工具名统一 ryuumd_ 前缀；MCP 边界在每只工具描述前加触发约束，并在
-# initialize 下发 instructions，让外部代理只在用户提到 RyuuMD 或显式要求使用时才调用，
-# 不把它当作通用的文件 / Markdown 工具。RyuuMD 内置 AI 侧栏本就在应用内，不加此约束。
-#
+# 对外只列 4 只分组工具（action 选择操作）：GUI 向与 AI 概括类细粒度操作不在其列，
+# 但与 TOOL_ALIASES 旧名一样仍可经 tool 命令直接调用。
+# 触发收敛：工具名统一 ryuumd_ 前缀，MCP 侧加约束让外部代理只在用户提到 RyuuMD 时调用。
 # action 条目：op 为细粒度操作名（或多个，route 按参数选择），desc 为一句话说明。
 
 def _route_read(args: dict[str, Any]) -> str:
@@ -751,12 +708,10 @@ MCP_INSTRUCTIONS = (
 
 
 def grouped_operations() -> set[str]:
-    """经分组工具可达的细粒度操作。"""
     return {op for g in TOOL_GROUPS for e in g["actions"].values() for op in _action_ops(e)}
 
 
-# 分组 schema 里语义自明的参数只保留类型（名字已出现在 action 签名中），
-# 跨操作含义略有差异的参数用统一说明，进一步压缩体积。
+# 分组 schema 里语义自明的参数只保留类型，跨操作含义有差异的用统一说明，压缩体积。
 _PLAIN_PARAMS = frozenset({
     "path", "content", "name", "new_name", "target_folder", "parent", "query",
     "text", "template_path", "md_path", "filename", "project_id", "markdown",
@@ -773,11 +728,6 @@ _PARAM_DESC_OVERRIDES: dict[str, str] = {
 
 
 def _group_spec(group: dict[str, Any]) -> dict[str, Any]:
-    """由细粒度操作合成一只分组工具的 schema：action 枚举 + 参数并集。
-
-    每个 action 的签名与一句话说明写进描述（「read(path, max_chars?) 读正文」）；
-    语义自明的参数只留类型，控制体积。
-    """
     lines: list[str] = []
     props: dict[str, Any] = {}
     for action, entry in group["actions"].items():
@@ -813,7 +763,6 @@ def _group_spec(group: dict[str, Any]) -> dict[str, Any]:
 
 GROUP_SPECS: list[dict[str, Any]] = [_group_spec(g) for g in TOOL_GROUPS]
 
-# AI 技能清单：直接由分组工具生成，不再单独维护
 SKILLS: list[dict[str, Any]] = [
     {"id": g["name"], "tool": g["name"], "title": g["title"], "actions": list(g["actions"])}
     for g in TOOL_GROUPS
@@ -838,7 +787,6 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
         str(a.get("provider") or ""), str(a.get("markdown") or ""), str(a.get("title") or "")
     ),
     "receive_from_im": lambda api, a: api.im_receive(str(a.get("provider") or "")),
-    # 文件管理
     "new_note": lambda api, a: api.new_file(str(a.get("folder") or ""), str(a.get("name") or "")),
     "new_folder": lambda api, a: api.new_folder(str(a.get("parent") or ""), str(a.get("name") or "")),
     "rename_note": lambda api, a: api.rename_file(str(a.get("path") or ""), str(a.get("new_name") or "")),
@@ -848,7 +796,6 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
     "preview_note": lambda api, a: api.preview_file(str(a.get("path") or ""), int(a.get("max_chars") or 1600)),
     "note_stat": lambda api, a: api.file_stat(str(a.get("path") or "")),
     "list_all_notes": lambda api, a: api.list_md_files(str(a.get("folder") or ""), str(a.get("query") or "")),
-    # 仓库管理
     "add_vault": lambda api, a: api.add_project(str(a.get("path") or ""), str(a.get("name") or "")),
     "create_vault": lambda api, a: api.create_project(str(a.get("parent") or ""), str(a.get("name") or "")),
     "remove_vault": lambda api, a: api.remove_project(str(a.get("project_id") or "")),
@@ -856,13 +803,11 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
     "pin_vault": lambda api, a: api.pin_project(str(a.get("project_id") or ""), bool(a.get("pinned"))),
     "make_dir": lambda api, a: api.create_directory(str(a.get("parent") or ""), str(a.get("name") or "")),
     "open_tutorial": lambda api, a: api.open_tutorial(),
-    # 配置 / 最近打开
     "get_config": lambda api, a: api.get_config(),
     "update_config": lambda api, a: api.update_config(a.get("values") if isinstance(a.get("values"), dict) else {}),
     "list_recent": lambda api, a: api.get_recent(),
     "remove_recent": lambda api, a: api.remove_recent(str(a.get("path") or "")),
     "clear_recent": lambda api, a: api.clear_recent(),
-    # 搜索与仓库索引
     "smart_search": lambda api, a: api.search_notes(
         str(a.get("folder") or ""), str(a.get("query") or ""), str(a.get("mode") or "title")
     ),
@@ -877,7 +822,6 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
     "resolve_wikilink": lambda api, a: api.resolve_wikilink(
         str(a.get("folder") or ""), str(a.get("name") or ""), str(a.get("current_file") or "")
     ),
-    # 模板 / 日记 / 收集箱 / 图片
     "list_templates": lambda api, a: api.list_templates(str(a.get("folder") or "")),
     "new_from_template": lambda api, a: api.new_from_template(
         str(a.get("folder") or ""), str(a.get("template_path") or ""), str(a.get("name") or "")
@@ -893,7 +837,6 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
         str(a.get("data_b64") or ""),
         str(a.get("mime") or ""),
     ),
-    # AI
     "ask_ai": lambda api, a: api.ask_ai(str(a.get("folder") or ""), str(a.get("question") or "")),
     "summarize_note": lambda api, a: api.summarize_document(
         str(a.get("path") or ""), str(a.get("content") or ""), str(a.get("folder") or "")
@@ -901,29 +844,22 @@ _TOOL_HANDLERS: dict[str, Callable[[Api, dict[str, Any]], dict[str, Any]]] = {
     "summarize_vault": lambda api, a: api.summarize_vault(str(a.get("folder") or "")),
     "knowledge_tree": lambda api, a: api.knowledge_tree(str(a.get("folder") or ""), bool(a.get("refresh"))),
     "test_ai": lambda api, a: api.test_ai(),
-    # 云同步
     "cloud_status": lambda api, a: api.get_cloud_status(),
     "sync_cloud": lambda api, a: api.sync_cloud(str(a.get("project_id") or "")),
     "set_vault_cloud": lambda api, a: api.set_project_cloud(str(a.get("project_id") or ""), bool(a.get("enabled"))),
     "test_cloud": lambda api, a: api.test_cloud(),
     "configure_cloud": lambda api, a: api.save_cloud_settings(a.get("values") if isinstance(a.get("values"), dict) else {}),
-    # 工作副本
     "workdir_status": lambda api, a: api.workdir_status(str(a.get("path") or "")),
     "workdir_summary": lambda api, a: api.workdir_summary(str(a.get("folder") or "")),
     "workdir_push": lambda api, a: api.workdir_push(str(a.get("path") or ""), bool(a.get("force"))),
     "workdir_merge": lambda api, a: api.workdir_merge(str(a.get("path") or ""), str(a.get("strategy") or "")),
     "workdir_push_all": lambda api, a: api.workdir_push_all(str(a.get("folder") or ""), bool(a.get("force"))),
     "workdir_merge_all": lambda api, a: api.workdir_merge_all(str(a.get("folder") or ""), str(a.get("strategy") or "")),
-    # IM 通道
     "list_im_providers": lambda api, a: api.im_providers(),
 }
 
 
 def resolve_tool(name: str, arguments: Optional[dict[str, Any]] = None) -> tuple[Optional[str], dict[str, Any], str]:
-    """把对外工具名解析为细粒度操作：(操作名, 参数, 错误)。
-
-    分组工具按 action 定位操作并去掉 action 参数；细粒度名与旧别名直接放行。
-    """
     args = dict(arguments or {})
     n = (name or "").strip()
     group = _GROUPS_BY_NAME.get(n)
@@ -949,7 +885,6 @@ def is_known_tool(name: str) -> bool:
 
 
 def invoke_tool(api: Api, name: str, arguments: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-    """按工具名调用与 GUI 相同的 Api 方法；支持分组工具（action）、细粒度名与旧别名。"""
     op, args, err = resolve_tool(name, arguments)
     if op is None:
         return {"ok": False, "error": err}
@@ -957,7 +892,6 @@ def invoke_tool(api: Api, name: str, arguments: Optional[dict[str, Any]] = None)
 
 
 def list_tools(include_internal: bool = True) -> list[dict[str, Any]]:
-    """对外工具表：分组工具；include_internal 时附带 internal 联调工具（echo）。"""
     out = list(GROUP_SPECS)
     if include_internal:
         out.extend(t for t in TOOL_SPECS if t.get("internal"))
@@ -965,7 +899,6 @@ def list_tools(include_internal: bool = True) -> list[dict[str, Any]]:
 
 
 def list_operations() -> list[dict[str, Any]]:
-    """细粒度操作全表（仍可按名直接调用，不对外列出）。"""
     return list(TOOL_SPECS)
 
 
@@ -974,12 +907,10 @@ def list_skills() -> list[dict[str, Any]]:
 
 
 def ai_tools() -> list[dict[str, Any]]:
-    """AI 侧栏可用的工具：与对外分组工具同表，附 internal 联调工具。"""
     return list_tools(include_internal=True)
 
 
 def to_anthropic_tools(specs: Optional[list[dict[str, Any]]] = None) -> list[dict[str, Any]]:
-    """把工具表透传成 Messages API 的 tools 数组；缺省为 AI 侧栏可用的分组工具。"""
     out: list[dict[str, Any]] = []
     for spec in specs if specs is not None else ai_tools():
         name = str(spec.get("name") or "")
@@ -993,8 +924,6 @@ def to_anthropic_tools(specs: Optional[list[dict[str, Any]]] = None) -> list[dic
     return out
 
 
-# ---------------------------------------------------------------------------
-# AI 问答
 
 def ask_with_tools(
     question: str,
@@ -1002,7 +931,6 @@ def ask_with_tools(
     cfg: Any,
     dispatch: Dispatch,
 ) -> dict[str, Any]:
-    """AI 问答：complete 带上工具表；响应若含 tool_use 则调度本应用工具。"""
     q = (question or "").strip()
     if not q:
         return {"ok": False, "kind": "ask", "question": "", "answer": "", "error": "问题为空", "hits": []}
@@ -1056,8 +984,6 @@ def ask_with_tools(
     }
 
 
-# ---------------------------------------------------------------------------
-# CLI（命令表驱动）
 
 CliHandler = Callable[[Api, list[str], dict[str, Optional[str]], TextIO, Optional[TextIO]], int]
 
@@ -1076,7 +1002,6 @@ def _is_tty(stream: Any) -> bool:
 
 
 def _body_from(flags: dict[str, Optional[str]], inn: Optional[TextIO], out: TextIO) -> Optional[str]:
-    """正文来源：--content 优先，否则读 stdin；stdin 不可用时报错返回 None。"""
     if flags.get("content") is not None:
         return str(flags["content"])
     if inn is None:
@@ -1212,13 +1137,11 @@ def _cmd_receive(api: Api, args: list[str], flags: dict[str, Optional[str]], out
 
 
 def _cmd_tools(api: Api, args: list[str], flags: dict[str, Optional[str]], out: TextIO, inn: Optional[TextIO]) -> int:
-    """列出全部 AI 工具（与 MCP tools/list 同表，internal 工具不输出）。"""
     out.write(json.dumps(list_tools(include_internal=False), ensure_ascii=False, indent=2) + "\n")
     return 0
 
 
 def _cmd_tool(api: Api, args: list[str], flags: dict[str, Optional[str]], out: TextIO, inn: Optional[TextIO]) -> int:
-    """通用工具调用入口：整张工具表对脚本/AI 可达，无需为每个工具设子命令。"""
     if not args:
         out.write("缺少工具名\n")
         return 2
@@ -1310,7 +1233,6 @@ def run_cli(
     stdout: Optional[TextIO] = None,
     stdin: Optional[TextIO] = None,
 ) -> int:
-    """执行一条 CLI 命令；成功把正文打到 stdout。"""
     out = stdout or sys.stdout
     if out is None:
         return 1  # stdio 重建失败（无控制台的窗口程序）：静默降级，退出码仍有效
@@ -1341,7 +1263,6 @@ def run_cli(
 
 
 def run_tui(argv: list[str], api: Optional[Api] = None, stdout: Optional[TextIO] = None) -> int:
-    """TUI：``--once`` 后接与 CLI 相同的子命令，走同一套核心。"""
     out = stdout or sys.stdout
     if out is None:
         return 1
@@ -1354,7 +1275,6 @@ def run_tui(argv: list[str], api: Optional[Api] = None, stdout: Optional[TextIO]
     return 2
 
 
-# ---------------------------------------------------------------------------
 # MCP（stdio JSON-RPC，协议版本 2024-11-05 至 2025-06-18）
 
 MCP_PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18")
@@ -1362,7 +1282,6 @@ MCP_PROTOCOL_LATEST = MCP_PROTOCOL_VERSIONS[-1]
 
 
 def _mcp_tools() -> list[dict[str, Any]]:
-    """MCP 边界的 tools/list 载荷：隐藏 internal 工具，键名转 inputSchema，描述前加触发约束。"""
     out: list[dict[str, Any]] = []
     for spec in list_tools(include_internal=False):
         out.append({
@@ -1374,11 +1293,7 @@ def _mcp_tools() -> list[dict[str, Any]]:
 
 
 def handle_mcp_message(msg: dict[str, Any], api: Api) -> Optional[dict[str, Any]]:
-    """处理一条 JSON-RPC 消息；notification 不应答（返回 None）。
-
-    JSON-RPC 语义：notifications/* 与无 id 的请求都不应答；带 id 但缺 method
-    的畸形请求回 -32600，让等待方尽快失败而不是挂起。
-    """
+    """notification 不应答（返回 None）；带 id 但缺 method 的畸形请求回 -32600，让等待方尽快失败而不是挂起。"""
     mid = msg.get("id")
     method = str(msg.get("method") or "")
     params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
@@ -1432,7 +1347,6 @@ def handle_mcp_message(msg: dict[str, Any], api: Api) -> Optional[dict[str, Any]
 
 
 def run_mcp(api: Optional[Api] = None, stdin: Optional[TextIO] = None, stdout: Optional[TextIO] = None) -> int:
-    """stdio JSON-RPC 循环；notification 不应答；空输入结束。"""
     client = api or Api(Config())
     inn = stdin or sys.stdin
     out = stdout or sys.stdout
@@ -1458,11 +1372,8 @@ def run_mcp(api: Optional[Api] = None, stdin: Optional[TextIO] = None, stdout: O
     return 0
 
 
-# ---------------------------------------------------------------------------
-# MCP 客户端接入（--print-config / --install）
 
 def _self_command() -> list[str]:
-    """当前进程启动 MCP 模式的命令行（exe 用自身，源码用解释器 + main.py）。"""
     if getattr(sys, "frozen", False):
         return [sys.executable, "mcp"]
     main_py = Path(__file__).resolve().parent.parent.parent / "main.py"
@@ -1484,7 +1395,6 @@ def _backup_path(path: Path) -> Path:
 
 
 def _mcp_install(out: TextIO) -> int:
-    """注册到 Claude Code：优先调 claude CLI，否则原子写 ~/.claude.json。"""
     cmd = _self_command()
     claude = shutil.which("claude")
     if claude:
@@ -1564,8 +1474,6 @@ def _mcp_dispatch(rest: list[str]) -> int:
     return 2
 
 
-# ---------------------------------------------------------------------------
-# windowed exe 的 stdio 重建
 
 def _stream_ok(stream: Any) -> bool:
     if stream is None or type(stream).__name__ == "NullWriter":
@@ -1580,14 +1488,9 @@ def _stream_ok(stream: Any) -> bool:
 def ensure_stdio() -> None:
     """CLI/MCP 模式下修正或重建标准流（仅 Windows）。
 
-    - 源码模式：非 tty 且非 UTF-8 的流 reconfigure 为 UTF-8——MCP 管道场景的协议
-      硬要求（中文 Windows 的管道流默认 GBK）；tty 控制台不动。
-    - frozen（console=False 打包）：逐流处理。GetStdHandle 有效且非控制台（管道/
-      重定向，如 MCP 被 spawn）→ 一律 UTF-8：流可用则 reconfigure，不可用则
-      open_osfhandle 重建；仍为坏的流 → AttachConsole 挂父控制台后开 CONOUT$/CONIN$
-      （AttachConsole 不更新进程标准句柄，必须显式开 CON 设备；stdin 用 GetConsoleCP），
-      编码随控制台代码页；都失败则保持静默降级（Explorer 带参启动场景），退出码仍有效。
-    """
+    管道流一律 UTF-8（MCP 协议硬要求，中文 Windows 管道默认 GBK）；frozen 无控制台时坏流
+    open_osfhandle 重建，或 AttachConsole 后显式开 CONOUT$/CONIN$（AttachConsole 不更新标准句柄）；
+    都失败保持静默降级，退出码仍有效。"""
     if sys.platform != "win32":
         return
     if not getattr(sys, "frozen", False):
@@ -1640,7 +1543,6 @@ def _is_console_handle(kernel32: Any, handle: int) -> bool:
 
 
 def _console_encoding(kernel32: Any, name: str) -> str:
-    """控制台流编码：stdin 读输入代码页 GetConsoleCP，输出流读 GetConsoleOutputCP。"""
     cp = kernel32.GetConsoleCP() if name == "stdin" else kernel32.GetConsoleOutputCP()
     return "utf-8" if cp == 65001 else "mbcs"
 
@@ -1651,7 +1553,6 @@ def _is_utf8(stream: Any) -> bool:
 
 
 def _reconfigure_utf8(stream: Any, name: str) -> None:
-    """已接管道的流只换编码：MCP 协议与笔记正文都要求 UTF-8。"""
     reconfigure = getattr(stream, "reconfigure", None)
     if reconfigure is None:
         return
@@ -1665,7 +1566,7 @@ def _reconfigure_utf8(stream: Any, name: str) -> None:
 
 
 def _wrap_handle(msvcrt: Any, name: str, handle: int, encoding: str, errors: str, wrappers: dict[tuple[int, bool], TextIO]) -> None:
-    """把 HANDLE 包成文本流替换坏的 sys.*；同向同句柄（2>&1）共用一个 wrapper，防双重关闭。"""
+    """同向同句柄（2>&1）共用一个 wrapper，防双重关闭。"""
     if not handle or handle == -1:
         return
     key = (handle, name == "stdin")
@@ -1682,26 +1583,19 @@ def _wrap_handle(msvcrt: Any, name: str, handle: int, encoding: str, errors: str
     setattr(sys, name, stream)
 
 
-# ---------------------------------------------------------------------------
-# 入口调度
 
 _LEGACY_PREFIXES = ("--cli", "cli", "--tui", "tui", "--mcp")
 _ADV_HEADS = frozenset(_COMMAND_MAP) | {"mcp", "help", "-h", "--help"} | frozenset(_LEGACY_PREFIXES)
 
 
 def is_adv_argv(argv: list[str]) -> bool:
-    """首参数命中命令表 / mcp / 旧前缀时走 CLI-MCP 通道，否则走 GUI。
-
-    命令表优先于路径检测：双击、拖拽、文件关联传入的永远是完整路径，
-    裸词命令名不会与真实文件冲突。
-    """
+    """命令表优先于路径检测：双击、拖拽、文件关联传入的永远是完整路径，裸词命令名不会与真实文件冲突。"""
     if not argv:
         return False
     return argv[0] in _ADV_HEADS
 
 
 def dispatch_argv(argv: list[str]) -> int:
-    """main 入口：识别命令表 / --cli / --tui / --mcp。"""
     ensure_stdio()
     if not argv:
         return 2

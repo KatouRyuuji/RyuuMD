@@ -1,13 +1,6 @@
-/* ============================================================
-   RyuuMD 编辑区主题 —— phycat 排版身份（标题装饰/引用/代码块皮肤）保留，
-   色值令牌由 css/sys-bridge.css 桥接到 RyuujiDesign v6.1（--sys-*）。
-   明暗由 [data-theme] 决定；色相由 [data-palette]（a1/a3/a4/a5/a6）经 palettes.css 决定。
-   选择器从 Typora 的 #write 映射到 Vditor IR 的 .vditor-reset。
-   ============================================================ */
 
 :root {
   --quote-emoji: "\2728"; /* ✨ */
-  /* 亮色代码高亮：GitHub 系固定值（与 hljs github 主题一致，内容区语法色不随色板） */
   --code-keyword: #d73a49;
   --code-variable: #005cc5;
   --code-function: #6f42c1;
@@ -22,7 +15,6 @@
 }
 :root[data-theme="dark"] {
   --quote-emoji: "\1F319"; /* 🌙 */
-  /* 暗色代码高亮：Dracula 系固定值（内容区语法色不随色板，与 hljs github-dark 协调） */
   --code-keyword: #ff79c6;
   --code-variable: #f8f8f2;
   --code-function: #50fa7b;
@@ -49,7 +41,6 @@
   letter-spacing: 0.4px;
 }
 
-/* 内容区宽度跟随主视图 */
 .vditor-ir,
 .vditor-wysiwyg,
 .vditor-sv { background: var(--bg) !important; }
@@ -63,15 +54,12 @@
 
 .vditor-toolbar { display: none !important; }
 
-/* —— 源码模式：等宽字体显示纯 md，markdown 标记可见但弱化（参考 GitHub 源码体验） —— */
 .vditor-sv {
   font-family: var(--font-mono) !important;
   font-size: 14.5px !important;
   line-height: 1.9 !important;
   color: var(--text) !important;
   letter-spacing: 0 !important;
-  /* Vditor 默认 pre-wrap + break-word 会把表格源码行（| 列 | 列 |）折断错位。
-     源码即真源码：不软换行，长行横向滚动查看（VSCode 不开 wrap 的体验） */
   white-space: pre !important;
   word-break: normal !important;
   word-wrap: normal !important;
@@ -101,10 +89,8 @@
 .vditor-sv .em { color: var(--text-secondary); }
 .vditor-sv .strong { color: var(--text); }
 
-/* ===========================================================
-   标题字阶与装饰由 ryuuji-a.css 接管。本层只清 Vditor 默认边框，
-   避免与 IR 侧标（hN:before）抢伪元素槽。
-   =========================================================== */
+/* 标题字阶与装饰由 ryuuji-a.css 接管。本层只清 Vditor 默认边框，
+   避免与 IR 侧标（hN:before）抢伪元素槽。 */
 .vditor-reset h1,
 .vditor-reset h2,
 .vditor-reset h3,
@@ -116,9 +102,6 @@
   position: relative;
 }
 
-/* ===========================================================
-   链接 / 行内代码 / 强调
-   =========================================================== */
 .vditor-reset a {
   color: var(--el-deep) !important;
   text-decoration: none !important;
@@ -138,10 +121,6 @@
   font-size: 0.88em !important;
 }
 
-/* ===========================================================
-   代码块（phycat：顶部 macOS 三色点 + 语言名 / 圆角）
-   =========================================================== */
-/* 暗色正文提亮一档：长文阅读不发灰 */
 :root[data-theme="dark"] .vditor-reset {
   color: color-mix(in srgb, var(--text), #ffffff 10%) !important;
 }
@@ -149,7 +128,6 @@
 .vditor-reset pre {
   border-radius: 10px !important;
   border: 1px solid transparent !important;
-  /* 代码块以底色区分正文。 */
   background: color-mix(in srgb, var(--text) 4%, var(--code-body-bg)) !important;
 }
 :root[data-theme="dark"] .vditor-reset pre {
@@ -171,9 +149,6 @@
   margin: -4px -4px 8px;
 }
 
-/* ===========================================================
-   引用（圆角气泡 + 角标 emoji，悬停放大）
-   =========================================================== */
 .vditor-reset blockquote {
   position: relative;
   margin: 1em 0 !important;
@@ -193,15 +168,11 @@
   font-family: "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
 }
 .vditor-reset blockquote:hover { transform: scale(1.01); }
-/* 暗色引用使用独立底色。 */
 :root[data-theme="dark"] .vditor-reset blockquote {
   background: color-mix(in srgb, var(--el) 13%, var(--bg)) !important;
   box-shadow: none;
 }
 
-/* ===========================================================
-   表格（自适应宽度：窄表随内容、宽表先换行压缩、仍装不下才横向滚动，永不裁切）
-   =========================================================== */
 .vditor-reset table {
   display: block;            /* GitHub 同款：表格自身为横向滚动容器 */
   width: max-content;        /* 内容决定宽度，窄表不被强制拉满 */
@@ -247,9 +218,6 @@
 .vditor-reset table tbody tr:nth-child(2n) { background: var(--bg-elevated) !important; }
 .vditor-reset table tbody tr:hover td { background: var(--el-soo-shallow) !important; }
 
-/* ===========================================================
-   分割线
-   =========================================================== */
 .vditor-reset hr {
   border: none !important;
   height: 2px !important;
@@ -257,12 +225,8 @@
   margin: 2em 0 !important;
 }
 
-/* ===========================================================
-   列表 / TODO（phycat：自定义圆形勾选框 + 完成动画 + 删除线渐显）
-   =========================================================== */
 .vditor-reset ul, .vditor-reset ol { padding-left: 1.7em !important; }
 
-/* 任务项：隐藏原生框，自绘圆形 */
 .vditor-reset li.vditor-task { list-style: none !important; position: relative; }
 .vditor-reset li.vditor-task input[type="checkbox"] {
   appearance: none;
@@ -311,9 +275,6 @@
   text-decoration-color: var(--el-shallow);
 }
 
-/* ===========================================================
-   图片 / 公式 / 选区
-   =========================================================== */
 .vditor-reset img {
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
@@ -324,9 +285,6 @@
   background: var(--el-soo-shallow) !important;
   border-radius: 8px;
 }
-/* 超宽公式横向滚动。mermaid / flowchart 的 svg 按内容高度收缩
-   （IR 画布是 height:100%，子级百分高度会撑满视口）。
-   echarts / mindmap 维持 Vditor 固定高度。 */
 .vditor-reset .language-math,
 .vditor-reset .language-abc,
 .vditor-reset .language-plantuml {
@@ -373,8 +331,6 @@
   display: inline-block;
   vertical-align: top;
 }
-/* mermaid 节点标签在编辑区外按默认字距测宽，放进正文后会继承正文字距与自动换行，
-   中文标签因此多出一行被 foreignObject 裁掉。标签内恢复测宽时的排版。 */
 .vditor-ir__preview .language-mermaid foreignObject * {
   letter-spacing: normal !important;
   white-space: nowrap;
@@ -383,7 +339,6 @@
 .vditor-reset::selection,
 .vditor-reset *::selection { background: var(--selection-bg); } /* 与全局选区统一：el-so-shallow 与画布底色几乎无差，选中看不出 */
 
-/* IR 标记符号：未聚焦节点隐藏（Vditor 默认），聚焦节点淡显 */
 .vditor-ir__node--expand .vditor-ir__marker {
   color: var(--text-muted) !important;
 }
@@ -403,9 +358,6 @@
   pointer-events: none !important;
 }
 
-/* ===========================================================
-   Vditor 弹层（提示/面板）配色
-   =========================================================== */
 .vditor-panel,
 .vditor-hint {
   background: var(--bg-elevated) !important;
@@ -419,8 +371,6 @@
   color: var(--el-deep) !important;
 }
 
-/* 代码高亮（明暗同构）：用 --code-* 盖过 Vditor 注入的 hljs 主题。
-   两主题都盖后，主题切换时 hljs link 的「先卸后装」间隙不再有视觉表现 */
 .vditor-reset .hljs-keyword,
 .vditor-reset .hljs-selector-tag,
 .vditor-reset .hljs-built_in,
@@ -472,7 +422,6 @@
   background: var(--code-selected-bg) !important;
 }
 
-/* —— 结构操作交互层（blockui.js）：overlay 全部挂 body、fixed 定位，不推挤正文 —— */
 .block-handle {
   position: fixed;
   z-index: 30;
@@ -502,7 +451,6 @@
 }
 .block-handle svg { width: 15px; height: 15px; }
 
-/* 范围高亮：背景 tint，无 border/宽度变化，不进 md 序列化 */
 .ryuu-block-hl {
   background: color-mix(in srgb, var(--primary) 8%, transparent) !important;
   border-radius: 4px;
@@ -553,7 +501,6 @@
 }
 body.ryuu-block-dragging #editor { user-select: none; }
 
-/* ---- 竖排（直排）：从上到下、从右往左；滚轮映射为横向滚动（见 editor.js） ---- */
 #editor-wrap.vertical-layout .vditor-ir,
 #editor-wrap.vertical-layout .vditor-wysiwyg,
 #editor-wrap.vertical-layout .vditor-sv {
@@ -569,9 +516,7 @@ body.ryuu-block-dragging #editor { user-select: none; }
   line-height: 1.9;
   letter-spacing: 0.05em;
 }
-/* 两位以内数字横排合字（年份月日等） */
 #editor-wrap.vertical-layout .vditor-reset .tcy { text-combine-upright: digits 2; }
-/* 代码、表格、公式、图表保持横排，嵌在竖排行内 */
 #editor-wrap.vertical-layout .vditor-reset pre,
 #editor-wrap.vertical-layout .vditor-reset table,
 #editor-wrap.vertical-layout .vditor-reset .katex-display,
@@ -582,7 +527,6 @@ body.ryuu-block-dragging #editor { user-select: none; }
   overflow: auto;
 }
 #editor-wrap.vertical-layout .vditor-reset img { max-height: 80%; max-width: none; }
-/* 竖排里引用块/标题的边框从左边改到右边/上边 */
 #editor-wrap.vertical-layout .vditor-reset blockquote {
   border-left: none;
   border-top: 4px solid var(--border);
@@ -590,10 +534,8 @@ body.ryuu-block-dragging #editor { user-select: none; }
 }
 #editor-wrap.vertical-layout .vditor-reset hr { width: auto; height: auto; }
 
-/* ---- 上下标 ---- */
 .vditor-reset sup, .vditor-reset sub { font-size: 0.75em; line-height: 0; }
 
-/* ---- 脚注引用：主流的上标 [1] 样式 + 悬停预览 ---- */
 .vditor-reset sup[data-type="footnotes-ref"] {
   color: var(--primary);
   cursor: pointer;

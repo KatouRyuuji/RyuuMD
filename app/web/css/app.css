@@ -1,14 +1,10 @@
-/* ============================================================
+/*
    RyuuMD 主题 —— 应用外壳（侧栏 / 标题栏 / 菜单 / 弹窗）
    明暗由 html[data-theme=light|dark] 决定；配色由 html[data-palette] 决定。
    颜色/形状/动效/z 阶来自 css/sys-tokens.css 与 vendor/ryuuji 色板；
    应用变量经 css/sys-bridge.css 映射。本文件写布局与结构。
-   ============================================================ */
+ */
 
-/* 霞鹜文楷 / Cascadia Code 由 app.js 在首屏后加载 css/fonts.css，
-   与启动关键路径错开磁盘 IO。外壳字体 --sys-font-ui（Noto Sans SC 分片 VF）；
-   编辑器正文默认霞鹜文楷；设置里的 font_ui / font_mono 经 app.js 写入
-   --font-body / --font-mono。 */
 
 * {
   box-sizing: border-box;
@@ -32,7 +28,6 @@ body {
   background: var(--selection-bg);
 }
 
-/* —— 自定义滚动条 —— */
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;
@@ -54,16 +49,12 @@ body {
   height: 0;
 }
 
-/* ============================================================
-   布局
-   ============================================================ */
 #app {
   display: flex;
   flex-direction: column;
   height: 100vh;
 }
 
-/* —— 顶部工具条 —— */
 #toolbar {
   display: flex;
   align-items: center;
@@ -118,7 +109,6 @@ body:not(.is-workdir) #btn-merge-source {
   display: none;
 }
 
-/* ---------------- AI 侧栏（右侧，工具栏 AI 按钮开关） ---------------- */
 #ai-sidebar {
   width: 320px;
   flex-shrink: 0;
@@ -194,7 +184,6 @@ body:not(.is-workdir) #btn-merge-source {
   line-height: 1.8;
   color: var(--text-secondary);
 }
-/* 空态示例提问：轻胶囊 chips，点击即问（兼作新手引导） */
 .ai-eg {
   display: flex;
   flex-direction: column;
@@ -331,7 +320,6 @@ body:not(.is-workdir) #btn-merge-source {
   margin-left: 4px;
 }
 
-/* 工具栏按钮：图标 + 中文功能名横排（图标由 icons.js 注入 .ib-icon） */
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -381,7 +369,6 @@ body:not(.is-workdir) #btn-merge-source {
   min-height: 0;
 }
 
-/* 侧栏（文件 / 大纲 / 最近 / 链接） */
 #sidebar {
   width: var(--sidebar-width, 256px);
   flex-shrink: 0;
@@ -465,7 +452,6 @@ body:not(.is-workdir) #btn-merge-source {
   margin-top: 10px;
 }
 
-/* 文件树 */
 .tree-item {
   display: flex;
   align-items: center;
@@ -511,7 +497,6 @@ body:not(.is-workdir) #btn-merge-source {
   transform: rotate(-90deg);
 }
 
-/* 最近打开面板：列表可滚动，「清空列表」固定底部 */
 #panel-recent.active {
   display: flex;
   flex-direction: column;
@@ -527,7 +512,6 @@ body:not(.is-workdir) #btn-merge-source {
   border-top: 1px solid var(--border);
   text-align: center;
 }
-/* 失效项（文件已移动/删除）：灰显区分，点击打开失败时会被自动移除 */
 .tree-item.recent.missing {
   opacity: 0.45;
 }
@@ -544,7 +528,6 @@ body:not(.is-workdir) #btn-merge-source {
   color: var(--text);
 }
 
-/* 大纲 */
 .outline-item {
   display: block;
   padding: 4px 8px;
@@ -578,7 +561,6 @@ body:not(.is-workdir) #btn-merge-source {
   user-select: none;
 }
 
-/* —— 编辑区 —— */
 #editor-wrap {
   flex: 1;
   min-width: 0;
@@ -591,7 +573,6 @@ body:not(.is-workdir) #btn-merge-source {
   min-height: 0;
 }
 
-/* —— 底部状态栏 —— */
 #statusbar {
   height: 30px;
   flex-shrink: 0;
@@ -628,7 +609,6 @@ body:not(.is-workdir) #btn-merge-source {
   min-width: 0;
   flex: 1;
   cursor: pointer;
-  /* 路径过长时从左侧截断：文件名永远可见（direction:rtl 让省略号落在开头） */
   direction: rtl;
   text-align: left;
   unicode-bidi: plaintext;
@@ -693,9 +673,6 @@ body:not(.is-workdir) #btn-merge-source {
   background: var(--primary-bg);
 }
 
-/* ============================================================
-   通用按钮
-   ============================================================ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -728,9 +705,6 @@ body:not(.is-workdir) #btn-merge-source {
   color: #fff;
 }
 
-/* ============================================================
-   弹窗（设置 / 欢迎）
-   ============================================================ */
 .modal-mask {
   position: fixed;
   inset: 0;
@@ -785,7 +759,6 @@ body:not(.is-workdir) #btn-merge-source {
   flex-shrink: 0;
 }
 
-/* 危险操作（移入回收站等）：图标底色随操作性质变红 */
 .modal-head .badge--danger {
   background: var(--danger);
   color: var(--danger-fg);
@@ -854,7 +827,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 }
 .ai-advanced .cloud-hint { margin-top: 8px; }
 
-/* 设置弹窗：分组标签页 */
 .modal.settings-modal {
   width: 600px;
   display: flex;
@@ -942,7 +914,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   max-width: 240px;
 }
 
-/* 设置项 */
 .setting-row {
   display: flex;
   align-items: center;
@@ -1078,13 +1049,11 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   cursor: pointer;
   padding: 2px 10px;
   max-width: 28vw;
-  /* 与右侧「渲染/源码」同族的胶囊形制：可点击切换，不是纯文本标签 */
 }
 .sb-workdir:hover { color: var(--primary); border-color: transparent; }
 .sb-workdir.is-pending { color: var(--sys-warning-ink); }
 .sb-workdir.is-conflict { color: var(--sys-danger-ink); }
 
-/* 分段选择器 */
 .segmented {
   display: inline-flex;
   background: var(--sidebar-bg);
@@ -1110,9 +1079,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   font-weight: 600;
 }
 
-/* ============================================================
-   欢迎窗口：问候 + 操作风格 / 编辑方式
-   ============================================================ */
 .modal.welcome {
   width: min(760px, calc(100vw - 48px));
   display: flex;
@@ -1130,7 +1096,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   overflow: auto;
 }
 
-/* 头部右侧 WELCOME 字标 */
 .welcome-word {
   margin-left: auto;
   font-family: var(--font-mono);
@@ -1141,14 +1106,12 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   user-select: none;
 }
 
-/* 问候语（左列首行） */
 .welcome-greet {
   margin: 0 0 12px;
   font-size: 12.5px;
   color: var(--text-secondary);
 }
 
-/* 功能卡：两列网格 */
 .feature-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1186,7 +1149,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   text-wrap: pretty;
 }
 
-/* 灯泡提示条 */
 .welcome-tip {
   display: flex;
   align-items: center;
@@ -1205,7 +1167,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   flex-shrink: 0;
 }
 
-/* 操作风格选择小节 */
 .style-sec { margin-top: 14px; }
 .style-sec .label {
   font-size: 13.5px;
@@ -1217,7 +1178,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   margin: 2px 0 8px;
 }
 
-/* 操作风格选择卡 */
 .style-picker {
   display: flex;
   gap: 12px;
@@ -1288,7 +1248,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   line-height: 1.55;
 }
 
-/* 赞助栏：纸面图章，不与左侧选择抢主视觉 */
 .welcome-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 168px;
@@ -1327,7 +1286,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   font-size: 12px;
   overflow: hidden;
 }
-/* 有图时改白底 + 内边距：暗色主题下也保证二维码可扫 */
 .sponsor .qr.has-img {
   background: #fff;
   border: 1px solid transparent;
@@ -1387,7 +1345,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 }
 .checkbox input { accent-color: var(--primary); width: 15px; height: 15px; }
 
-/* 拖放高亮 */
 #drop-hint {
   position: fixed;
   inset: 0;
@@ -1411,7 +1368,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   color: var(--primary);
 }
 
-/* Toast 堆叠（最多 3 条，自底部向上） */
 #toast {
   position: fixed;
   bottom: 26px;
@@ -1454,9 +1410,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
 }
 .toast-item.toast-success.show { opacity: 1; }
 
-/* ============================================================
-   文件树右键菜单（重命名 / 移动 / 删除真实文件）
-   ============================================================ */
 #tree-menu,
 #new-menu {
   position: fixed;
@@ -1484,8 +1437,6 @@ html[data-lang="a"] .modal-head .badge--plain svg {
   color: var(--text);
 }
 .ctx-item:hover { background: var(--primary-bg); }
-/* 图标瓦片：与编辑器右键菜单（slash-item .si-icon）同构；
-   边框/底色由 ryuuji-a.css 统一供给 */
 .ctx-item .ci-icon {
   width: 30px;
   height: 30px;

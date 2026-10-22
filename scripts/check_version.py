@@ -1,17 +1,7 @@
-# -*- coding: utf-8 -*-
 """发版版本号一致性检查（CI 门禁）。
 
-版本号散落在三处，必须一致：
-  - version_info.txt   Windows exe 版本资源（filevers / prodvers / FileVersion / ProductVersion）
-  - RyuuMD-mac.spec     CFBundleShortVersionString / CFBundleVersion
-  - packaging/RyuuMD.iss 从 exe 版本资源读取，无需单独维护
-
-用法:
-  python scripts/check_version.py              # 仅检查三处一致，打印版本号
-  python scripts/check_version.py --tag v1.8.1 # 额外要求与 tag 一致（发版用）
-  python scripts/check_version.py --print      # 只输出版本号（供 CI 取值）
-退出码: 0 = 一致; 1 = 不一致或解析失败。
-"""
+packaging/version_info.txt 与 packaging/RyuuMD-mac.spec 的版本号必须一致；
+--tag vX.Y.Z 额外要求与 tag 一致；--print 只输出版本号。"""
 
 from __future__ import annotations
 
@@ -28,7 +18,7 @@ def _read(rel: str) -> str:
 
 def collect() -> dict[str, str]:
     found: dict[str, str] = {}
-    vi = _read("version_info.txt")
+    vi = _read("packaging/version_info.txt")
     for key in ("filevers", "prodvers"):
         m = re.search(rf"{key}=\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)", vi)
         if m:
@@ -37,7 +27,7 @@ def collect() -> dict[str, str]:
         m = re.search(rf"StringStruct\('{key}',\s*'(\d+)\.(\d+)\.(\d+)(?:\.\d+)?'\)", vi)
         if m:
             found[f"version_info.txt {key}"] = ".".join(m.groups())
-    spec = _read("RyuuMD-mac.spec")
+    spec = _read("packaging/RyuuMD-mac.spec")
     for key in ("CFBundleShortVersionString", "CFBundleVersion"):
         m = re.search(rf'"{key}":\s*"(\d+\.\d+\.\d+)"', spec)
         if m:

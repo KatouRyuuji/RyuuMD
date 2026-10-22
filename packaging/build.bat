@@ -1,17 +1,14 @@
 @echo off
 chcp 65001 >NUL
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
-REM ---- 选择模式: onedir(默认) | onefile ----
 set "MODE=%~1"
 if "%MODE%"=="" set "MODE=onedir"
 
-REM ---- 跳过 pause: 第二参数 nopause 或环境变量 RYUUMD_NOPAUSE=1（脚本/CI 调用） ----
 set "NOPAUSE="
 if /i "%~2"=="nopause" set "NOPAUSE=1"
 if "%RYUUMD_NOPAUSE%"=="1" set "NOPAUSE=1"
 
-REM ---- installer 模式 = onedir 打包 + Inno Setup 生成安装包 ----
 set "SETUP="
 if /i "%MODE%"=="installer" (
     set "SETUP=1"
@@ -21,7 +18,7 @@ if /i "%MODE%"=="installer" (
 if /i "%MODE%"=="onefile" goto :onefile
 if /i "%MODE%"=="onedir" goto :onedir
 echo [错误] 未知模式 "%MODE%"
-echo 用法: build.bat [onefile^|onedir^|installer] [nopause]
+echo 用法: packaging\build.bat [onefile^|onedir^|installer] [nopause]
 echo   onedir  (默认) 单文件夹，启动快（免每次解压约百 MB），产物在 dist\RyuuMD\
 echo   onefile        单文件 exe，便于分发，产物在 dist\RyuuMD.exe
 echo   installer      onedir + Inno Setup 安装包，产物在 dist\installer\
@@ -30,13 +27,13 @@ call :maybe_pause
 exit /b 1
 
 :onefile
-set "SPEC=RyuuMD-onefile.spec"
+set "SPEC=packaging\RyuuMD-onefile.spec"
 set "DESC=单文件 onefile"
 set "OUTPATH=dist\RyuuMD.exe"
 goto :start
 
 :onedir
-set "SPEC=RyuuMD.spec"
+set "SPEC=packaging\RyuuMD.spec"
 set "DESC=单文件夹 onedir"
 set "OUTPATH=dist\RyuuMD"
 goto :start
@@ -47,7 +44,6 @@ echo   RyuuMD 墨读 - 打包脚本  [模式: %DESC%]
 echo ============================================
 echo.
 
-REM ---- 0. 关闭正在运行的 RyuuMD（占用 dist 产物会导致 PermissionError） ----
 tasklist /fi "imagename eq RyuuMD.exe" 2>NUL | find /i "RyuuMD.exe" >NUL
 if not errorlevel 1 (
     echo [0/5] 检测到正在运行的 RyuuMD.exe，先结束以免占用构建产物 ...
@@ -56,7 +52,6 @@ if not errorlevel 1 (
     ping -n 3 127.0.0.1 >NUL
 )
 
-REM ---- 1. 检查 Python ----
 python --version >NUL 2>&1
 if errorlevel 1 (
     echo [错误] 未找到 Python,请先安装 Python 3.10+ 并加入 PATH
@@ -65,7 +60,6 @@ if errorlevel 1 (
 )
 for /f "delims=" %%v in ('python --version') do echo 使用 %%v
 
-REM ---- 2. 检查并安装依赖 / PyInstaller（已安装则跳过） ----
 echo.
 echo [1/5] 检查并安装依赖 / PyInstaller ...
 
@@ -76,7 +70,6 @@ if not errorlevel 1 (
     goto :deps_ok
 )
 
-REM PyInstaller 缺失时改用 pip
 python -m pip --version >NUL 2>&1
 if errorlevel 1 (
     echo   未检测到 pip,先尝试通过 ensurepip 引导安装 ...
@@ -103,18 +96,16 @@ if errorlevel 1 (
 
 :deps_ok
 
-REM ---- 2.5 打包前单元测试闸门（模块清单在 run_tests.py；E2E 需真实窗口） ----
 echo.
-echo [2/5] 运行单元测试（python run_tests.py --unit） ...
-python run_tests.py --unit --quiet >NUL 2>&1
+echo [2/5] 运行单元测试（python scripts\run_tests.py --unit） ...
+python scripts\run_tests.py --unit --quiet >NUL 2>&1
 if errorlevel 1 (
-    echo [错误] 单元测试未通过,已中止打包。请先运行 python run_tests.py 定位修复
+    echo [错误] 单元测试未通过,已中止打包。请先运行 python scripts\run_tests.py 定位修复
     call :maybe_pause
     exit /b 1
 )
 echo   单元测试通过
 
-REM ---- 3. 清理旧产物(只清理当前模式目标,保留另一模式产物) ----
 echo.
 echo [3/5] 清理旧产物 (%OUTPATH%) ...
 if exist build rmdir /s /q build
@@ -124,7 +115,6 @@ if exist "%OUTPATH%\" (
     if exist "%OUTPATH%" del /q "%OUTPATH%"
 )
 
-REM ---- 4. 执行打包 ----
 echo.
 echo [4/5] 执行 PyInstaller 构建 (%SPEC%) ...
 python -m PyInstaller --noconfirm --clean "%SPEC%"
@@ -134,7 +124,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM ---- 4.5 生成安装包（仅 installer 模式；ISCC 依次查 PATH 与 Inno Setup 6 默认安装位置） ----
 if not defined SETUP goto :done
 echo.
 echo [4.5/5] 执行 Inno Setup 生成安装包 (packaging\RyuuMD.iss) ...
@@ -157,7 +146,6 @@ if errorlevel 1 (
 set "OUTPATH=dist\installer"
 
 :done
-REM ---- 5. 完成 ----
 echo.
 echo [5/5] 打包完成!
 echo --------------------------------------------

@@ -1,8 +1,4 @@
-"""暴露给前端 JS 的 API：文件读写、文件夹树、配置存取。
-
-pywebview 会把 Api 实例的公开方法挂到 window.pywebview.api.* 上，
-前端通过 await window.pywebview.api.xxx() 调用。所有方法返回可 JSON 序列化的数据。
-"""
+"""暴露给前端 JS 的 API：pywebview 把 Api 实例公开方法挂到 window.pywebview.api.*，方法返回可 JSON 序列化的数据。"""
 
 from __future__ import annotations
 
@@ -32,10 +28,8 @@ from .projects import ProjectStore
 from . import search as vault_search
 from .workdir import EDIT_WORKDIR, TREE_DIRNAME, WorkdirStore, normalize_edit_mode
 
-# 文件夹树扫描上限：层级与总条目数，超出即截断并在返回数据中标注
 MAX_TREE_DEPTH = 8
 MAX_TREE_ENTRIES = 2000
-# 最近打开列表上限（最新在前，去重）
 RECENT_MAX = 15
 _KNOWLEDGE_CACHE_LOCK = threading.RLock()
 _KNOWLEDGE_CACHE_REGISTRY: dict[str, dict[str, dict[str, Any]]] = {}
@@ -53,20 +47,18 @@ class Api:
         self.workdir = WorkdirStore(config.data_dir)
         self._cloud = get_engine(config, self.projects)
         self._window: Optional["webview.Window"] = None
-        # 多窗口管理器（main.WindowManager）；测试/单窗口环境可为 None
         self._window_manager = window_manager
-        # 本窗口的初始打开路径（命令行 / 单实例转发 / 新窗口传入），前端启动时拉取
         self._initial_path = initial_path
         self._latest_open_request = 0
         self._open_request_lock = threading.Lock()
-        # 知识谱系缓存：规范化仓库根 → 生成结果；写盘或 refresh 时失效
+        # 知识谱系缓存按规范化仓库根共享（多窗口共一份），写盘或 refresh 时失效
         try:
             cache_owner = os.path.normcase(str(config.data_dir.resolve()))
         except OSError:
             cache_owner = os.path.normcase(str(config.data_dir))
         with _KNOWLEDGE_CACHE_LOCK:
             self._knowledge_cache = _KNOWLEDGE_CACHE_REGISTRY.setdefault(cache_owner, {})
-        # 即时通讯传输；测试注入 MemoryTransport，未注入则按配置走 webhook
+        # 测试注入 MemoryTransport，未注入则按配置走 webhook
         self._im_transport: Any = None
 
     def bind_window(self, window: "webview.Window") -> None:
@@ -95,7 +87,6 @@ class Api:
             return False
 
     def _orphan_rel(self, raw: str) -> str:
-        """从残骸副本路径取出 tree/ 之后的相对路径；没有则退回文件名。"""
         try:
             parts = Path(raw).parts
             if TREE_DIRNAME in parts:
@@ -108,7 +99,6 @@ class Api:
         return Path(raw).name
 
     def _resolve_orphan_work_path(self, raw: str) -> tuple[str, str, Optional[dict[str, Any]]]:
-        """单文件会话被整库收编后，把残骸路径改挂到 last_file / last_folder。"""
         last_file = (self.config.get("last_file") or "").strip()
         last_folder = (self.config.get("last_folder") or "").strip()
         if last_file and not self._same_path(last_file, raw) and not self._is_orphan_work_path(last_file):
@@ -151,7 +141,6 @@ class Api:
         return work, logical, sess
 
     def _is_orphan_work_path(self, path: str) -> bool:
-        """副本目录里已无会话的路径（单文件会话被整库收编后）。"""
         if not path or not self._workdir_on():
             return False
         try:
@@ -192,16 +181,10 @@ class Api:
             payload["workdir_new_files"] = int(sess.get("last_added") or 0)
         return payload
 
-    # ------------------------------------------------------------------
-    # 窗口启动参数
-    # ------------------------------------------------------------------
     def get_initial_path(self) -> str:
-        """前端 boot 时主动拉取本窗口初始路径（替代 evaluate_js 注入，无竞态）。"""
+        """替代 evaluate_js 注入，无竞态。"""
         return self._initial_path or ""
 
-    # ------------------------------------------------------------------
-    # 配置
-    # ------------------------------------------------------------------
     def get_config(self) -> dict[str, Any]:
         data = self.config.all()
         data["cloud_sync"] = public_cloud(data.get("cloud_sync"))
@@ -222,17 +205,12 @@ class Api:
         return {"ok": True}
 
     def set_titlebar_theme(self, dark: bool) -> dict[str, Any]:
-        """前端主题切换时同步原生标题栏明暗（Windows DWM 沉浸式深色）。"""
         from app.core.titlebar import set_dark_titlebar
 
         set_dark_titlebar(bool(dark))
         return {"ok": True}
 
-    # ------------------------------------------------------------------
-    # 最近打开列表（文件/文件夹，最新在前、去重、限长）
-    # ------------------------------------------------------------------
     def _add_recent(self, path: str, kind: str) -> None:
-        """记录一次打开。在各打开动作成功时调用；失败不影响主流程。"""
         try:
             items = self.config.get("recent_files", []) or []
             items = [it for it in items if isinstance(it, dict) and it.get("path") != path]
@@ -279,9 +257,6 @@ class Api:
         )
         return {"ok": True}
 
-    # ------------------------------------------------------------------
-    # 文件读写
-    # ------------------------------------------------------------------
     def read_file(self, path: str, open_request_id: Optional[int] = None) -> dict[str, Any]:
         try:
             io_path, logical, sess = self._resolve_io(path, create=True)
@@ -362,7 +337,6 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def new_folder(self, parent: str, name: str) -> dict[str, Any]:
-        """在已打开的仓库目录下新建子文件夹。"""
         try:
             raw_parent = (parent or "").strip()
             io_parent, logical_parent, sess = self._resolve_io(raw_parent, create=True)
@@ -386,11 +360,7 @@ class Api:
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
-    # ------------------------------------------------------------------
-    # 文件管理：重命名 / 移动 / 删除（直接操作磁盘上的真实文件）
-    # ------------------------------------------------------------------
     def _sync_path_refs(self, old: str, new: str) -> None:
-        """重命名/移动后同步配置中的路径引用（最近列表 + last_file），失败不影响主流程。"""
         try:
             items = self.config.get("recent_files", []) or []
             changed = False
@@ -435,7 +405,6 @@ class Api:
         )
 
     def rename_file(self, path: str, new_name: str) -> dict[str, Any]:
-        """重命名真实 md 文件（仅同目录改名，不接受带路径的名字）。"""
         try:
             io_path, logical, sess = self._resolve_io(path, create=False)
             p = Path(io_path)
@@ -475,7 +444,6 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def move_file(self, path: str, target_folder: str) -> dict[str, Any]:
-        """把真实 md 文件移动到目标目录（shutil.move 跨盘安全）。"""
         try:
             io_path, logical, sess = self._resolve_io(path, create=False)
             io_folder, _logical_folder, sess_folder = self._resolve_io(target_folder, create=True)
@@ -499,7 +467,6 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def move_file_dialog(self, path: str) -> dict[str, Any]:
-        """弹文件夹选择框，把文件移动到所选目录。"""
         if not self._window:
             return {"ok": False, "error": "窗口未就绪"}
         result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
@@ -508,7 +475,6 @@ class Api:
         return self.move_file(path, result[0])
 
     def delete_file(self, path: str) -> dict[str, Any]:
-        """把真实 md 文件移入系统回收站（风险确认弹窗由前端负责）。"""
         try:
             io_path, logical, sess = self._resolve_io(path, create=False)
             p = Path(io_path)
@@ -528,7 +494,6 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def duplicate_file(self, path: str) -> dict[str, Any]:
-        """在同目录复制一份 md（`名 副本.md` / `名 副本 2.md`）。"""
         try:
             io_path, _logical, sess = self._resolve_io(path, create=False)
             p = Path(io_path)
@@ -554,9 +519,6 @@ class Api:
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
-    # ------------------------------------------------------------------
-    # 文件夹树
-    # ------------------------------------------------------------------
     def list_folder(self, path: str) -> dict[str, Any]:
         try:
             io_path, logical, sess = self._resolve_io(path, create=True)
@@ -565,7 +527,6 @@ class Api:
                 return {"ok": False, "error": "文件夹不存在"}
             self.config.set("last_folder", logical)
             self._add_recent(logical, "folder")
-            # 条目预算贯穿整棵树；truncated 让前端明确提示「已截断」
             budget: dict[str, Any] = {"left": MAX_TREE_ENTRIES, "truncated": False}
             tree = self._scan_dir(root, 0, budget)
             display = Path(logical)
@@ -583,8 +544,7 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def _scan_dir(self, directory: "Path | str", depth: int, budget: dict[str, Any]) -> list[dict[str, Any]]:
-        """递归扫描目录。os.scandir 一次目录读取即携带类型信息（免逐文件 stat）；
-        深度/条目双上限截断；不跟随符号链接（防目录环）。"""
+        """os.scandir 一次目录读取即携带类型信息（免逐文件 stat）；不跟随符号链接（防目录环）。"""
         items: list[dict[str, Any]] = []
         if depth > MAX_TREE_DEPTH:
             # 深度超限：下面还有条目才标注截断，避免空目录误报
@@ -604,7 +564,6 @@ class Api:
         entries.sort(key=lambda e: (not e.is_dir(follow_symlinks=False), e.name.lower()))
         for entry in entries:
             if entry.is_dir(follow_symlinks=False):
-                # 隐藏目录与依赖/构建类巨型目录一律跳过
                 if skip_dir_name(entry.name):
                     continue
                 if budget["left"] <= 0:
@@ -627,9 +586,6 @@ class Api:
                 items.append({"type": "file", "name": entry.name, "path": entry.path})
         return items
 
-    # ------------------------------------------------------------------
-    # 原生对话框
-    # ------------------------------------------------------------------
     def _workdir_session(
         self, path: str = "", *, create: bool = False
     ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], str]:
@@ -648,7 +604,6 @@ class Api:
         return sess, None, io_path or raw
 
     def workdir_status(self, path: str = "") -> dict[str, Any]:
-        """当前文件相对源文件的同步状态（未回写 / 源有更新 / 冲突）。"""
         raw = (path or "").strip() or (self.config.get("last_file", "") or "")
         sess, err, resolved = self._workdir_session(raw)
         if err:
@@ -670,7 +625,6 @@ class Api:
         return out
 
     def workdir_push(self, path: str = "", force: bool = False) -> dict[str, Any]:
-        """把当前工作副本写回源文件。"""
         raw = (path or "").strip() or (self.config.get("last_file", "") or "")
         sess, err, resolved = self._workdir_session(raw)
         if err:
@@ -686,7 +640,6 @@ class Api:
         return out
 
     def workdir_merge(self, path: str = "", strategy: str = "") -> dict[str, Any]:
-        """把源文件合并进工作副本。strategy: keep_source | keep_copy | markers。"""
         raw = (path or "").strip() or (self.config.get("last_file", "") or "")
         sess, err, resolved = self._workdir_session(raw)
         if err:
@@ -757,9 +710,6 @@ class Api:
         path = result if isinstance(result, str) else result[0]
         return self.save_file(path, content)
 
-    # ------------------------------------------------------------------
-    # 拖入路径解析（前端拿到本地路径后调用）
-    # ------------------------------------------------------------------
     def open_path(self, path: str) -> dict[str, Any]:
         p = Path(path)
         if p.is_dir():
@@ -769,19 +719,10 @@ class Api:
         return {"ok": False, "error": "不支持的文件类型"}
 
     def open_dropped_files(self, names: list[str]) -> dict[str, Any]:
-        """前端捕获阶段 drop 转发的落地处理：按文件名取真实路径并打开。
+        """前端捕获阶段 drop 的落地处理：按文件名从 webview.dom._dnd_state['paths'] 取真实路径打开。
 
-        背景：Vditor 编辑器面板的 drop 处理器首行即 stopPropagation，pywebview
-        的 document 级 drop 监听（main.py _on_drop 通道）收不到事件。前端改为
-        捕获阶段接管（app.js bindDragDrop），先经 WebView2 的
-        postMessageWithAdditionalObjects("FilesDropped", files) 把真实 File 回传
-        原生层 —— pywebview 会把路径暂存到 webview.dom._dnd_state['paths']
-        （(basename, fullpath) 列表），本方法按文件名匹配取出首个可打开项。
-
-        注意：依赖 pywebview 的 _dnd_state 内部结构（FilesDropped 机制的官方落点，
-        与原 _on_drop 通道同源）；两条 WebMessage 按序派发，本方法执行时 paths
-        必然已就绪，无竞态。
-        """
+        依赖 pywebview 的 _dnd_state 内部结构（FilesDropped 机制的官方落点）；
+        两条 WebMessage 按序派发，本方法执行时 paths 必然已就绪，无竞态。"""
         from webview.dom import _dnd_state  # pywebview FilesDropped 通道路径暂存
 
         try:
@@ -812,9 +753,6 @@ class Api:
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
-    # ------------------------------------------------------------------
-    # 启动时恢复上次会话
-    # ------------------------------------------------------------------
     def restore_session(self) -> dict[str, Any]:
         out: dict[str, Any] = {"ok": True, "folder": None, "file": None}
         folder = self.config.get("last_folder", "")
@@ -825,9 +763,6 @@ class Api:
             out["file"] = self.read_file(last)
         return out
 
-    # ------------------------------------------------------------------
-    # 仓库（项目）管理：首页仓库列表的数据源
-    # ------------------------------------------------------------------
     def list_projects(self) -> dict[str, Any]:
         return {"ok": True, "items": self.projects.list()}
 
@@ -835,11 +770,9 @@ class Api:
         return self.projects.add(path, name)
 
     def create_project(self, parent: str, name: str) -> dict[str, Any]:
-        """在父目录下新建文件夹并注册为仓库。"""
         return self.projects.create(parent, name)
 
     def create_directory(self, parent: str, name: str) -> dict[str, Any]:
-        """在任意已存在的父目录下新建文件夹。"""
         folder = Path(parent or "")
         if not folder.is_dir():
             return {"ok": False, "error": "父文件夹不存在"}
@@ -863,7 +796,6 @@ class Api:
         return str(self.config.data_dir / "scratch.md")
 
     def read_scratch(self) -> dict[str, Any]:
-        """读取首页随手记（用户数据目录 scratch.md），不改 last_file / 最近打开。"""
         p = Path(self.scratch_path())
         if not p.is_file():
             return {"ok": True, "path": str(p), "name": "scratch.md", "content": "", "size": 0}
@@ -881,7 +813,6 @@ class Api:
             return {"ok": False, "error": str(e), "path": str(p), "content": ""}
 
     def write_scratch(self, content: str) -> dict[str, Any]:
-        """写入首页随手记，不改 last_file / 最近打开。"""
         p = Path(self.scratch_path())
         try:
             atomic_write_text(p, content if content is not None else "")
@@ -891,7 +822,6 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def preview_file(self, path: str = "", max_chars: int = 1600) -> dict[str, Any]:
-        """有界读取供首页速览，不改 last_file / 最近打开。"""
         raw = (path or "").strip()
         p = Path(raw)
         if not p.is_file():
@@ -916,7 +846,6 @@ class Api:
         }
 
     def invoke_mcp_tool(self, name: str, arguments: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-        """本应用内调用 MCP / AISkill 工具表中的一只工具。"""
         from . import adv
 
         return adv.invoke_tool(self, name, arguments or {})
@@ -942,13 +871,11 @@ class Api:
         return {"ok": True, "items": im_mod.provider_list()}
 
     def im_send(self, provider: str, markdown: str, title: str = "") -> dict[str, Any]:
-        """把一篇 Markdown 经指定即时通讯通道发出。"""
         from . import im as im_mod
 
         return im_mod.send_markdown(provider, markdown, self._im_channel(), title=title)
 
     def im_receive(self, provider: str) -> dict[str, Any]:
-        """从指定即时通讯通道取回最近一封 Markdown。"""
         from . import im as im_mod
 
         return im_mod.receive_markdown(provider, self._im_channel())
@@ -959,7 +886,6 @@ class Api:
         return {"ok": True, "skills": adv.list_skills(), "tools": adv.list_tools()}
 
     def add_project_dialog(self) -> dict[str, Any]:
-        """弹文件夹选择框，把所选目录添加为仓库。"""
         if not self._window:
             return {"ok": False, "error": "窗口未就绪"}
         result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
@@ -977,7 +903,6 @@ class Api:
         return self.projects.set_pinned(project_id, pinned)
 
     def open_project(self, project_id: str) -> dict[str, Any]:
-        """在当前窗口打开仓库（返回文件夹树，前端切入编辑器视图）。"""
         proj = self.projects.get(project_id)
         if not proj:
             return {"ok": False, "error": "仓库不存在"}
@@ -986,16 +911,8 @@ class Api:
             self.projects.touch(project_id)
         return res
 
-    # ------------------------------------------------------------------
-    # 学习仓库
-    # ------------------------------------------------------------------
     def open_tutorial(self) -> dict[str, Any]:
-        """内嵌学习仓库：把程序内置的 tutorial 复制到用户数据目录下「学习仓库」，
-        注册（并置顶）为首页仓库，返回入口文档。
-
-        幂等：只补缺失文件，不覆盖用户在学习仓库里的改动；重复调用/首启静默
-        注册都安全。仓库被用户从首页移除后再次调用会重新注册（磁盘目录不动）。
-        """
+        """幂等：只补缺失文件，不覆盖用户在学习仓库里的改动；仓库被移除后再次调用会重新注册（磁盘目录不动）。"""
         base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
         src = base / "app" / "web" / "tutorial"
         if not src.is_dir():
@@ -1030,11 +947,7 @@ class Api:
             "project": project,
         }
 
-    # ------------------------------------------------------------------
-    # 多窗口
-    # ------------------------------------------------------------------
     def open_new_window(self, path: str = "") -> dict[str, Any]:
-        """开新窗口；path 为空时新窗口显示首页。"""
         if not self._window_manager:
             return {"ok": False, "error": "当前环境不支持多窗口"}
         self._window_manager.create(path or "")
@@ -1051,20 +964,13 @@ class Api:
             self.projects.touch(project_id)
         return res
 
-    # ------------------------------------------------------------------
-    # Markdown 默认应用（Windows 文件关联）
-    # ------------------------------------------------------------------
     def get_md_assoc_status(self) -> dict[str, Any]:
         return file_assoc.status()
 
     def set_default_md_app(self) -> dict[str, Any]:
         return file_assoc.prompt_set_default(self.config)
 
-    # ------------------------------------------------------------------
-    # 系统集成
-    # ------------------------------------------------------------------
     def reveal_in_explorer(self, path: str) -> dict[str, Any]:
-        """在资源管理器中显示目录/文件（首页仓库卡片操作）。"""
         p = Path(path)
         if not p.exists():
             return {"ok": False, "error": "路径不存在"}
@@ -1083,7 +989,6 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def _maybe_cloud_push(self, path: str) -> None:
-        """保存成功后按需后台上传；未启用时 push_file 立即 skipped，线程极短。"""
         try:
             threading.Thread(
                 target=lambda: self._cloud.push_file(path),
@@ -1093,9 +998,6 @@ class Api:
         except Exception:  # noqa: BLE001
             pass
 
-    # ------------------------------------------------------------------
-    # 云同步（可选，用户自备 WebDAV）
-    # ------------------------------------------------------------------
     def save_cloud_settings(self, values: dict[str, Any]) -> dict[str, Any]:
         try:
             pub = save_cloud(self.config, values or {})
@@ -1115,9 +1017,6 @@ class Api:
     def set_project_cloud(self, project_id: str, enabled: bool) -> dict[str, Any]:
         return self.projects.set_cloud_enabled(project_id, enabled)
 
-    # ------------------------------------------------------------------
-    # 仓库检索 / 双向链接 / 贴图 / 每日笔记 / 导出
-    # ------------------------------------------------------------------
     def _as_existing_dir(self, raw: str) -> str:
         text = (raw or "").strip()
         if not text:
@@ -1131,10 +1030,7 @@ class Api:
         return ""
 
     def _vault_root(self, folder: str = "") -> str:
-        """当前仓库根：入参目录优先，否则 last_folder。单文件父目录不当仓库。
-
-        工作副本模式下映射到副本根，避免日记 / 收集箱 / 模板写穿源文件。
-        """
+        """工作副本模式下映射到副本根，避免日记 / 收集箱 / 模板写穿源文件。"""
         hit = self._as_existing_dir(folder)
         if not hit:
             hit = self._as_existing_dir(self.config.get("last_folder", "") or "")
@@ -1147,7 +1043,6 @@ class Api:
         return hit
 
     def _vault_for_path(self, path: str) -> str:
-        """已注册仓库或 last_folder 若包含该路径，返回仓库根。"""
         if not (path or "").strip():
             return ""
         proj = self.projects.find_by_containing_path(path)
@@ -1165,10 +1060,7 @@ class Api:
             return ""
 
     def _search_root(self, folder: str = "") -> str:
-        """搜索根：目录 → 文件所属仓库 → last_folder → last_file 父目录。
-
-        工作副本下只映射已有会话，不为搜索创建整库副本（否则会收编并拆掉单文件会话）。
-        """
+        """工作副本下只映射已有会话，不为搜索创建整库副本（否则会收编并拆掉单文件会话）。"""
         raw = (folder or "").strip()
         if raw:
             try:
@@ -1232,7 +1124,7 @@ class Api:
         return last if last else ""
 
     def _md_in_vault(self, folder: str, path: str) -> Path | None:
-        """path 必须是仓库内已存在的 markdown，防止模板接口读出仓库外文件。"""
+        """防止模板接口读出仓库外文件。"""
         root = self._vault_root(folder)
         if not root or not path:
             return None
@@ -1246,7 +1138,6 @@ class Api:
         return p
 
     def list_templates(self, folder: str = "") -> dict[str, Any]:
-        """列出仓库 `模板/` 与 `templates/` 下一层的 md（不递归）。"""
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹", "items": []}
@@ -1301,7 +1192,6 @@ class Api:
         return self.read_file(created["path"])
 
     def ensure_templates_dir(self, folder: str = "") -> dict[str, Any]:
-        """确保仓库下有 `模板/` 目录（不自动写样例文件）。"""
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹"}
@@ -1328,13 +1218,11 @@ class Api:
         return ai_client.normalize_ai(self.config.get("ai"))
 
     def test_ai(self) -> dict[str, Any]:
-        """向已配置的 Messages 端点发送最小请求，验证地址、密钥与模型。"""
         return ai_client.complete(
             self._ai_cfg(), "Reply with OK.", max_tokens=1, timeout=20
         )
 
     def search_notes(self, folder: str = "", query: str = "", mode: str = "title") -> dict[str, Any]:
-        """标题 / 内容 / 语义检索；查询以 `ask ` 为前缀时走 AI 问答。"""
         is_ask, _rest = ai_client.parse_ask_prefix(query)
         root = self._search_root(folder)
         if not is_ask and not root:
@@ -1348,7 +1236,6 @@ class Api:
             return os.path.normcase(str(root or ""))
 
     def _invalidate_knowledge(self, path_or_folder: str = "") -> None:
-        """笔记写盘后丢掉所属仓库的谱系缓存。"""
         raw = (path_or_folder or "").strip()
         if not raw:
             with _KNOWLEDGE_CACHE_LOCK:
@@ -1385,7 +1272,6 @@ class Api:
                 self._knowledge_cache.pop(key, None)
 
     def summarize_document(self, path: str = "", content: str = "", folder: str = "") -> dict[str, Any]:
-        """概括当前文档：优先用传入正文（含未保存编辑），读盘时受仓库边界约束。"""
         title = Path(path).name if path else "未命名"
         body = content if content is not None else ""
         if not str(body).strip() and path:
@@ -1408,14 +1294,12 @@ class Api:
         return ai_client.summarize_document(title, body, self._ai_cfg())
 
     def summarize_vault(self, folder: str = "") -> dict[str, Any]:
-        """概括当前仓库内的笔记材料。"""
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹", "text": ""}
         return ai_client.summarize_vault(root, self._ai_cfg())
 
     def ask_ai(self, folder: str = "", question: str = "") -> dict[str, Any]:
-        """AI 侧栏提问：附当前仓库摘录；模型若请求工具则走本应用 MCP / AISkill 表。"""
         from . import adv
 
         return adv.ask_with_tools(
@@ -1426,7 +1310,6 @@ class Api:
         )
 
     def knowledge_tree(self, folder: str = "", refresh: bool = False) -> dict[str, Any]:
-        """生成仓库知识谱系；结果按仓库缓存，refresh=True 重新生成。"""
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹", "text": ""}
@@ -1510,7 +1393,6 @@ class Api:
         text: str = "",
         name: str = "收集箱.md",
     ) -> dict[str, Any]:
-        """把一段文字追加到仓库根的收集箱（默认「收集箱.md」）。"""
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹"}
@@ -1562,7 +1444,6 @@ class Api:
         data_b64: str = "",
         mime: str = "",
     ) -> dict[str, Any]:
-        """把粘贴/拖入的图片落到 按 attachment_mode 决定的附件目录（默认笔记同级 `image/`；未保存文档用仓库根下同名目录）。"""
         try:
             raw = _decode_b64(data_b64)
         except Exception:
@@ -1620,7 +1501,6 @@ class Api:
         return name
 
     def _attachment_dir(self, md: Path, folder: str = "") -> Path:
-        """按配置 attachment_mode / attachment_folder 决定笔记图片目录。"""
         mode = str(self.config.get("attachment_mode") or "subfolder").strip()
         name = self._attachment_name()
         if mode == "assets":
@@ -1634,7 +1514,6 @@ class Api:
         return md.parent / name
 
     def open_daily_note(self, folder: str = "", subfolder: str = "") -> dict[str, Any]:
-        """打开（必要时创建）今日日记：`{仓库}/{日记目录}/YYYY-MM-DD.md`。"""
         root = self._vault_root(folder)
         if not root:
             return {"ok": False, "error": "请先打开仓库或文件夹"}
@@ -1689,7 +1568,7 @@ class Api:
             return {"ok": False, "error": str(e)}
 
     def open_external(self, url: str) -> dict[str, Any]:
-        """用系统默认浏览器打开 http(s)/mailto，避免 WebView2 把应用整页导航走。"""
+        """用系统默认浏览器打开，避免 WebView2 把应用整页导航走。"""
         u = (url or "").strip()
         if not u.startswith(("http://", "https://", "mailto:")):
             return {"ok": False, "error": "不支持的链接"}
@@ -1732,7 +1611,6 @@ def _image_ext(filename: str, mime: str) -> str:
 
 
 def apply_template_vars(text: str, title: str = "", now: datetime | None = None) -> str:
-    """替换模板占位符：{{title}} {{date}} {{time}} {{week}} {{year}} {{month}} {{day}}。"""
     stamp = now or datetime.now()
     week = "一二三四五六日"[stamp.weekday()]
     mapping = {
@@ -1759,7 +1637,6 @@ _LEGACY_PALETTE_MAP = {
 
 
 def _export_palette(config: Optional[dict[str, Any]]) -> dict[str, str]:
-    """按当前 palette + theme 从运行时 palettes.css 取导出配色；旧 id 经映射表迁移。"""
     from .palette_css import load_export_palettes
 
     tables = load_export_palettes()
@@ -1785,7 +1662,7 @@ def _export_palette(config: Optional[dict[str, Any]]) -> dict[str, str]:
 
 
 def _safe_css_font(name: str, fallback: str) -> str:
-    """把用户字体名拼进 CSS font-family，去掉可注入字符。"""
+    """去掉可注入字符后再拼进 CSS font-family。"""
     raw = (name or "").strip().replace("<", "").replace(">", "").replace("{", "").replace("}", "")
     raw = raw.replace("\n", " ").replace('"', "'")
     if not raw:
@@ -1800,10 +1677,6 @@ _MONO_FONT_FALLBACK = "'Cascadia Code',Consolas,monospace"
 
 
 def wrap_html_export(title: str, body: str, config: Optional[dict[str, Any]] = None) -> str:
-    """把 Vditor HTML 片段包成可独立打开的文档（相对图片路径保持原样）。
-
-    配色/字体跟随当前 palette + theme + font_*；未传 config 时回退 a1 亮色 + 霞鹜文楷。
-    """
     safe_title = html_lib.escape(title or "导出")
     cfg = config or {}
     pal = _export_palette(cfg)

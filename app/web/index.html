@@ -57,12 +57,9 @@
   </script>
   <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
-  <!-- 外壳 UI：Noto Sans SC 可变字重分片（SIL OFL）；字栈见 css/sys-tokens.css -->
   <link rel="stylesheet" href="css/noto-sans-sc.css" />
-  <!-- 本仓库令牌原语（空间/字号/字体/动效/z 阶） -->
   <link rel="stylesheet" href="css/sys-tokens.css" />
   <link rel="stylesheet" href="vendor/ryuuji/styles/tokens.css" />
-  <!-- 色板 → 语言皮肤 → 明暗主题件 -->
   <link rel="stylesheet" href="vendor/ryuuji/styles/palettes.css" />
   <link rel="stylesheet" href="vendor/ryuuji/styles/lang/a.css" />
   <link rel="stylesheet" href="vendor/ryuuji/styles/themes/light.css" />
@@ -76,14 +73,12 @@
   <link rel="stylesheet" href="css/palette.css" />
   <!-- 组件皮肤层（新 A 配方），最后加载覆盖以上 -->
   <link rel="stylesheet" href="css/ryuuji-a.css" />
-  <!-- 动效工具类（hover-lift/press 等，reduced-motion 自带静态化） -->
   <link rel="stylesheet" href="vendor/ryuuji/styles/motion.css" />
   <!-- patterns.css 首屏后由 app.js 注入，避免挡住首页绘制 -->
 </head>
 <body>
   <a class="skip-link" href="#editor-wrap">跳到编辑区</a>
   <div id="app">
-    <!-- 顶部工具条 -->
     <div id="toolbar" role="group" aria-label="主要操作">
       <div class="tb-title">
         <img class="logo" src="assets/favicon.png" alt="" />
@@ -118,7 +113,6 @@
       <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置"><span class="ib-icon" data-icon="gear"></span><span class="ib-label">设置</span></button>
     </div>
 
-    <!-- 主体 -->
     <div id="body">
       <aside id="sidebar">
         <div class="side-tabs" role="tablist" aria-label="侧栏视图">
@@ -190,7 +184,6 @@
         </div>
       </main>
 
-      <!-- AI 侧栏（右侧，工具栏 AI 按钮开关） -->
       <aside id="ai-sidebar" aria-label="AI 助手" hidden>
         <div class="ai-side-head">
           <span class="ai-side-title"><span class="ai-side-logo" data-icon="sparkles"></span>AI 助手</span>
@@ -210,7 +203,6 @@
         </div>
       </aside>
 
-      <!-- 首页（覆盖在编辑器之上） -->
       <div id="home" role="region" aria-label="首页工作台">
         <div class="home-inner">
           <header class="home-hero">
@@ -279,21 +271,15 @@
     </div>
   </div>
 
-  <!-- 斜杠菜单 -->
   <div id="slash-menu"></div>
 
-  <!-- 文件树右键菜单（重命名/移动/删除等真实文件操作） -->
   <div id="tree-menu"></div>
-  <!-- 工具栏「新建」下拉（新建文件 / 在当前文件夹 / 在当前仓库） -->
   <div id="new-menu"></div>
 
-  <!-- 拖放提示 -->
   <div id="drop-hint"><div class="inner">松开以打开 Markdown 文件或文件夹</div></div>
 
-  <!-- Toast 堆叠容器 -->
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <!-- 命令面板：快速打开 / 命令 / 仓库搜索 -->
   <div id="palette-mask">
     <div id="palette">
       <div class="pal-head">
@@ -314,7 +300,6 @@
     </div>
   </div>
 
-  <!-- 弹窗挂载点 -->
   <div class="modal-mask" id="settings-mask"></div>
   <div class="modal-mask" id="welcome-mask"></div>
   <div class="modal-mask" id="sponsor-mask"></div>

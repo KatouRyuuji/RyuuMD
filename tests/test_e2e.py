@@ -1,17 +1,5 @@
-# -*- coding: utf-8 -*-
-"""RyuuMD 真实窗口端到端测试(E2E)。
-
-原理:启动真实 pywebview 窗口加载 app/web/index.html,用 evaluate_js 注入
-操作与断言(探针模式),逐用例收集 PASS/FAIL,全部完成后输出汇总并销毁窗口。
-
-隔离与防阻塞:
-- 启动前将 APPDATA 指到临时目录(配置不污染用户数据);
-- hook window.confirm 与 App.confirm 恒 true(未保存确认框不阻塞自动化);
-- 大文档/小文档等文件全部落在临时目录。
-
-运行: python tests/test_e2e.py   (或根目录 run_tests.py)
-退出码: 0 = 全部通过; 1 = 有失败或环境错误。
-"""
+"""真实窗口端到端测试：启动真实 pywebview 窗口加载 app/web/index.html，
+evaluate_js 注入操作与断言。隔离 APPDATA；运行前关闭其他 RyuuMD / WebView2 实例。"""
 
 from __future__ import annotations
 
@@ -46,9 +34,6 @@ def fail_all(msg: str) -> NoReturn:
     print("E2E 环境错误:", A(msg), flush=True)
     sys.exit(1)
 
-# ----------------------------------------------------------------------------
-# 测试夹具:临时工作目录与大/小文档
-# ----------------------------------------------------------------------------
 _TMP = tempfile.TemporaryDirectory(prefix="ryuumd-e2e-files-")
 TMP = Path(_TMP.name)
 SMALL_MD = TMP / "small.md"
@@ -56,9 +41,7 @@ BIG_MD = TMP / "big.md"
 HOME_MD = TMP / "home-open.md"
 SMALL_MD.write_text("# 小文档\n\n普通正文。\n", encoding="utf-8")
 HOME_MD.write_text("# 首页打开\n\nensureEditor 探测。\n", encoding="utf-8")
-# 大文档夹具:真实笔记形态(多行短行、结构多样),体积 > 512KB 以触发大文档策略。
-# 不用「单段 56 万字重复」这类病态输入——它对 Vditor sv 全量高亮是硬性能边界,
-# 会卡死 WebView2 主线程,属已知边界(见 TEST_PLAN 手动项),不代表真实使用。
+# 会卡死 WebView2 主线程,属已知边界,不代表真实使用。
 _BIG_LINES = []
 for i in range(9000):
     _BIG_LINES.append(f"## 章节 {i}\n\n这是第 {i} 段的正文内容,包含**加粗**、`代码` 与 [链接](https://example.com)。\n\n- 列表项一\n- 列表项二\n")
@@ -68,7 +51,6 @@ assert BIG_MD.stat().st_size > 512 * 1024, "夹具大文档必须超过 512KB �
 SMALL_JS = str(SMALL_MD).replace("\\", "\\\\")
 BIG_JS = str(BIG_MD).replace("\\", "\\\\")
 
-# 首页用例夹具：临时仓库目录（含 md 文件）
 REPO_DIR = TMP / "e2e-repo"
 (REPO_DIR / "sub").mkdir(parents=True, exist_ok=True)
 (REPO_DIR / "readme.md").write_text("# 仓库文档\n", encoding="utf-8")
@@ -106,7 +88,6 @@ WORKDIR_EDGE.mkdir(parents=True, exist_ok=True)
 WORKDIR_ORPHAN = TMP / "e2e-workdir-orphan"
 WORKDIR_ORPHAN.mkdir(parents=True, exist_ok=True)
 (WORKDIR_ORPHAN / "hello.md").write_text("# 孤儿\n\nOrphanSrc\n", encoding="utf-8")
-# 另存为用例目标：故意不预建，由用例经 stub 对话框真实写盘产生
 SAVEAS_MD = TMP / "save-as.md"
 _W116_KEY = {"key": ""}
 
@@ -271,7 +252,6 @@ def _workdir_t118(api, ev):
         api.config.set("edit_mode", prev)
     return True
 
-# T08 用 Markdown(含代码围栏,验证 sv 大纲忽略 ``` 内标题)
 T08_MD = "# 模式测试\n\n```\n# 注释不是标题\n```\n\n## 真标题\n"
 
 
@@ -279,28 +259,16 @@ import json
 
 
 def J(s: str) -> str:
-    """把文本转为可安全内联进 JS 单引号字符串的形式(\\uXXXX 转义非 ASCII)。"""
     return "".join(c if ord(c) < 128 else "\\u%04x" % ord(c) for c in s).replace("\\", "\\\\").replace("'", "\\'")
 
 
 def JV(s: str) -> str:
-    """把文本转为完整 JS 字符串字面量(带引号),用 JSON 序列化保证任何字符(含反引号、
-    换行、引号)都安全。evaluate_js 注入时优于手工转义——手工转义遇反引号/特殊序列
-    易生成非法 JS(SyntaxError)导致整句不执行。"""
     return json.dumps(s, ensure_ascii=True)
 
 
-# ----------------------------------------------------------------------------
-# 用例定义(按状态依赖顺序执行)
-#   setup: 先执行的 JS(可选)  sleep: 断言前等待秒数
-#   js: 断言表达式,返回布尔真即通过(在超时窗口内轮询)
-# ----------------------------------------------------------------------------
 CASES = [
     dict(name="T00 启动页 home:有 last_file 仍显示首页",
          # startup_page=home 且 config 预置了 last_file：不得误走恢复会话。
-         # welcome 关闭后应落到首页;验毕隐藏首页继续后续用例。
-         # 空仓库以卡片数为准；空态节点用 inline style（getComputedStyle 在
-         # 祖先刚从 display:none 切出时，WebView2 可能仍报 none）。
          setup="window.Home.show()",
          sleep=0.8,
          js=("(function(){if(!window.Home||!window.Home.isOpen())return 'home not open';"
@@ -360,10 +328,8 @@ CASES = [
     dict(name="T06 大纲点击跳转:滚动离开顶部",
          setup="var s='';for(var i=0;i<80;i++){s+='## '+(" + JV('章节') + ")+i+'\\n\\n'+(" + JV('内容') + ")+'\\n';}window.Editor.setValue(s);",
          sleep=1.0,
-         # 第一阶段:等 80 章大纲渲染完成(点击的前提)
          js="document.querySelectorAll('#outline-list .outline-item').length>=61",
          timeout=15,
-         # 第二阶段:点击第 60 项后应滚动离开顶部
          setup2="(function(){var it=document.querySelectorAll('#outline-list .outline-item');if(it.length>60)it[60].click();})()",
          sleep2=1.0,
          js2=("(function(){var sc=document.querySelector('#editor .vditor-ir .vditor-reset');"
@@ -378,10 +344,8 @@ CASES = [
     dict(name="T08 切源码模式:内容保留、大纲忽略代码块内 #、无渲染预览分屏",
          setup="window.Editor.setValue(" + JV(T08_MD) + ");window.Editor.setMode('sv');",
          sleep=1.0,
-         # 第一阶段:等 sv 模式就绪
          js="window.Editor.getMode()==='sv'&&window.Editor.isReady()",
          timeout=15,
-         # 第二阶段:内容与大纲断言
          js2=("(function(){var v=window.Editor.getValue();if(v.indexOf("+JV('模式测试')+")<0)return 'lost len='+v.length+' mode='+window.Editor.getMode();"
               "var n=document.querySelectorAll('#outline-list .outline-item').length;"
               "if(n!==2)return 'outline='+n;"
@@ -402,12 +366,10 @@ CASES = [
     dict(name="T10 待办勾选:原生勾选生效且源码同步 [x]",
          setup="window.Editor.setValue(" + JV('- [ ] 任务甲\n- [x] 任务乙') + ")",
          sleep=1.0,
-         # 第一阶段:等 checkbox 渲染出来
          js="document.querySelectorAll(\"#editor .vditor-ir input[type='checkbox']\").length>=2",
          timeout=15,
          setup2="document.querySelector(\"#editor .vditor-ir input[type='checkbox']\").click()",
          sleep2=1.0,
-         # 第二阶段:勾选生效 + markdown 源码同步为 [x](守卫已移除,走 Vditor 原生)
          js2=("(function(){var cb=document.querySelector(\"#editor .vditor-ir input[type='checkbox']\");"
               "if(!cb||cb.checked!==true)return 'not checked';"
               "var v=window.Editor.getValue();"
@@ -416,7 +378,6 @@ CASES = [
     dict(name="T11 主题切换:dark 生效、图标换 sun、文字保留",
          setup="document.getElementById('btn-theme').click()", sleep=0.8,
          js=("document.documentElement.getAttribute('data-theme')==='dark'"
-             # 新色板(a1-a6)每板自带明暗双态,明暗对切不再换 palette id
              "&&document.documentElement.getAttribute('data-palette')==='a1'"
              "&&document.querySelector('#btn-theme .ib-icon').innerHTML.indexOf('<svg')>=0"
              "&&document.querySelector('#btn-theme .ib-label').textContent.trim().length>0")),
@@ -521,7 +482,6 @@ CASES = [
          setup=("window.Sidebar.renderTree([{type:'file',name:'big.md',path:'" + BIG_JS + "'},{type:'file',name:'small.md',path:'" + SMALL_JS + "'}],'tmp');"
                 "document.querySelectorAll('#file-tree .tree-item.file')[0].click();"),
          sleep=1.0,
-         # 第一阶段:大文档触发自动 sv 且内容加载完成
          js=("(function(){if(!window.Editor.isReady())return 'not ready';"
              "if(window.Editor.getMode()!=='sv')return 'mode='+window.Editor.getMode();"
              "return window.Editor.getValue().length>400000?true:'len='+window.Editor.getValue().length;})()"),
@@ -536,10 +496,6 @@ CASES = [
          timeout2=20),
 
     dict(name="T19 字数统计:经 loadDoc 路径统计正确",
-         # 字数统计由 app.js 在 loadDoc / 编辑变化时调用 updateCount,去空白字符计数。
-         # 合成 InputEvent 无法驱动 Vditor 内部 input 回调(真实键入才可,见手动项),改走 loadDoc 可达路径:
-         # 点开 T18 渲染的小文档「# 小文档\n\n普通正文。\n」,去空白=「#小文档普通正文。」= 9 字
-         # (# 与句号非空白字符,计入)。
          setup="document.querySelectorAll('#file-tree .tree-item.file')[1].click()",
          sleep=1.5,
          js=("(function(){if(!window.Editor.isReady())return 'not ready';"
@@ -549,16 +505,11 @@ CASES = [
          timeout=20),
 
     dict(name="T20 保存后无脏标记:点开文件本身不脏",
-         # loadDoc 后 lastSaved=内容,dirty=false,文档名不应有 ●
          sleep=0.3,
          js=("(function(){var dn=document.getElementById('doc-name').textContent;"
              "return dn.indexOf('\\u25cf')<0?true:'unexpected dirty:'+dn;})()"),
          timeout=8),
 
-    # —— 拖放修复(捕获阶段接管)回归 ——
-    # 背景:Vditor 面板 drop 处理器首行 stopPropagation,曾致冒泡链全断(文件打不开、
-    # hint 常驻似卡死)。修复后 drop 由 window 捕获 handler 统一接管。
-    # 注:合成 File 非磁盘文件,postMessageWithAdditionalObjects 会被 WebView2 拒绝
     # (handler 内已 try-catch 包容),故 Python 落地段走单元测试覆盖,这里只验 JS 层。
     dict(name="T21 文件drop:捕获接管、hint隐藏、不冒泡、转发api",
          setup=("window.__dropCalls=[];"
@@ -595,8 +546,6 @@ CASES = [
          timeout=8),
 
     dict(name="T23 最近打开:列表渲染、最新在前、点击打开",
-         # T18/T19 已先后经文件树打开 big.md / small.md(read_file 记录),
-         # 最近列表应含两项且 small.md 居首
          setup="document.querySelector('.side-tab[data-panel=\"recent\"]').click()",
          sleep=0.8,
          js=("(function(){"
@@ -608,7 +557,6 @@ CASES = [
              "if(getComputedStyle(document.getElementById('recent-foot')).display==='none')return 'foot hidden';"
              "return true;})()"),
          timeout=10,
-         # 第二阶段:点击第一项(small.md)应打开该文档
          setup2="document.querySelectorAll('#recent-list .recent')[0].click()",
          sleep2=1.2,
          js2=("(function(){var dn=document.getElementById('doc-name').textContent;"
@@ -646,7 +594,6 @@ CASES = [
              else "scratch=" + Path(api.scratch_path()).read_text(encoding="utf-8")[:80]
          )),
 
-    # —— 首页 / 仓库管理(本次新增功能) ——
     dict(name="T24 添加仓库并在首页渲染卡片(计数/头像)",
          setup=("window.__t24=0;"
                 "window.pywebview.api.add_project('" + REPO_JS + "','').then(function(r){window.__t24=r.ok?1:-1;});"),
@@ -706,7 +653,6 @@ CASES = [
              "if(save.length<1)return 'no save btn';"  # 最近含文件夹(e2e-repo),应有存为仓库按钮
              "return true;})()"),
          timeout=10,
-         # 第二阶段:移除仓库(confirm 已恒真),列表回到空态
          setup2="document.querySelector('#repo-container .repo-actions button[data-act=\"remove\"]').click()",
          sleep2=0.8,
          js2=("(function(){var cards=document.querySelectorAll('#repo-container .repo-card,#repo-container .repo-row');"
@@ -714,7 +660,6 @@ CASES = [
               "if(getComputedStyle(document.getElementById('repo-empty')).display==='none')return 'empty hidden';"
               "window.Home.hide();return true;})()")),
 
-    # —— 文件管理（右键菜单操作真实磁盘文件） ——
     dict(name="T30 文件右键菜单:四项弹出、末项 danger、点击外部关闭",
          setup=("window.Sidebar.renderTree([{type:'file',name:'a.md',path:'/d/a.md'}],'root');"
                 "var el=document.querySelector('#file-tree .tree-item.file');"
@@ -737,7 +682,6 @@ CASES = [
          sleep=0.5,
          js=("(function(){var m=document.getElementById('input-modal-mask');"
              "return m.classList.contains('open')&&!!document.getElementById('pm-input')?true:'modal not open';})()"),
-         # 第二阶段:输入新名并确定;延迟后回读磁盘验证(改名是异步链路)
          setup2=("document.getElementById('pm-input').value='renamed-e2e';"
                  "document.getElementById('pm-ok').click();"
                  "window.__t31=0;"
@@ -758,7 +702,6 @@ CASES = [
          sleep=1.2,
          js=("(function(){var dn=document.getElementById('doc-name').textContent;"
              "return dn.indexOf('delete-me.md')>=0?true:'doc='+dn;})()"),
-         # 第二阶段:右键删除(confirm 已 hook 恒真);延迟回读磁盘 + 断言草稿态
          setup2=("var el=document.querySelector('#file-tree .tree-item.file');"
                  "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200}));"
                  "document.querySelector('#tree-menu .ctx-item[data-act=\"delete\"]').click();"
@@ -775,7 +718,6 @@ CASES = [
               "return sp.indexOf(" + JV('未保存文档') + ")>=0?true:'path='+sp;})()"),
          timeout=12),
 
-    # —— 体验优化：模式切换保持阅读位置 / 选区配色 / 右键剪贴板 ——
     dict(name="T33 切源码模式保持阅读位置(滚动比例)",
          setup=("var s='';for(var i=0;i<80;i++){s+='## '+(" + JV('章节') + ")+i+'\\n\\n'+(" + JV('内容') + ")+'\\n';}window.Editor.setValue(s);"),
          sleep=1.2,
@@ -825,7 +767,6 @@ CASES = [
              "if(items.length<4)return 'items='+items.length;"
              "for(var i=0;i<3;i++){if(items[i].classList.contains('disabled'))return 'item'+i+' disabled';}"
              "return true;})()"),
-         # 第二阶段:清空选区再右键 → 复制/剪切禁用、粘贴仍可用
          setup2=("window.getSelection().removeAllRanges();"
                  "var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
                  "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300}));"),
@@ -837,19 +778,15 @@ CASES = [
               "return true;})()")),
 
     dict(name="T37 剪贴板接线:复制/剪切走 execCommand、粘贴走 readText 插入",
-         # 合成事件无真实用户手势,execCommand 与 OS 剪贴板读取会被 Chromium 拒绝,
-         # 故用 spy/stub 验证菜单→处理函数的接线;真实手势效果见手动清单。
          setup=("window.__ec=[];window.__origEC=document.execCommand;"
                 "document.execCommand=function(k){window.__ec.push(k);return true;};"
                 "(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
                 "var h=el.querySelector('h2');var r=document.createRange();"
                 "r.selectNodeContents(h);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);"
                 "el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300}));})();"
-                # 菜单项监听的是 mousedown（preventDefault 保选区），click() 不会触发
                 "document.querySelectorAll('#slash-menu .slash-item')[0].dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));"),
          sleep=0.5,
          js="window.__ec.join(',')==='copy'?true:'ec='+window.__ec.join(',')",
-         # 第二阶段:stub readText → 点粘贴 → 标记文本进文档;并还原 spy/stub
          setup2=("window.__origRT=navigator.clipboard.readText;"
                  "navigator.clipboard.readText=function(){return Promise.resolve('PASTE-E2E-标记');};"
                  "window.getSelection().removeAllRanges();"
@@ -865,9 +802,7 @@ CASES = [
          js2="window.__t37===1?true:'t37='+window.__t37+' len='+window.Editor.getValue().length",
          timeout=12),
 
-    # —— 健壮性回归：快速连切竞态 / 快捷键 / 真实保存 ——
     dict(name="T38 快速连切模式:重建中再切,最终落到目标模式且内容不丢",
-         # 连发 sv→ir→sv:第一次重建中后两次应被队列仲裁(最终=sv),不出现按钮与面板错位
          setup="window.Editor.setMode('sv');window.Editor.setMode('ir');window.Editor.setMode('sv');",
          sleep=3.0,
          js=("(function(){if(window.Editor.getMode()!=='sv')return 'mode='+window.Editor.getMode();"
@@ -924,7 +859,6 @@ CASES = [
          timeout2=4),
 
     dict(name="T41 首页最近区分组:最近3个文件单独成卡、文件夹归入其他",
-         # 此刻最近列表应为 [renamed-e2e.md, small.md, e2e-repo(文件夹), big.md, ...]
          setup="window.Home.show()",
          sleep=0.8,
          js=("(function(){"
@@ -1082,8 +1016,6 @@ CASES = [
          js2="!document.getElementById('tree-menu').classList.contains('open')"),
 
     dict(name="T52 标题跳转:jumpToHeading 滚离顶部",
-         # T38 会把模式留在 sv；源码面板与 IR 面板不是同一个滚动容器。
-         # 先切回 ir（重建中 setValue 会进 pendingValue），再装 80 章与 T06 同构。
          setup=("(function(){window.Editor.setMode('ir');"
                 "var s='';for(var i=0;i<80;i++){s+='## '+(" + JV('章节') + ")+i+'\\n\\n'+(" + JV('内容') + ")+'\\n';}"
                 "window.Editor.setValue(s);})()"),
@@ -1236,13 +1168,10 @@ CASES = [
 
     dict(name="T61 清空文档:真实编辑清空后 getValue 反映空文档(不回退旧内容)",
          # 行为契约:用户清空文档后,getValue 必须如实返回空(实测 Vditor 清空后
-         # 序列化为 "\n"),不得因缓存回退等原因复活装载时的旧内容。
-         # 前置:T38 起模式停在 sv,先切回 ir 并装载内容
          setup="window.Editor.setMode('ir');window.Editor.setValue(" + JV('# 待清空\n\n正文 XYZ') + ");",
          sleep=1.5,
          js="window.Editor.getMode()==='ir'&&window.Editor.isReady()&&window.Editor.getValue().indexOf('XYZ')>=0",
          timeout=15,
-         # 第二阶段:模拟真实用户清空(聚焦→全选→删除,execCommand 产生可信 input
          # 事件,Vditor 正常处理),防抖落定后内容必须为空白
          setup2=("(function(){var el=document.querySelector('#editor .vditor-ir .vditor-reset');"
                  "if(!el)return;el.focus();document.execCommand('selectAll');document.execCommand('delete');})()"),
@@ -1250,9 +1179,6 @@ CASES = [
          js2=("(function(){var v=window.Editor.getValue();"
               "return v.trim()===''?true:'not empty len='+v.length+' head='+JSON.stringify(v.slice(0,20));})()")),
 
-    # ---------------------------------------------------------------
-    # Mermaid / 公式 / 段落转换（对标 Typora）
-    # ---------------------------------------------------------------
     dict(name="T70 mermaid:流程图代码块渲染为 SVG",
          setup="window.Editor.setMode('ir');window.Editor.setValue("
                + JV('# 图表\n\n```mermaid\nflowchart TD\n    A[甲] --> B[乙]\n```\n') + ");",
@@ -1261,7 +1187,6 @@ CASES = [
          timeout=15),
 
     dict(name="T71 mermaid:切换主题后图按新主题重渲染(svg 产物更新)",
-         # 前置:T70 已渲染。记录当前 svg,切暗色,断言 svg 被重新生成
          setup=("(function(){var s=document.querySelector('#editor .vditor-ir__preview .language-mermaid svg');"
                 "window.__mmdHtml=s?s.outerHTML:'none';window.Editor.setTheme('dark');})()"),
          sleep=2.0,
@@ -1282,13 +1207,11 @@ CASES = [
          timeout=15),
 
     dict(name="T73 公式:切换 MathJax 引擎后重建并渲染(mjx-container)",
-         # setMathEngine 走保内容重建(refresh),T72 的公式内容在重建后以 MathJax 重渲染
          setup="window.Editor.setMathEngine('mathjax');",
          sleep=3.0,
          js=("window.Editor.isReady()"
              "&&!!document.querySelector('#editor mjx-container')"),
          timeout=25,
-         # 切回 KaTeX 还原默认,断言 katex 节点回归
          setup2="window.Editor.setMathEngine('katex');",
          sleep2=3.0,
          js2=("window.Editor.isReady()"
@@ -1314,7 +1237,6 @@ CASES = [
          timeout=12),
 
     dict(name="T75 段落转换:标题→无序列表",
-         # 前置:T74 已得到 ## 段落文字 DEF
          setup=("setTimeout(function(){"
                 "var h=[].slice.call(document.querySelectorAll('#editor .vditor-ir .vditor-reset > h2'))"
                 ".find(function(x){return x.textContent.indexOf('DEF')>=0;});"
@@ -1354,12 +1276,10 @@ CASES = [
          timeout=12),
 
     dict(name="T77 段落转换:源码模式当前行→待办",
-         # 第一阶段:切 sv 并等重建就绪(setMode 重建实测 ~2s,单阶段 1500ms 临界会败)
          setup="window.Editor.setMode('sv');",
          sleep=1.0,
          js="window.Editor.getMode()==='sv'&&window.Editor.isReady()",
          timeout=20,
-         # 第二阶段:装载单行,选中行尾,右键→待办列表
          setup2=("window.Editor.setValue(" + JV('源码行 GHI\n') + ");"
                  "setTimeout(function(){"
                  "var el=document.querySelector('#editor .vditor-sv');"
@@ -1379,7 +1299,6 @@ CASES = [
          timeout2=15),
 
     dict(name="T78 图表命令:/过滤可命中 mermaid 模板(流程图/思维导图)",
-         # 顺手把 T77 的 sv 模式还原为 ir,保持收尾环境一致
          setup="window.Editor.setMode('ir');",
          sleep=1.0,
          js=("(function(){"
@@ -1396,9 +1315,6 @@ CASES = [
              "+' h='+JSON.stringify(h[0]&&h[0].id)+' w='+JSON.stringify(w[0]&&w[0].id);})()"),
          timeout=8),
 
-    # ---------------------------------------------------------------
-    # 表格 / 代码块 / 数学块 右键块操作
-    # ---------------------------------------------------------------
     dict(name="T79 表格:向下插入行→删除列(右键全链路)",
          setup=("window.Editor.setMode('ir');window.Editor.setValue("
                + JV('| 名称 | 数量 | 备注 |\n| :--- | :---: | ---: |\n| 苹果 | 3 | 新到 |\n| 香蕉 | 5 | 打折 |\n')
@@ -1421,7 +1337,6 @@ CASES = [
              "var rows=v.split('\\n').filter(function(l){return l.trim().charAt(0)==='|';});"
              "return rows.length===5?true:'rows='+rows.length+' v='+JSON.stringify(v);})()"),
          timeout=15,
-         # 第二阶段:光标移到「打折」列并删除该列。
          # 注意 phase1 的块操作走 setValue 全文重载,getValue 先于 DOM 重渲染完成;
          # 轮询等单元格真实出现在 DOM 后再点菜单,避免右键时块还未渲染出来
          setup2=("var __t=0;var __timer=setInterval(function(){"
@@ -1489,7 +1404,6 @@ CASES = [
          js=("(function(){var v=window.Editor.getValue();"
              "return (v.indexOf('$$')<0&&v.indexOf('E = mc^2')>=0)?true:'v='+JSON.stringify(v);})()"),
          timeout=15,
-         # 第二阶段:重新装载数学块,点「删除公式块」
          setup2=("window.Editor.setValue(" + JV('数学前置\n\n$$\nx+y=1\n$$\n') + ");"
                 "setTimeout(function(){"
                 "var pre=document.querySelector('#editor .vditor-ir [data-type=\"math-block\"] pre');"
@@ -1540,7 +1454,6 @@ CASES = [
              "return true;})()"),
          timeout=12),
 
-    # —— 段落转换矩阵（convert.js applyIR）：块提取/变换/替换结果断言 ——
     dict(name="T85 段落转换:正文→二级标题(单块光标)",
          setup=("window.Editor.setValue(" + JV('第一段\n\n第二段\n') + ");"
                 "setTimeout(function(){"
@@ -1733,8 +1646,6 @@ CASES = [
               "if(sb.textContent.indexOf(" + JV("工作副本") + ")<0)return 'badge='+sb.textContent;"
               "return true;})()")),
 
-    # 空行 / 选格式再输入：标题标记曾被 display:none，光标落到 # 前，
-    # 键入变成「正文# 」并掉回段落；空标题回车会另起正文。
     dict(name="T99 斜杠:空行选一级标题后键入仍是标题",
          setup=("window.Home.hide();window.Editor.setMode('ir');window.Editor.setValue('');"
                 "setTimeout(function(){"
@@ -1792,7 +1703,6 @@ CASES = [
              "return true;})()"),
          timeout=12),
 
-    # —— 工作副本全量（T98 已切到 workdir；夹具独立于 e2e-repo）——
     dict(name="T101 工作副本:只开一篇时搜索走副本且不收编会话",
          setup=("window.__w101=0;window.__w101work='';window.__w101err='';"
                 "(async function(){"
@@ -2145,7 +2055,6 @@ CASES = [
               "return true;})()")),
 ]
 
-# —— 空格式键盘行为与基础编辑回归（convert.js handleEmptyEnter/Backspace）——
 CASES += [
     dict(name="T121 空格式:空标题按一次Backspace退格式且可继续输入",
          setup=("if(window.Editor.getMode()!=='ir')window.Editor.setMode('ir');"
@@ -2297,7 +2206,6 @@ CASES += [
          timeout=12),
 ]
 
-# —— 操作柄交互层（blockui.js）：柄/菜单/高亮/拖拽/键盘替代 ——
 CASES += [
     dict(name="T133 操作柄:悬停只显示一个柄且不推挤正文",
          setup=("window.Home.hide();window.Editor.setValue(" + JV('段落一\n\n段落二\n') + ");"
@@ -2536,7 +2444,6 @@ CASES += [
          timeout=12),
 ]
 
-# —— 结构操作事务（Blocks.moveBlock/deleteBlock）：嵌套转换、独立撤销边界 ——
 CASES += [
     dict(name="T128 段落转换:整列表→标题按深度优先输出",
          setup=("window.Editor.setValue(" + JV('- parentA\n  - childB\n- parentC\n') + ");"
@@ -2652,7 +2559,6 @@ CASES += [
          timeout=12),
 ]
 
-# —— 章节操作与大纲拖拽 ——
 CASES += [
     dict(name="T148 章节:整节范围不被容器内标题截断",
          setup=("window.Home.hide();"
@@ -2801,7 +2707,6 @@ CASES += [
          timeout=12, timeout2=12),
 ]
 
-# —— sv 补全与完整环境验证 ——
 CASES += [
     dict(name="T153 sv:光标跟踪柄与菜单移动",
          setup=("window.Home.hide();window.SlashMenu.close();"
@@ -2969,7 +2874,6 @@ CASES += [
          timeout=12),
 ]
 
-# —— 嵌套结构操作：携子树移动、成为子项、移入/移出引用 ——
 CASES += [
     dict(name="T142 嵌套:列表项携续段与子列表整体移动",
          setup=("window.Home.hide();"
@@ -3129,8 +3033,6 @@ CASES += [
 ]
 
 
-# ----------------------------------------------------------------------------
-# 针对源码操作柄与新建命令的回归检查。
 CASES += [
     dict(name="T159 源码操作柄:任务与引用行尾不遮挡内容",
          setup=("window.__gutterReady=false;"
@@ -3184,7 +3086,6 @@ for _case_id, _title, _filename, _target in [
         py=lambda api, ev, dest=_target / _filename: dest.is_file() or 'wrong creation directory',
     ))
 
-# 工具栏「新建」下拉：可见入口回归（主按钮 + 三条落盘命令）
 CASES.append(dict(
     name='T162 新建下拉:按钮开菜单并走「在当前文件夹中新建文件」',
     setup=("(async function(){await window.App.openPath(" + JV(str(REPO_DIR / 'sub' / 'note.md')) + ");"
@@ -3203,7 +3104,6 @@ CASES.append(dict(
     js3="!document.getElementById('input-modal-mask').classList.contains('open')",
 ))
 
-# 大纲跳转修复的回归用例：sv 跳转 / 落点呼吸位 / 竖排横轴 / 另存为
 CASES += [
     dict(name="T163 大纲跳转:源码模式点击滚动到目标标题",
          setup=("var s='# 起点\\n\\n';for(var i=0;i<80;i++){s+='## 章节'+i+'\\n\\n正文 '+i+'\\n\\n';}"
@@ -3264,7 +3164,6 @@ CASES += [
     dict(name="T166 另存为:Ctrl+Shift+S 切换文档身份并直写新路径",
          setup=("(async function(){await window.App.openPath(" + JV(str(SMALL_MD)) + ");"
                 "window.Home.hide();"
-                # 原生保存对话框无法自动化：stub 掉入口，内部仍走真 save_file 落盘
                 "window.pywebview.api.save_file_dialog=function(content,suggested){"
                 "window.__saveAsSuggested=suggested;"
                 "return window.pywebview.api.save_file(" + JV(str(SAVEAS_MD)) + ",content);};"
@@ -3296,8 +3195,6 @@ CASES += [
          js2="!window.Palette.isOpen()"),
 ]
 
-# 执行器
-# ----------------------------------------------------------------------------
 results: list[tuple[str, bool, str]] = []
 
 
@@ -3329,7 +3226,6 @@ def _capture_ui_state(case_index: int, case_name: str, stage: str) -> None:
 
 
 def _check(ev, js: str, timeout: float) -> tuple[bool, str]:
-    """在超时窗口内轮询断言表达式,真值即通过。返回 (ok, 最后一次值)。"""
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
@@ -3359,7 +3255,6 @@ def _run(window, api):
         if prefixes and not any(c["name"].startswith(p) for p in prefixes):
             continue
         try:
-            # 用例间留空闲:dbg 取证表明,连续无间隔 evaluate_js 注入(setValue→setMode→setValue
             # 连发)会撞上 Vditor 内部异步任务未 settle 的竞态;真实用户操作间隔天然 >100ms。
             # 每个用例前后各留 0.5s,让 Vditor 内部任务落定,消除测试驱动的竞态。
             time.sleep(0.5)
@@ -3370,7 +3265,6 @@ def _run(window, api):
             time.sleep(c.get("sleep", 0.6))
             ok, last = _check(ev, c["js"], c.get("timeout", 8))
             _capture_ui_state(case_index, c["name"], "1")
-            # 可选第二阶段(setup2 + js2)
             if ok and c.get("js2"):
                 if c.get("setup2"):
                     ev(c["setup2"])
@@ -3410,13 +3304,10 @@ def main() -> int:
         "last_file": str(SMALL_MD),
         "last_folder": str(REPO_DIR),
         # 跳过首启欢迎流程（其后的学习仓库静默注册会污染 T24 等的仓库计数断言；
-        # 欢迎页本身由 T13 主动重开覆盖）
         "welcome_shown": True,
     })
     api = Api(config)
     index = str(ROOT / "app" / "web" / "index.html")
-    # Vditor 渲染依赖窗口 rAF/焦点，E2E 须真实窗口；跑前关闭其他 RyuuMD / WebView2。
-    # T19 字数统计走 loadDoc 路径（合成 InputEvent 无法驱动 Vditor 内部 input 回调）。
     window = webview.create_window(
         title="RyuuMD E2E", url=index, js_api=api, width=1200, height=800
     )

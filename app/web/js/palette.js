@@ -613,7 +613,6 @@
   };
 })();
 
-/* 本文查找条：Ctrl+F 打开，Ctrl+H 展开替换，Enter 下一个，Shift+Enter 上一个 */
 (function () {
   const bar = document.getElementById("find-bar");
   const input = document.getElementById("find-input");

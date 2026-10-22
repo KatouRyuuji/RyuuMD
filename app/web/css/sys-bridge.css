@@ -1,19 +1,10 @@
-/* =============================================================================
-   sys-bridge.css — 应用变量到 --sys-* 的桥接
-   -----------------------------------------------------------------------------
-   在 :root 把 --primary/--bg/--el 族、尺寸、z 阶、影映射到 --sys-*。
-   自定义属性用时求值，下游组件 CSS 随色板切换。色板与明暗由 palettes.css、
-   themes/*.css 供给。新代码直接消费 --sys-*。
-   ============================================================================= */
 :root {
-  /* —— 主色 ramp —— */
   --primary: var(--sys-primary);
   --primary-deep: var(--sys-primary-deep);
   --primary-shallow: var(--sys-primary-shallow);
   --primary-bg: var(--sys-primary-soo-shallow);   /* 主色浅染底（选中/hover 底） */
   --primary-bg-soft: color-mix(in srgb, var(--sys-primary-soo-shallow), var(--sys-surface) 55%);
 
-  /* —— 表面 / 文字 / 边 —— */
   --bg: var(--sys-bg);
   --bg-elevated: var(--sys-surface);
   --sidebar-bg: var(--sys-surface-2);
@@ -26,14 +17,13 @@
   --active-bg: var(--sys-primary);               /* 实心选中（v5 配方） */
   --active-fg: var(--sys-on-primary);
 
-  /* —— 效果 —— */
   --shadow: var(--sys-shadow-lift);
   --shadow-sm: var(--sys-shadow-sm);
   --glass-bg: color-mix(in srgb, var(--sys-surface) 82%, transparent);
   --scrollbar-thumb: var(--sys-scrollbar-thumb);
   --selection-bg: var(--sys-selection-bg);
 
-  /* —— 语义（跟当前色板，不用固定警示橙 / 错误红） —— */
+  /* 语义色跟当前色板，不用固定警示橙 / 错误红 */
   --warning: var(--sys-warning);
   --warning-ink: var(--sys-warning-ink);
   --warning-fg: var(--sys-text-inverse);
@@ -43,7 +33,6 @@
   --success: var(--sys-success);
   --success-fg: var(--sys-text-inverse);
 
-  /* —— 形状 / 尺寸（A 语言令牌由 lang/a.css 供给） —— */
   --radius-xs: var(--sys-radius-sm);             /* 4 */
   --radius-sm: var(--sys-radius-sm);             /* 4（旧 7 归一到体系档） */
   --radius: var(--sys-radius-md);                /* 8 */
@@ -52,18 +41,15 @@
   --titlebar-h: 48px;
   --sidebar-width: 264px;
 
-  /* —— 动效 —— */
   --ease-ui: var(--sys-ease-smooth);
   --dur-fast: var(--sys-dur-2);                  /* 180ms */
   --dur-ui: var(--sys-dur-3);                    /* 240ms */
 
-  /* —— z 阶 —— */
   --z-sticky: var(--sys-z-sticky);
   --z-menu: var(--sys-z-overlay);
   --z-modal: var(--sys-z-modal);
   --z-toast: var(--sys-z-toast);
 
-  /* —— ryuuji-a 皮肤层令牌 —— */
   --space-1: var(--sys-space-1);
   --space-2: var(--sys-space-2);
   --space-3: var(--sys-space-3);
@@ -88,7 +74,6 @@
      --font-mono 为应用层默认等宽栈（代码块/丝印），与 --sys-font-mono 不是同一变量。 —— */
   --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
 
-  /* —— 编辑区元素色（editor-theme.css 消费；排版装饰保留，色值随板） —— */
   --el: var(--sys-primary);
   --el-deep: var(--sys-primary-deep);
   --el-shallow: var(--sys-primary-shallow);
@@ -102,6 +87,5 @@
 }
 
 :root[data-theme="dark"] {
-  /* 暗色滚动条 thumb 压暗一档：浅灰滑块在深底上太跳 */
   --scrollbar-thumb: color-mix(in srgb, var(--sys-scrollbar-thumb), var(--sys-bg) 35%);
 }

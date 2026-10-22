@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""云同步：配置门闩、WebDAV 客户端、双向同步引擎（内存 DAV + 本地 HTTP DAV）。"""
+"""云同步引擎、WebDAV 客户端、双向同步策略（内存 DAV + 真实 HTTP DAV）。"""
 
 from __future__ import annotations
 
@@ -40,7 +39,6 @@ def touch(path: Path, text: str = "x") -> Path:
 
 
 class MemoryDav:
-    """进程内 DAV，供引擎单测注入（无网络）。"""
 
     def __init__(self) -> None:
         self.files: dict[str, tuple[bytes, float]] = {}
@@ -96,7 +94,6 @@ class TestCloudConfig(unittest.TestCase):
         self.assertTrue(res["cloud_sync"]["password_set"])
         self.assertTrue(res["cloud_sync"]["enabled"])
         self.assertEqual(load_cloud(self.api.config)["password"], "secret")
-        # 空密码 = 保持原密码
         res2 = self.api.save_cloud_settings({"username": "u2", "password": ""})
         self.assertTrue(res2["ok"])
         self.assertEqual(load_cloud(self.api.config)["password"], "secret")
@@ -219,7 +216,6 @@ class TestCloudEngine(unittest.TestCase):
         self.assertGreaterEqual(res["skipped"], 1)
 
     def test_same_size_skip_records_fingerprint(self):
-        # 首次同步双方同尺寸 → skip，但须补记本地指纹；
         # 否则此后本地同尺寸改动永远走「首次」分支按尺寸跳过，改动静默丢失
         pid, d = self._vault()
         local = touch(d / "a.md", "abcd")
@@ -228,7 +224,6 @@ class TestCloudEngine(unittest.TestCase):
         self.assertTrue(res["ok"], res)
         self.assertEqual(res["uploaded"], 0)
         self.assertGreaterEqual(res["skipped"], 1)
-        # 本地改成同尺寸不同内容 → 有指纹应识别为本地改动并上传
         local.write_text("wxyz", encoding="utf-8")
         res2 = self.engine.sync()
         self.assertTrue(res2["ok"], res2)
@@ -239,7 +234,6 @@ class TestCloudEngine(unittest.TestCase):
         pid, d = self._vault()
         local = touch(d / "note.md", "local-v1")
         self.engine.sync()
-        # 双方都改：本地内容变，远端 size 也变
         local.write_text("local-v2-longer", encoding="utf-8")
         self.dav.put(f"{pid}/note.md", b"remote-v2")
         res = self.engine.sync()
@@ -289,7 +283,6 @@ class TestCloudEngine(unittest.TestCase):
 
 
 class _DavHandler(BaseHTTPRequestHandler):
-    """极简 WebDAV：PROPFIND/GET/PUT/MKCOL + Basic 认证。"""
 
     store: dict = {}
     user = "alice"
@@ -333,7 +326,6 @@ class _DavHandler(BaseHTTPRequestHandler):
         self._read_body()
         prefix = self._rel().rstrip("/")
         items = []
-        # 自身
         items.append((prefix + "/", True, 0))
         for k, data in list(self.store.items()):
             parent = str(Path(k).parent).replace("\\", "/")
@@ -341,7 +333,6 @@ class _DavHandler(BaseHTTPRequestHandler):
                 items.append((k, False, len(data)))
             elif k.startswith(prefix + "/") and k.count("/") == prefix.count("/") + 1:
                 items.append((k, False, len(data)))
-        # 子目录：从文件路径推断
         dirs = set()
         for k in self.store:
             if k.startswith(prefix + "/"):
@@ -479,7 +470,6 @@ class TestWebDavHttp(unittest.TestCase):
             self.assertTrue(res["ok"], res)
             self.assertEqual(res["uploaded"], 1)
         finally:
-            # 临时目录留给 GC；测试结束即可
             pass
 
 

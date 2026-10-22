@@ -307,7 +307,6 @@
     bindFont("set-font-mono", "set-font-mono-custom", "font_mono", FONT_MONO_PRESETS);
     document.getElementById("set-close").addEventListener("click", close);
     document.getElementById("set-x").addEventListener("click", close);
-    // 重开欢迎页：关闭设置后走 App 的欢迎流程（含风格选择与持久化）
     document.getElementById("set-welcome").addEventListener("click", () => {
       close();
       if (window.App && window.App.showWelcome) window.App.showWelcome();
@@ -315,7 +314,6 @@
     document.getElementById("set-sponsor").addEventListener("click", () => {
       if (window.Sponsor && window.Sponsor.show) window.Sponsor.show();
     });
-    // 学习仓库：关闭设置后走 App 的打开流程（含幂等复制与导读加载）
     document.getElementById("set-tutorial").addEventListener("click", () => {
       close();
       if (window.App && window.App.openTutorial) window.App.openTutorial();
@@ -421,9 +419,6 @@
     reflect();
   }
 
-  // —— 默认 Markdown 应用（Windows 文件关联）——
-  // 点击后：注册 ProgID + 弹系统「打开方式」对话框，用户勾选「始终」完成设置。
-  // 确认后系统会用默认应用打开验证文档，RyuuMD 单实例机制将其接进新窗口。
   function bindDefaultApp() {
     const btn = document.getElementById("set-default-app");
     const a = () => window.pywebview && window.pywebview.api;
