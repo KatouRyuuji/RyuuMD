@@ -25,9 +25,6 @@
 
   const docNameEl = document.getElementById("doc-name");
 
-  // ---------------------------------------------------------------
-  // 初始化
-  // ---------------------------------------------------------------
   async function boot() {
     window.renderIconButtons();
 
@@ -216,9 +213,7 @@
     return a;
   }
 
-  // ---------------------------------------------------------------
   // 启动决策 + 编辑器惰性创建
-  // ---------------------------------------------------------------
   // 为何惰性：Vditor 首次构建会动态加载 lute.min.js（约 4MB）。旧流程把
   // 首页也挂在 after 上，用户一直盯着编辑器空壳。现在 boot 拿到 config
   // 后立刻决定去向：首页立即 Home.show()；只有 initial path / restore
@@ -404,8 +399,6 @@
     }
   }
 
-  // 欢迎窗口：展示 → 持久化所选操作风格与 welcome_shown。
-  // 首次启动（decideStartup）与「设置 → 欢迎页」共用同一入口。
   async function runWelcome() {
     const res = await window.Welcome.show({
       style: state.config.operation_style,
@@ -430,9 +423,6 @@
     return restored;
   }
 
-  // ---------------------------------------------------------------
-  // 文档加载 / 保存
-  // ---------------------------------------------------------------
   const scrollMem = {};
   async function loadDoc(fileRes, opts) {
     if (!(await ensureEditor())) return;
@@ -684,9 +674,6 @@
     refreshTemplates();
   }
 
-  // ---------------------------------------------------------------
-  // 最近打开（侧栏「最近」tab）
-  // ---------------------------------------------------------------
   async function loadRecent() {
     const a = api();
     if (!a) return;
@@ -696,7 +683,6 @@
     if (requestId === state._recentRequestId && res && res.ok) window.Sidebar.renderRecent(res.items);
   }
 
-  // 点击最近项：与 openPath 同路，但打开失败（文件已移动/删除）时自动移除失效项
   async function openRecentItem(path) {
     if (!(await maybeConfirmDiscard())) return;
     const a = apiOrToast();
@@ -719,9 +705,6 @@
     loadRecent();
   }
 
-  // ---------------------------------------------------------------
-  // 编辑变化
-  // ---------------------------------------------------------------
   // now 由编辑器防抖回调传入已序列化的全文，避免这里再 getValue 一次（大文档开销大）
   let autoSaveTimer = null;
   function onEditorChange(now) {
@@ -779,9 +762,6 @@
       : (shown || "在目录中定位");
   }
 
-  // ---------------------------------------------------------------
-  // 渲染 / 源码模式切换（底部状态栏右下角）
-  // ---------------------------------------------------------------
   function bindModeBar() {
     document.querySelectorAll(".sb-mode").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -889,7 +869,6 @@
   function updateDocName(name) {
     const base = name || (state.currentPath ? basename(state.currentPath) : "未命名");
     docNameEl.innerHTML = esc(base) + (state.dirty ? '<span class="dirty">●</span>' : "");
-    // 无文档时隐藏「所在目录」等文档态按钮（规则见 app.css body.no-doc）
     document.body.classList.toggle("no-doc", !state.currentPath);
     const sb = document.getElementById("sb-save");
     if (sb) {
@@ -900,11 +879,6 @@
     }
   }
 
-  // ---------------------------------------------------------------
-  // 工具栏 / 快捷键
-  // ---------------------------------------------------------------
-  /* 「新建」下拉：主按钮（btn-new）新建未命名文档；下拉提供直接落盘的
-     在当前文件夹 / 当前仓库新建。菜单结构与文件树右键菜单（.ctx-item）同构。 */
   function bindNewMenu() {
     const btn = document.getElementById("btn-new-more");
     const menu = document.getElementById("new-menu");
@@ -1004,7 +978,6 @@
     on("sb-path", locateInTree);
     on("backend-reload", () => location.reload());
 
-    // 侧栏标签切换（目录 / 大纲 / 最近）：tab 的 data-panel 对应 panel-<name> 面板
     const sideTabs = Array.from(document.querySelectorAll(".side-tab"));
     function activateSideTab(tab) {
       sideTabs.forEach((t) => {
@@ -1082,8 +1055,6 @@
     }
   }
 
-  /* 打开内嵌学习仓库：后端幂等复制到用户数据目录并注册为仓库，
-     前端打开该工作区并加载导读文档。 */
   async function openTutorial() {
     const a = apiOrToast();
     if (!a || !a.open_tutorial) return;
@@ -1563,9 +1534,6 @@
     });
   }
 
-  // ---------------------------------------------------------------
-  // 主题
-  // ---------------------------------------------------------------
   const PALETTES = ["a1", "a3", "a4", "a5", "a6"];
   const LEGACY_PALETTE_MAP = {
     cherry: "a6", vampire: "a6", caramel: "a6", a2: "a6", sakura: "a6", mauve: "a3",
@@ -1651,9 +1619,7 @@
     applyConfig({ theme: next });
   }
 
-  // ---------------------------------------------------------------
   // 拖放（文件 / 文件夹）
-  // ---------------------------------------------------------------
   function bindDragDrop() {
     const hint = document.getElementById("drop-hint");
     let depth = 0;
@@ -2402,9 +2368,7 @@
     window.Sidebar.renderLinks({ back, out });
   }
 
-  // ---------------------------------------------------------------
   // 文件管理（侧栏右键菜单：重命名 / 移动 / 删除真实磁盘文件）
-  // ---------------------------------------------------------------
   // 通用输入小弹窗：Promise<string|null>，null = 取消。
   // 结构与 home.js 仓库重命名弹窗同款（.mini-modal 样式复用）。
   function promptText({ title, sub, value, maxLen, emptyMsg }) {
@@ -2526,9 +2490,7 @@
     toast("已移入回收站");
   }
 
-  // ---------------------------------------------------------------
   // 工具
-  // ---------------------------------------------------------------
   async function maybeConfirmDiscard() {
     if (!state.dirty) return true;
     return window.App.confirm({

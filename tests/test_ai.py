@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""Anthropic 配置、Messages 协议、文档/仓库概括、标题/内容/语义搜索与 ask 前缀。"""
+"""Anthropic 配置、Messages 协议、文档/仓库概括、知识谱系、ask 前缀。"""
 
 from __future__ import annotations
 
@@ -174,7 +173,6 @@ class TestAiConfigRoundtrip(unittest.TestCase):
         self.assertEqual(again["ai"]["api_key"], "")
         self.assertTrue(again["ai"]["api_key_set"])
         self.assertEqual(again["ai"]["model"], "claude-test-model")
-        # 磁盘上的真实 Key 不丢
         self.assertEqual(make_api().config.get("ai")["api_key"], "sk-test-roundtrip")
 
     def test_empty_key_keeps_saved(self):
@@ -406,11 +404,8 @@ class TestSearchModes(unittest.TestCase):
         self.api = make_api()
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-ai-search-")
         self.root = Path(self.dir.name)
-        # 标题含查询、正文不含
         touch(self.root / "WebDAV指南.md", "# 其它\n\n正文里没有那个词")
-        # 正文含查询、文件名不含
         touch(self.root / "plain.md", "# 笔记\n\n这里讲解 OmegaContentToken 的用法")
-        # 语义命中目标：查询不会作为子串出现
         touch(self.root / "GammaNote.md", "# Gamma\n\nRaft and quorum keep replicas aligned.")
 
     def tearDown(self) -> None:
@@ -551,23 +546,19 @@ class TestKnowledgeAndAsk(unittest.TestCase):
             self.assertTrue(first["ok"], first)
             self.assertEqual(first["text"], "MOCK_TREE")
             self.assertEqual(len(server.requests), 1)  # type: ignore[attr-defined]
-            # 另一窗口实例共享缓存，不再发请求
             second_api = Api(Config())
             second = second_api.knowledge_tree(str(self.root))
             self.assertEqual(second["text"], "MOCK_TREE")
             self.assertTrue(second.get("cached"))
             self.assertEqual(len(server.requests), 1)  # type: ignore[attr-defined]
-            # 路径写法不同仍命中同一缓存键
             slashed = self.api.knowledge_tree(str(self.root) + os.sep)
             self.assertTrue(slashed.get("cached"))
             self.assertEqual(len(server.requests), 1)  # type: ignore[attr-defined]
-            # 写盘后缓存失效
             self.api.save_file(str(self.root / "分布式.md"), "# 分布式\n\n已改。")
             after_save = second_api.knowledge_tree(str(self.root))
             self.assertTrue(after_save["ok"], after_save)
             self.assertFalse(after_save.get("cached"))
             self.assertEqual(len(server.requests), 2)  # type: ignore[attr-defined]
-            # 复制笔记同样失效
             self.api.knowledge_tree(str(self.root))  # 回填缓存
             self.assertEqual(len(server.requests), 2)  # type: ignore[attr-defined]
             dup = self.api.duplicate_file(str(self.root / "分布式.md"))

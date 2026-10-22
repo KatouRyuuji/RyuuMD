@@ -179,7 +179,6 @@
     finish();
   }
 
-  /* 返回 Promise<{style, dontShow}> */
   function show(defaults) {
     if (typeof defaults === "string" || defaults == null) {
       chosenStyle = defaults || "notion";

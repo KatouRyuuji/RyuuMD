@@ -1,6 +1,6 @@
 ﻿; RyuuMD Windows 安装包（Inno Setup 6）。
-; 输入 dist\RyuuMD\（build.bat onedir 产物），输出 dist\installer\RyuuMD-Setup-<版本>.exe。
-; 构建：build.bat installer，或 ISCC packaging\RyuuMD.iss。
+; 输入 dist\RyuuMD\（packaging\build.bat onedir 产物），输出 dist\installer\RyuuMD-Setup-<版本>.exe。
+; 构建：packaging\build.bat installer，或 ISCC packaging\RyuuMD.iss。
 ; 按用户安装（%LOCALAPPDATA%\Programs\RyuuMD），无需管理员；注册表全部写 HKCU，
 ; 与 app/core/file_assoc.py 的 register() 写同一组键，卸载时一并清理。
 ; 用户数据 %APPDATA%\RyuuMD 不随卸载删除。

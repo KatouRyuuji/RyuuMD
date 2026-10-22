@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""外壳字体门闩：sys-tokens 由本仓库维护，不得引入 vendor webfont。"""
+"""字体资源约束：sys-tokens 可变字重维护清单，禁止引用 vendor webfont。"""
 from __future__ import annotations
 
 import re

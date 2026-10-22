@@ -107,7 +107,6 @@ button:disabled,
   background: var(--bg);
 }
 
-/* 顶部工作台 */
 #toolbar {
   gap: var(--space-1);
   height: var(--titlebar-h);
@@ -156,7 +155,6 @@ html[data-theme-flip] *,
 html[data-theme-flip] *::before,
 html[data-theme-flip] *::after { transition: none !important; }
 
-/* 新建 split 按钮：主钮与下拉触发器拼合（下拉触发器无文字，窄化） */
 #toolbar #btn-new { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 #toolbar #btn-new-more {
   margin-left: -3px;
@@ -211,7 +209,6 @@ html[data-theme-flip] *::after { transition: none !important; }
   font-size: 8px;
 }
 
-/* 主体与侧栏 */
 #body {
   background: var(--bg);
 }
@@ -322,7 +319,6 @@ html[data-theme-flip] *::after { transition: none !important; }
 }
 
 .tree-item.active {
-  /* 常驻选中态使用主色浅染底和字重，保持长时写作的视觉安静。 */
   border-color: transparent;
   background: var(--primary-bg);
   color: var(--primary);
@@ -368,7 +364,6 @@ html[data-theme-flip] *::after { transition: none !important; }
   font-weight: 600;
 }
 
-/* 编辑区与状态栏 */
 #editor-wrap {
   min-width: 0;
   background: var(--bg-elevated);
@@ -446,7 +441,6 @@ button.sb-item:hover,
   box-shadow: none;
 }
 
-/* 统一按钮和表单 */
 .btn {
   min-height: var(--control-h);
   padding: 0 13px;
@@ -478,8 +472,6 @@ html[data-lang="a"] .btn:not(.btn--danger, .btn--warning, .btn--success):hover {
 }
 
 .btn--primary {
-  /* 主钮：实心主色 + 白字（色板对比度已锁）。
-     描边透明：实心钮再描深色边会与 focus outline 叠出双框 */
   border-color: transparent;
   background: var(--primary);
   color: var(--active-fg);
@@ -488,8 +480,6 @@ html[data-lang="a"] .btn:not(.btn--danger, .btn--warning, .btn--success):hover {
 }
 
 .btn--primary:hover {
-  /* hover 明度 -4% + lift 影（不叠顶唇：色钮上的白内线会读成双描边）；
-     active +1px 由全局按压规则供给 */
   border-color: transparent;
   background: color-mix(in srgb, var(--primary), #000000 4%);
   color: var(--active-fg);
@@ -528,7 +518,6 @@ select:hover {
 #find-input:focus,
 #replace-input:focus,
 select:focus {
-  /* 输入 focus 三件套（v4.1 Linea 配方）：边换主色 + 底换 ctl-hover + 4px 12% 软环 */
   border-color: var(--primary);
   background: var(--sys-surface-ctl-hover);
   box-shadow: 0 0 0 4px var(--focus-soft);
@@ -583,7 +572,6 @@ select:focus {
   box-shadow: none;
 }
 
-/* 弹窗、设置与欢迎页 */
 .modal-mask {
   padding: var(--space-5);
   background: color-mix(in srgb, var(--bg), transparent 18%);
@@ -593,7 +581,6 @@ select:focus {
 .modal {
   width: min(680px, calc(100vw - 48px));
   max-height: min(760px, calc(100vh - 48px));
-  /* 浮层使用中性边界与外投影区分层级。 */
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
@@ -608,7 +595,6 @@ select:focus {
   border-bottom: 1px solid var(--edge-soft);
 }
 
-/* 弹窗头部右上角关闭 X（设置等无原生关闭路径的弹窗） */
 .modal-x {
   margin-left: auto;
   align-self: flex-start;
@@ -624,7 +610,6 @@ select:focus {
   font-size: 12px;
 }
 
-/* 标题图标已有底色和语义，无需再加一圈装饰线。 */
 html[data-lang="a"] .modal-head .badge {
   border-color: transparent;
   box-shadow: none;
@@ -632,8 +617,6 @@ html[data-lang="a"] .modal-head .badge {
 
 .pal-badge,
 .si-keys {
-  /* pill 配方（v5）：主色 9% 底 + 22% 边 + primary-ink 字 + 999 圆角。
-     注：.modal-head .badge 无需在此重复——lang/a.css 的 .badge 基座即同一配方 */
   border: 1px solid transparent;
   border-radius: 999px;
   background: color-mix(in srgb, var(--primary), transparent 91%);
@@ -646,7 +629,6 @@ html[data-lang="a"] .modal-head .badge {
   padding: var(--space-5);
 }
 
-/* 确认/选择类小弹窗：收窄到对话尺度，标题/正文/按钮不被拉散 */
 .modal.mini-modal {
   width: min(440px, calc(100vw - 48px));
 }
@@ -766,7 +748,6 @@ html[data-lang="a"] .mode-opt code {
   background: var(--primary-bg-soft);
 }
 
-/* 首页工作台 */
 #home {
   background: var(--bg);
 }
@@ -789,7 +770,6 @@ html[data-lang="a"] .mode-opt code {
 #home-greet {
   margin: 0;
   color: var(--text);
-  /* display 流式字阶（DESIGN-v4 D1）：门面主标随视口缩放 */
   font-size: var(--sys-display-sm);
   font-weight: 600;
   line-height: var(--sys-leading-display);
@@ -811,7 +791,6 @@ html[data-lang="a"] .mode-opt code {
   /* 只有两张操作卡：轨道数跟随卡片数，右侧不再留一条空轨 */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
-  /* 卡组在 hero 两行带内垂直居中：卡片下方不再悬空一块空白 */
   align-self: center;
 }
 
@@ -824,14 +803,12 @@ html[data-lang="a"] .mode-opt code {
   border-radius: var(--radius);
   background: var(--surface-raised);
   color: var(--text);
-  /* 卡片用表面底色区分内容。 */
   box-shadow: none;
   font-size: 13px;
   font-weight: 600;
 }
 
 .quick-card:hover {
-  /* 悬停用底色和轻微位移反馈。 */
   border-color: transparent;
   background: var(--surface-hover);
   transform: translateY(-1px);
@@ -1097,7 +1074,6 @@ html[data-lang="a"] .mode-opt code {
   line-height: 1.7;
 }
 
-/* 命令面板、查找、斜杠菜单与右键菜单 */
 #palette-mask {
   align-items: flex-start;
   padding-top: max(84px, 12vh);
@@ -1230,7 +1206,6 @@ html[data-lang="a"] .mode-opt code {
   color: var(--text);
 }
 
-/* v5 实心选中行：菜单/列表的选中项 = 实心主色 + 白字 + 顶唇 */
 .pal-item.active,
 .slash-item.active {
   border-color: transparent;
@@ -1359,14 +1334,12 @@ html[data-lang="a"] .mode-opt code {
   font-variant-numeric: tabular-nums;
 }
 
-/* 数字统一 tabular-nums（DESIGN-v4 D2/D4） */
 #sb-count,
 #sb-zoom,
 .home-sec-count {
   font-variant-numeric: tabular-nums;
 }
 
-/* 编辑内容：去除旧标题胶囊与装饰，保留主题语义色。 */
 .vditor,
 .vditor-reset,
 .vditor-ir,
@@ -1405,7 +1378,6 @@ html[data-lang="a"] .mode-opt code {
   box-shadow: none !important;
 }
 
-/* 档次全靠字号与字重，不加下划线/竖条等额外装饰。 */
 .vditor-reset h1 {
   margin: 1.55em 0 0.65em !important;
   padding-bottom: 0 !important;
@@ -1451,10 +1423,6 @@ html[data-lang="a"] .mode-opt code {
   color: var(--text-muted) !important;
 }
 
-/* H 侧标（Vditor IR 的 hN:before 原生机制）：弱化存在感的小字标注。
-   绝对定位到首行行高中心：内联 margin 负值挂法在小字号标题上会
-   因自身字号参与基线计算而漂浮错位。首行中心 = line-height(1.35)/2 × 标题字号，
-   而此处 em 以侧标自身 0.7em 字号为基准，故取 0.675/0.7 ≈ 0.96em。 */
 .vditor-ir .vditor-reset > h1:before,
 .vditor-ir .vditor-reset > h2:before,
 .vditor-ir .vditor-reset > h3:before,
@@ -1549,7 +1517,6 @@ html[data-lang="a"] .mode-opt code {
   box-shadow: none !important;
 }
 
-/* 反馈 */
 #drop-hint {
   background: color-mix(in srgb, var(--bg), transparent 16%);
 }
@@ -1575,7 +1542,6 @@ html[data-lang="a"] .mode-opt code {
   box-shadow: var(--shadow-overlay);
 }
 
-/* 窗口与输入方式适配 */
 @media (max-width: 1180px) {
   .icon-btn .ib-label {
     display: none;
@@ -1711,7 +1677,6 @@ html[data-lang="a"] .mode-opt code {
   }
 }
 
-/* 写作台优化：以稳定阅读列、轻量导航和明确状态收束工作区。 */
 .tb-group {
   display: inline-flex;
   align-items: center;
@@ -1793,7 +1758,6 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   animation: none;
 }
 
-/* 首页先给用户最近工作，再展示仓库；空状态保持简短且可行动。 */
 .home-hero {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1855,7 +1819,6 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   box-shadow: none;
 }
 
-/* 设置分类采用侧边导航，内容独立滚动，底部操作不遮挡最后一个选项。 */
 .modal.settings-modal {
   display: flex;
   flex-direction: column;
@@ -2014,7 +1977,6 @@ html[data-reduced-motion] #sb-save[aria-busy="true"]::before {
   outline-offset: 1px;
 }
 
-/* 弹层保留宿主工作区上下文；选中行用轻染色，主色留给主要动作。 */
 .modal-mask {
   background: color-mix(in srgb, var(--bg), transparent 52%);
 }

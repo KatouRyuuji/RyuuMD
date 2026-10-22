@@ -69,7 +69,6 @@
           if (deps.openSettingsAi) deps.openSettingsAi();
           return;
         }
-        // 示例提问 chips：点击填入并发送，兼作新手引导
         const chip = e.target && e.target.closest ? e.target.closest(".ai-eg-chip") : null;
         if (chip) {
           askInput.value = chip.dataset.q || chip.textContent || "";

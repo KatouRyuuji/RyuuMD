@@ -1,16 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 """macOS .app（onedir + BUNDLE）。只能在 macOS 上构建，勿与 Windows spec 混用。
 
-   构建： bash build-mac.sh
+   构建（仓库根目录）： bash packaging/build-mac.sh
    产物： dist/RyuuMD.app
    前置： assets/icon.icns（由 build-mac.sh 用 sips/iconutil 从 icon.png 生成）
 """
+import os
 import sys
 
 from PyInstaller.utils.hooks import collect_submodules
 
 if sys.platform != "darwin":
     raise SystemExit("RyuuMD-mac.spec 只能在 macOS 上构建")
+
+# spec 内相对路径相对本文件目录解析：以 SPECPATH 锚定仓库根（本文件在 packaging/ 下）
+ROOT = os.path.dirname(SPECPATH)
 
 block_cipher = None
 
@@ -32,12 +36,12 @@ hiddenimports = sorted(
 )
 
 a = Analysis(
-    ["main.py"],
+    [os.path.join(ROOT, "main.py")],
     pathex=[],
     binaries=[],
     datas=[
-        ("app/web", "app/web"),
-        ("assets", "assets"),
+        (os.path.join(ROOT, "app/web"), "app/web"),
+        (os.path.join(ROOT, "assets"), "assets"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -59,7 +63,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-    icon="assets/icon.icns",
+    icon=os.path.join(ROOT, "assets/icon.icns"),
     # Finder / 「打开方式」经 Apple Event 传入的路径转成 sys.argv
     argv_emulation=True,
 )
@@ -75,12 +79,12 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="RyuuMD.app",
-    icon="assets/icon.icns",
+    icon=os.path.join(ROOT, "assets/icon.icns"),
     bundle_identifier="com.ryuuji.ryuumd",
     info_plist={
         "CFBundleName": "RyuuMD",
         "CFBundleDisplayName": "RyuuMD",
-        "CFBundleShortVersionString": "1.8.5",  # 与 version_info.txt 同步
+        "CFBundleShortVersionString": "1.8.5",  # 与 packaging/version_info.txt 同步
         "CFBundleVersion": "1.8.5",
         "NSHighResolutionCapable": True,
         "NSRequiresAquaSystemAppearance": False,

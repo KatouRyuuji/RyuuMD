@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-"""回归：修复后的多窗口链路。
-1) second_launch=new：转发空路径 → 开新窗口，桥可用；
-2) second_launch=focus：转发空路径 → 不开新窗（窗口数不变）；
-3) 转发带文件路径 → 始终开新窗口。
-"""
+"""冒烟：多窗口转发路径（new/focus/带路径三种）。"""
 from __future__ import annotations
 
 import os

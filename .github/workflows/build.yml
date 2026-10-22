@@ -56,16 +56,16 @@ jobs:
       - name: 打包 onedir（含单测门禁）
         if: ${{ !inputs.release }}
         shell: cmd
-        run: build.bat onedir nopause
+        run: call packaging\build.bat onedir nopause
 
       - name: 打包 onedir + 安装包（含单测门禁）
         if: inputs.release
         shell: cmd
-        run: build.bat installer nopause
+        run: call packaging\build.bat installer nopause
 
       - name: 单测失败时输出详细日志
         if: failure()
-        run: python run_tests.py --unit
+        run: python scripts\run_tests.py --unit
 
       - name: 启动冒烟
         shell: pwsh
@@ -95,7 +95,7 @@ jobs:
         if: inputs.release
         shell: cmd
         run: |
-          call build.bat onefile nopause || exit /b 1
+          call packaging\build.bat onefile nopause || exit /b 1
           copy /y dist\RyuuMD.exe "out\RyuuMD-${{ steps.ver.outputs.version }}-win-x64-portable.exe"
 
       - name: 上传产物
@@ -121,7 +121,7 @@ jobs:
           cache: pip
 
       - name: 打包 .app（含单测门禁与启动冒烟）
-        run: bash build-mac.sh
+        run: bash packaging/build-mac.sh
 
       - name: 产物加版本号
         run: |

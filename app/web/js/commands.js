@@ -10,7 +10,6 @@
    这里提供 /命令 作为统一补充入口。 */
 (function () {
   const COMMANDS = [
-    // —— 标题 1~6 ——
     { id: "h1", icon: "h1", title: "一级标题", desc: "大号章节标题", group: "标题",
       keys: "/h1 · #", notion: ["h1", "heading1", "title1"], wolai: ["bt1"], cn: ["标题", "大标题", "一级标题"],
       insert: "# " },
@@ -30,7 +29,6 @@
       keys: "/h6", notion: ["h6", "heading6"], wolai: ["bt6"], cn: ["标题", "六级标题"],
       insert: "###### " },
 
-    // —— 列表 ——
     { id: "ul", icon: "listUnordered", title: "无序列表", desc: "项目符号列表", group: "列表",
       keys: "/wxlb · -", notion: ["ul", "unorderedlist", "bullet", "list"], wolai: ["wxlb", "wx"], cn: ["无序列表", "列表"],
       insert: "- " },
@@ -41,7 +39,6 @@
       keys: "/lb · todo", notion: ["todo", "todolist", "task", "checkbox"], wolai: ["lb", "dblb", "drlb"], cn: ["待办列表", "任务列表", "清单"],
       insert: "- [ ] " },
 
-    // —— 块 ——
     { id: "code", icon: "code", title: "代码块", desc: "带语法高亮的代码", group: "块",
       keys: "/dmk · ```", notion: ["code", "codeblock", "pre"], wolai: ["dmk", "dm"], cn: ["代码块", "代码"],
       insert: "```\n\n```\n" },
@@ -64,7 +61,6 @@
       keys: "/toc · [toc]", notion: ["toc", "content", "catalog"], wolai: ["ml", "nrml", "mulu"], cn: ["内容目录", "目录"],
       insert: "[toc]\n\n" },
 
-    // —— 内联 / 媒体 ——
     { id: "image", icon: "image", title: "图片", desc: "插入图片", group: "媒体",
       keys: "/tp · img", notion: ["image", "img", "pic", "photo"], wolai: ["tp", "tpian"], cn: ["图片"],
       insert: "![描述](图片地址)" },
@@ -96,7 +92,6 @@
       keys: "/tip", notion: ["callout", "tip", "note", "admonition"], wolai: ["ts", "tishi"], cn: ["提示块", "警告块"],
       insert: "> [!note] 提示\n> 内容\n" },
 
-    // —— 图表（mermaid 模板，对标 Typora 的图表渲染能力）——
     { id: "mmd-flow", icon: "diagram", title: "流程图", desc: "mermaid 流程图（flowchart）", group: "图表",
       keys: "/lct", notion: ["flowchart", "flow", "mermaid"], wolai: ["lct", "liucheng"], cn: ["流程图", "图表"],
       insert: "```mermaid\nflowchart TD\n    A[开始] --> B{条件判断}\n    B -->|是| C[处理]\n    B -->|否| D[结束]\n```\n" },
@@ -137,7 +132,6 @@
     return day + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
   }
 
-  /* 在 Vditor 实例插入命令文本（右键/斜杠菜单共用） */
   function runCommand(cmd, ed) {
     if (!cmd || !ed) return;
     let text = cmd.insert;
@@ -169,7 +163,6 @@
     return base.concat(cmd.notion);
   }
 
-  /* 过滤命令：query 为去掉前导 "/" 后的小写串 */
   function filterCommands(query, style) {
     const q = (query || "").trim().toLowerCase();
     if (!q) return COMMANDS.slice();

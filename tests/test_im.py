@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""六家即时通讯结合：经已交付入口编码发送再收取，正文一致。"""
+"""六家即时通讯通道：webhook 载荷编码发送与取回最近一封。"""
 
 from __future__ import annotations
 
@@ -46,7 +45,6 @@ class TestImRoundtrip(unittest.TestCase):
             self.assertEqual(got.get("content"), NOTE, pid)
 
     def test_encode_decode_not_identity_skip(self):
-        """载荷不是原文本身，必须经 encode/decode 才能还原。"""
         for pid in PROVIDERS:
             payload = encode_markdown(pid, NOTE, title="题")
             self.assertIsInstance(payload, dict)

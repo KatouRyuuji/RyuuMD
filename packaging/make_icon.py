@@ -1,11 +1,11 @@
-"""从品牌素材 logo.png 生成 RyuuMD 全部图标。
+"""从品牌素材 assets/logo.png 生成 RyuuMD 全部图标。
 
 大尺寸（≥64px）用整张 logo；小尺寸（≤48px）用有希头像特写裁切 + 圆角，
 整张 logo 在小尺寸下文字与人物会糊成一团。
 输出：
   assets/icon.ico          Windows 多尺寸图标（exe、窗口、文件关联、安装包）
-  assets/icon.png          1024 整张，build-mac.sh 生成 icns 的大尺寸源
-  assets/icon-small.png    256 头像，build-mac.sh 生成 icns 的 16/32pt 源
+  assets/icon.png          1024 整张，packaging/build-mac.sh 生成 icns 的大尺寸源
+  assets/icon-small.png    256 头像，packaging/build-mac.sh 生成 icns 的 16/32pt 源
   app/web/assets/favicon.png  128 头像，前端 favicon 与标题栏/欢迎页徽标
   packaging/wizard*.bmp    Inno Setup 向导大图（左侧竖幅）与小图（右上角），2x 尺寸
 """
@@ -13,8 +13,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-ROOT = Path(__file__).parent
-SRC = ROOT / "logo.png"
+ROOT = Path(__file__).resolve().parent.parent
+SRC = ROOT / "assets" / "logo.png"
 HEAD_BOX = (560, 210, 1420, 1070)  # logo.png（2048²）中头像特写的正方形区域
 SMALL_MAX = 48
 PAPER = (247, 243, 240)  # logo 卡片纸色，向导大图底色

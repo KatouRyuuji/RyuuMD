@@ -1,13 +1,7 @@
-"""可选云同步引擎：用户自备 WebDAV，官方不提供云端。
+"""可选云同步引擎：用户自备 WebDAV，官方不提供云端，默认关闭。
 
-默认关闭。须同时满足：
-1. 设置中勾选「启用云同步」并填好地址/账号；
-2. 勾选「同步全部仓库」或在首页为单个仓库打开云同步。
-
-策略：三路比对（本地 / 远端 / 上次同步指纹），双向上传下载；
-双方都改过则把远端另存为 `*.conflict-时间.md`，本地文件保留并上传。
-不同步删除（避免误删笔记）。
-"""
+三路比对（本地 / 远端 / 上次同步指纹）双向上传下载；双方都改过则远端另存为
+*.conflict-时间.md，本地保留并上传；不同步删除。"""
 
 from __future__ import annotations
 
@@ -56,7 +50,7 @@ class DavLike(Protocol):
 
 
 def public_cloud(raw: Any) -> dict[str, Any]:
-    """给前端的云配置：去掉密码，只暴露是否已保存。"""
+    """给前端的云配置去掉密码，只暴露是否已保存。"""
     merged = dict(DEFAULT_CLOUD)
     if isinstance(raw, dict):
         merged.update(raw)
@@ -75,13 +69,12 @@ def load_cloud(config: Config) -> dict[str, Any]:
 
 
 def save_cloud(config: Config, values: dict[str, Any]) -> dict[str, Any]:
-    """合并写入。password 为空字符串表示保持原密码不变。"""
+    """password 为空字符串表示保持原密码不变。"""
     cur = load_cloud(config)
     incoming = dict(values or {})
     if not str(incoming.get("password") or ""):
         incoming.pop("password", None)
     cur.update(incoming)
-    # 开关必须是 bool；URL 去空白
     cur["enabled"] = bool(cur.get("enabled"))
     cur["auto_on_save"] = bool(cur.get("auto_on_save"))
     cur["auto_on_start"] = bool(cur.get("auto_on_start"))
@@ -107,7 +100,6 @@ def _is_sync_file(name: str) -> bool:
 
 
 def iter_local_files(root: str) -> dict[str, dict[str, Any]]:
-    """相对 posix 路径 -> {path, mtime, size}。"""
     out: dict[str, dict[str, Any]] = {}
     root_p = Path(root)
     stack: list[Path] = [root_p]
@@ -136,7 +128,7 @@ def iter_local_files(root: str) -> dict[str, dict[str, Any]]:
 
 
 def _safe_local_path(root: str, rel: str) -> Path:
-    """解析仓库内相对路径，并拒绝越界或穿过仓库外符号链接的目标。"""
+    """拒绝越界或穿过仓库外符号链接的目标。"""
     parts = (rel or "").replace("\\", "/").split("/")
     if (
         not rel
@@ -227,9 +219,6 @@ class CloudEngine:
             return True
         return bool(project.get("cloud_enabled"))
 
-    # ------------------------------------------------------------------
-    # 状态指纹
-    # ------------------------------------------------------------------
     def _state_path(self) -> Path:
         return self.config.data_dir / "cloud-state.json"
 
@@ -254,9 +243,6 @@ class CloudEngine:
     def _key(self, pid: str, rel: str) -> str:
         return f"{pid}/{rel}"
 
-    # ------------------------------------------------------------------
-    # 同步
-    # ------------------------------------------------------------------
     def sync(self, project_id: str = "") -> dict[str, Any]:
         with self._lock:
             if self._running:
@@ -360,7 +346,6 @@ class CloudEngine:
         except DavError as e:
             totals["errors"].append(f"{proj.get('name')}: {e}")
             return
-        # 远端 key 转成仓库内相对路径
         remote: dict[str, Any] = {}
         head = prefix + "/"
         for k, ent in remote_all.items():
@@ -436,14 +421,12 @@ class CloudEngine:
                 totals["errors"].append(f"{rel}: {e}")
 
     def _decide(self, loc: Optional[dict], rem: Any, rec: dict) -> str:
-        """返回 skip / upload / download / conflict。"""
         if loc and not rem:
             return "upload"
         if rem and not loc:
             return "download"
         if not loc and not rem:
             return "skip"
-        # 双方都在：用内容指纹；无 fingerprint 记录时比大小+hash
         try:
             local_data = Path(loc["path"]).read_bytes()
         except OSError:
@@ -463,7 +446,6 @@ class CloudEngine:
             rem_size = getattr(rem, "size", None)
             if rem_size is not None and rem_size == loc["size"]:
                 return "skip"
-            # size 不同 → 远端变了，本地没变 → 下载
             return "download"
         if local_changed and last_sha:
             rem_size = getattr(rem, "size", None)
@@ -485,7 +467,6 @@ class CloudEngine:
         return "download"
 
     def push_file(self, local_path: str) -> dict[str, Any]:
-        """保存后单文件上传。未启用/未勾选仓库则静默跳过。"""
         cfg = load_cloud(self.config)
         ok, _ = self.configured(cfg)
         if not ok or not cfg.get("auto_on_save"):
@@ -524,7 +505,6 @@ def get_engine(
     projects: ProjectStore,
     client: Optional[DavLike] = None,
 ) -> CloudEngine:
-    """多窗口共用同一引擎（按数据目录）。测试注入 client 时每次新建。"""
     if client is not None:
         return CloudEngine(config, projects, client)
     key = str(config.data_dir)

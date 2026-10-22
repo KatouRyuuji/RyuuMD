@@ -1,8 +1,6 @@
 """工作副本：进入仓库时生成可编辑副本，源文件只在显式回写 / 合并时变动。
 
-直改模式（edit_mode=source）不经过本模块。工作副本落在用户数据目录
-`workcopies/<id>/tree/`，源路径只写进清单，最近打开与 last_* 仍记录源路径。
-"""
+直改模式（edit_mode=source）不经过本模块。副本落在用户数据目录 workcopies/<id>/tree/。"""
 
 from __future__ import annotations
 
@@ -76,7 +74,7 @@ def _skip_copy_dir(name: str) -> bool:
 
 
 class WorkdirStore:
-    """工作副本清单与同步。只给 Python 用，禁止被 pywebview 扫进 JS 桥。"""
+    """只给 Python 用，禁止被 pywebview 扫进 JS 桥。"""
 
     _serializable = False
 
@@ -85,9 +83,6 @@ class WorkdirStore:
         self.base.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
 
-    # ------------------------------------------------------------------
-    # 会话身份
-    # ------------------------------------------------------------------
     @staticmethod
     def source_id(source_root: str) -> str:
         return hashlib.sha256(_norm(source_root).encode("utf-8")).hexdigest()[:16]
@@ -115,7 +110,6 @@ class WorkdirStore:
         atomic_write_text(self._manifest_path(sid), raw)
 
     def _session_rank(self, sess: dict[str, Any], path: str) -> Optional[tuple[int, int]]:
-        """匹配强度：副本根 > 单文件锚点 > 整库源根（最长前缀优先）。"""
         work = str(sess.get("work_root") or "")
         src = str(sess.get("source_root") or "")
         if work and _is_under(path, work):
@@ -140,7 +134,6 @@ class WorkdirStore:
         return None
 
     def find_session_for_path(self, path: str) -> Optional[dict[str, Any]]:
-        """路径落在已知源根或副本根时返回清单。"""
         if not (path or "").strip():
             return None
         best: Optional[dict[str, Any]] = None
@@ -159,9 +152,6 @@ class WorkdirStore:
                     best, best_rank = sess, rank
         return best
 
-    # ------------------------------------------------------------------
-    # 建立 / 刷新副本
-    # ------------------------------------------------------------------
     def ensure_folder(self, source_root: str) -> dict[str, Any]:
         root = Path(source_root)
         if not root.is_dir():
@@ -213,7 +203,6 @@ class WorkdirStore:
             return sess
 
     def ensure_for_path(self, path: str, vault_hint: str = "") -> dict[str, Any]:
-        """打开任意路径：已有会话复用；目录建整库副本；文件优先归入所属仓库。"""
         raw = (path or "").strip()
         if not raw:
             raise FileNotFoundError("路径为空")
@@ -285,7 +274,6 @@ class WorkdirStore:
         return added
 
     def find_file_sessions_under(self, folder: str) -> list[dict[str, Any]]:
-        """源根落在该目录内的单文件会话（打开父目录时要收编）。"""
         found: list[dict[str, Any]] = []
         if not (folder or "").strip():
             return found
@@ -318,7 +306,6 @@ class WorkdirStore:
     def _merge_file_session_into(
         self, folder_sess: dict[str, Any], file_sess: dict[str, Any]
     ) -> dict[str, Any]:
-        """把单文件副本上的编辑盖进整库副本，并保留 base_hash。"""
         src_work = Path(file_sess.get("work_root") or "")
         dest_work = Path(folder_sess.get("work_root") or "")
         file_source = str(file_sess.get("source_root") or "")
@@ -358,8 +345,7 @@ class WorkdirStore:
         return folder_sess
 
     def _copy_referenced_images(self, src: Path, work: Path, files: dict[str, Any]) -> int:
-        """单文件会话：把笔记里以相对路径引用的图片（如 image/x.png）复制进副本，
-        否则附件不在 `{stem}.assets/` 时副本里图片全是坏链。"""
+        """复制笔记里相对路径引用的图片进副本，否则附件不在 {stem}.assets/ 时副本里图片全是坏链。"""
         try:
             text = src.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -428,9 +414,6 @@ class WorkdirStore:
                         continue
         return added
 
-    # ------------------------------------------------------------------
-    # 路径映射
-    # ------------------------------------------------------------------
     # 映射结果一律以会话根拼出，路径别名（符号链接/目录联接）统一落到根的写法
     def map_to_work(self, sess: dict[str, Any], path: str) -> str:
         work = str(sess["work_root"])
@@ -458,9 +441,6 @@ class WorkdirStore:
         work = self.map_to_work(sess, path)
         return _rel_posix(str(sess["work_root"]), work)
 
-    # ------------------------------------------------------------------
-    # 状态 / 回写 / 合并
-    # ------------------------------------------------------------------
     def file_status(self, sess: dict[str, Any], path: str) -> dict[str, Any]:
         rel = self.rel_of(sess, path)
         src = Path(sess["source_root"]) / rel
@@ -540,11 +520,7 @@ class WorkdirStore:
         return {**info, "ok": True, "message": "已保存至源文件", "pushed": True, "images_pushed": images}
 
     def push_images(self, sess: dict[str, Any]) -> int:
-        """把副本里新增/改动的图片带回源：粘贴进副本的图片否则只活在副本里，原件成坏链。
-
-        源里没有 → 复制；源有且自上次同步后未被改动（hash 等于基线）→ 覆盖；
-        源那边也改过 → 跳过，不覆盖用户在源上的图片。
-        """
+        """源里没有 → 复制；源有且未被改动（hash 等于基线）→ 覆盖；源也改过 → 跳过，不覆盖用户在源上的图片。"""
         work = Path(sess["work_root"])
         source = Path(sess["source_root"])
         if not work.is_dir() or not source.is_dir():

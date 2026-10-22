@@ -16,7 +16,6 @@
   let onOpenFile = null;  // (path) => void
   let onJumpHeading = null; // (id) => void
   let onOpenRecent = null;  // (path, kind) => void
-  // 文件管理操作（真实磁盘文件），由 app.js 注入
   let onRenameFile = null;
   let onMoveFile = null;
   let onRevealFile = null;
@@ -37,7 +36,6 @@
     onNewFolder = newFolder;
   }
 
-  // —— 文件树 ——
   function renderTree(tree, rootName) {
     if (!tree || !tree.length) {
       filesEmpty.style.display = "block";
@@ -76,7 +74,6 @@
       .join("");
   }
 
-  // 文件树点击（委托，仅绑定一次）：文件 -> 打开；目录 -> 折叠/展开
   fileTreeEl.addEventListener("click", (e) => {
     const item = e.target.closest(".tree-item");
     if (!item) return;
@@ -106,7 +103,6 @@
     }
   });
 
-  // —— 文件/目录右键菜单（文件：重命名等；目录：新建笔记/文件夹） ——
   const FILE_OPS = [
     { act: "rename", label: "重命名", icon: "edit" },
     { act: "move", label: "移动到…", icon: "move" },
@@ -139,7 +135,6 @@
     menuPath = path;
     menuTrigger = focusFirst ? fileTreeEl.querySelector(`.tree-item[data-path="${CSS.escape(path)}"]`) : null;
     const ops = kind === "dir" ? DIR_OPS : FILE_OPS;
-    // 与编辑器右键菜单同构：分组小标题 + 图标瓦片 + 标题；无快捷键不渲染芯片
     treeMenu.innerHTML =
       `<div class="slash-group-label">${kind === "dir" ? "文件夹" : "文件"}</div>` +
       ops.map(
@@ -228,7 +223,6 @@
     if (nf) nf.addEventListener("click", () => window.App && window.App.newNoteInFolder && window.App.newNoteInFolder());
   }
 
-  // —— 大纲 ——
   let outlineKey = null; // 当前位置标题（ir: data-ryuu-id；sv: "L<行号>"）
 
   function renderOutline(headings) {
@@ -262,7 +256,6 @@
     applyOutlineActive();
   }
 
-  // 大纲点击（委托，仅绑定一次）：大纲会随编辑频繁重建，不逐项绑监听。
   // 身份用 (文本, 同文本序号)：DOM 序号 id 在 Vditor 重绘/防抖滞后时会错位。
   outlineList.addEventListener("click", (e) => {
     const item = e.target.closest(".outline-item");
@@ -273,7 +266,6 @@
     onJumpHeading({ id: item.dataset.id, line: item.dataset.line, text: item.textContent, ordinal });
   });
 
-  // —— 最近打开 ——
   function renderRecent(items) {
     if (!items || !items.length) {
       recentEmpty.style.display = "block";
@@ -294,7 +286,6 @@
       .join("");
   }
 
-  // 最近列表点击（委托，仅绑定一次）
   recentList.addEventListener("click", (e) => {
     const item = e.target.closest(".recent");
     if (item && onOpenRecent) onOpenRecent(item.dataset.path, item.dataset.kind);

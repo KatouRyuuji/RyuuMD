@@ -1,11 +1,4 @@
-# -*- coding: utf-8 -*-
-"""工作副本短烟：设置开关 / 打开仓库 / 保存至源 / 合并源。
-
-完整窗口门禁已并入 tests/test_e2e.py（T98、T101–T118）。
-本文件可单独快跑，默认 run_tests.py 不跑它。
-
-隔离 APPDATA。运行: python tests/test_workdir_live.py
-"""
+"""工作副本短烟：设置开关 / 打开仓库 / 保存至源 / 合并源。隔离 APPDATA。"""
 
 from __future__ import annotations
 

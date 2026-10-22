@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""CLI / TUI / MCP / AISkill：同一核心 Api，不另开独立应用。"""
+"""CLI / TUI / MCP / AISkill（同一套 Api 核心）的端到端覆盖。"""
 
 from __future__ import annotations
 
@@ -41,7 +40,6 @@ def make_api() -> Api:
 
 
 class _Tty(io.StringIO):
-    """假装是交互终端：isatty 为 True 时 scratch 不进写模式。"""
 
     def isatty(self) -> bool:
         return True
@@ -58,7 +56,6 @@ class TestCliTuiMcp(unittest.TestCase):
     def tearDown(self) -> None:
         self.dir.cleanup()
 
-    # ---- CLI ----
 
     def test_cli_read_prints_file_body(self):
         buf = io.StringIO()
@@ -161,7 +158,6 @@ class TestCliTuiMcp(unittest.TestCase):
         finally:
             sys.stdin = old
 
-    # ---- 工具表 ----
 
     def test_invoke_tool_write_then_read(self):
         target = self.root / "out.md"
@@ -178,7 +174,6 @@ class TestCliTuiMcp(unittest.TestCase):
         self.assertEqual(r.get("content"), "legacy-alias")
         self.assertEqual(invoke_tool(self.api, "nope", {}).get("ok"), False)
 
-    # ---- MCP 协议 ----
 
     def test_mcp_initialize_negotiates_version_and_capabilities(self):
         msg = {
@@ -199,12 +194,9 @@ class TestCliTuiMcp(unittest.TestCase):
     def test_mcp_ping_and_notifications(self):
         reply = handle_mcp_message({"jsonrpc": "2.0", "id": 9, "method": "ping"}, self.api)
         self.assertEqual(reply.get("result"), {})
-        # notification 不应答（含带 id 的畸形形态）
         self.assertIsNone(handle_mcp_message({"jsonrpc": "2.0", "method": "notifications/initialized"}, self.api))
         self.assertIsNone(handle_mcp_message({"jsonrpc": "2.0", "id": 1, "method": "notifications/initialized"}, self.api))
-        # 无 id 的普通请求按 notification 处理，不应答
         self.assertIsNone(handle_mcp_message({"jsonrpc": "2.0", "method": "ping"}, self.api))
-        # 带 id 但缺 method 的畸形请求回 -32600，让等待方尽快失败
         reply = handle_mcp_message({"jsonrpc": "2.0", "id": 1}, self.api)
         self.assertEqual((reply or {}).get("error", {}).get("code"), -32600)
 
@@ -230,7 +222,6 @@ class TestCliTuiMcp(unittest.TestCase):
         for t in tools:
             self.assertTrue(t["name"].startswith("ryuumd_"), t["name"])
             self.assertTrue(t["description"].startswith(MCP_TRIGGER_NOTE), t["name"])
-        # 应用内 AI 侧栏不受触发约束（用户本就在 RyuuMD 里）
         for t in to_anthropic_tools():
             self.assertNotIn(MCP_TRIGGER_NOTE, t["description"])
 
@@ -287,7 +278,6 @@ class TestCliTuiMcp(unittest.TestCase):
         reply = handle_mcp_message(msg, self.api)
         self.assertEqual((reply.get("error") or {}).get("code"), -32602)
 
-    # ---- stdio 重建 / 客户端接入 ----
 
     def test_ensure_stdio_noop_when_not_frozen(self):
         out_before, in_before = sys.stdout, sys.stdin
@@ -320,7 +310,6 @@ class TestCliTuiMcp(unittest.TestCase):
         self.assertTrue(entry["command"])
         self.assertEqual(entry["args"][-1], "mcp")
 
-    # ---- 单产物约束 ----
 
     def test_no_second_cli_mcp_tui_product(self):
         specs = [p.name.lower() for p in ROOT.glob("*.spec")]
@@ -336,7 +325,6 @@ class TestCliTuiMcp(unittest.TestCase):
 
 
 class TestToolCommands(unittest.TestCase):
-    """tool / tools 通用命令：整张工具表对脚本与 AI 可达。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-tool-")
@@ -402,7 +390,6 @@ class TestToolCommands(unittest.TestCase):
 
 
 class TestNewToolHandlers(unittest.TestCase):
-    """扩展工具表的参数传递与闭环行为。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-tools-")
@@ -514,7 +501,6 @@ class TestNewToolHandlers(unittest.TestCase):
         r = self.call("delete_note", path=moved)
         self.assertTrue(r.get("ok"), r)
         self.assertFalse(self.call("note_stat", path=moved).get("exists"))
-        # 新建子文件夹
         r = self.call("new_folder", parent=str(self.vault), name="另一个")
         self.assertTrue(r.get("ok"), r)
         self.assertTrue((self.vault / "另一个").is_dir())
@@ -553,7 +539,6 @@ class TestNewToolHandlers(unittest.TestCase):
         r = self.call("remove_vault", project_id=pid)
         self.assertTrue(r.get("ok"), r)
         self.assertTrue(self.vault.is_dir())  # 移除不动磁盘
-        # make_dir 任意父目录建文件夹
         r = self.call("make_dir", parent=str(parent), name="散目录")
         self.assertTrue(r.get("ok"), r)
         self.assertTrue((parent / "散目录").is_dir())
@@ -564,7 +549,6 @@ class TestNewToolHandlers(unittest.TestCase):
         cfg = self.call("get_config")
         self.assertEqual(cfg.get("theme"), "dark")
         self.assertEqual(cfg.get("daily_note_folder"), "日志")
-        # 脱敏：AI 密钥不回传明文
         self.assertNotEqual(str((cfg.get("ai") or {}).get("api_key") or ""), "sk-test")
 
     def test_recent_list(self):
