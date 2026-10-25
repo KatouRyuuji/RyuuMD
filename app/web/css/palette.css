@@ -1,4 +1,3 @@
-/* 命令面板 + 本文查找条 */
 
 #palette-mask {
   position: fixed;
@@ -237,7 +236,6 @@
   border-top: 1px solid var(--border);
 }
 
-/* 查找行：替换开关为 chevron，展开时旋转向下 */
 #find-toggle-replace .ib-icon svg { transition: transform .15s ease; }
 #find-toggle-replace[aria-pressed="true"] .ib-icon svg { transform: rotate(90deg); }
 
@@ -293,8 +291,6 @@
   flex-shrink: 0;
 }
 
-/* 可读宽度：可选 Typora 式行宽。需压过 editor-theme.css 的 max-width: none !important，
-   以及 ryuuji-a.css 默认 width: 100%。 */
 #editor-wrap.readable-width #editor .vditor-ir .vditor-reset,
 #editor-wrap.readable-width #editor .vditor-wysiwyg .vditor-reset,
 #editor-wrap.readable-width #editor .vditor-sv {

@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""工作副本：进入仓库时复制、只改副本、保存至源 / 合并源。"""
+"""工作副本清单：进入仓库副本、只写副本、保存至源 / 合并源。"""
 
 from __future__ import annotations
 
@@ -74,7 +73,6 @@ class TestWorkdirCopyAndPush(unittest.TestCase):
         self.assertTrue(out["ok"], out)
         self.assertEqual(out.get("images_pushed"), 1)
         self.assertTrue((self.root / res["rel"]).is_file())
-        # 源上被改过的同名图片不被覆盖
         (self.root / res["rel"]).write_bytes(b"user-edited")
         Path(res["path"]).write_bytes(png + b"x")
         self.api.workdir_push_all(str(self.root))

@@ -18,9 +18,6 @@
   let modalReturnFocus = null;
   let refreshRequestId = 0;
 
-  // ---------------------------------------------------------------
-  // 初始化 / 显示控制
-  // ---------------------------------------------------------------
   function init(h) {
     handlers = h || {};
     view = (handlers.getConfig && handlers.getConfig().home_view) === "list" ? "list" : "card";
@@ -33,7 +30,6 @@
     refresh();
     homeEl.classList.add("show");
     syncHomeButton(true);
-    // 首页态 AI 按钮隐藏，侧栏一并收起，保持 chrome 一致
     if (window.AiPanel && window.AiPanel.close) window.AiPanel.close();
   }
 
@@ -54,13 +50,9 @@
   function syncHomeButton(active) {
     const btn = document.getElementById("btn-home");
     if (btn) btn.classList.toggle("active", active);
-    // 首页态工具栏只留全局动作（显隐规则见 app.css body.is-home）
     document.body.classList.toggle("is-home", active);
   }
 
-  // ---------------------------------------------------------------
-  // 数据加载
-  // ---------------------------------------------------------------
   async function fetchHomeData(a) {
     return Promise.all([
       a.list_projects(),
@@ -100,9 +92,6 @@
     }
   }
 
-  // ---------------------------------------------------------------
-  // 仓库渲染
-  // ---------------------------------------------------------------
   function renderRepos(items) {
     repoItems = items || [];
     repoCount.textContent = repoItems.length ? String(repoItems.length) : "";
@@ -199,9 +188,6 @@
       </div>`;
   }
 
-  // ---------------------------------------------------------------
-  // 最近打开（最近 3 个文件单独成卡，其余归入「其他」）
-  // ---------------------------------------------------------------
   function renderRecent(items) {
     items = items || [];
     const clearBtn = document.getElementById("home-clear-recent");
@@ -253,11 +239,7 @@
       </div>`;
   }
 
-  // ---------------------------------------------------------------
-  // 事件（容器级委托，仅绑定一次）
-  // ---------------------------------------------------------------
   function bindStatic() {
-    // 快速操作
     on("hq-new", () => { handlers.newDoc && handlers.newDoc(); });
     on("hq-open-file", () => handlers.openFileDialog && handlers.openFileDialog());
     on("hq-add-repo", () => { closeRepoMenu(); addRepo(); });
@@ -273,7 +255,6 @@
       if (wrap && !wrap.contains(e.target)) closeRepoMenu();
     });
 
-    // 视图切换
     document.querySelectorAll("#repo-view-toggle button").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.dataset.view === view) return;
@@ -284,7 +265,6 @@
       });
     });
 
-    // 仓库容器：卡片/行点击与操作按钮
     repoWrap.addEventListener("click", (e) => {
       const actBtn = e.target.closest(".repo-actions button");
       const item = e.target.closest("[data-id]");
@@ -298,7 +278,6 @@
       openRepo(id);
     });
 
-    // 最近列表（文件卡片与「其他」行共用同一委托）
     recentWrap.addEventListener("click", async (e) => {
       const row = e.target.closest(".recent-row, .recent-file-card");
       if (!row) return;
@@ -322,7 +301,6 @@
       refresh();
     });
 
-    // 重命名弹窗遮罩点击关闭
     modalMask.addEventListener("click", (e) => {
       if (e.target === modalMask) closeModal();
     });
@@ -480,9 +458,6 @@
     });
   }
 
-  // ---------------------------------------------------------------
-  // 重命名小弹窗
-  // ---------------------------------------------------------------
   function openRenameModal(repo) {
     if (isModalOpen()) closeModal();
     modalReturnFocus = document.activeElement;
@@ -535,9 +510,6 @@
     modalReturnFocus = null;
   }
 
-  // ---------------------------------------------------------------
-  // 工具
-  // ---------------------------------------------------------------
   function renderGreeting() {
     const h = new Date().getHours();
     const word =

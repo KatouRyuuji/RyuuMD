@@ -113,7 +113,6 @@
     if (el) el.scrollIntoView({ block: "nearest" });
   }
 
-  /* slash 模式：根据查询展示/刷新菜单 */
   function showSlash(ctx) {
     items = window.filterCommands(ctx.query, style);
     if (!items.length) { close(); return; }
@@ -186,7 +185,6 @@
     if (items[0] && items[0].disabled) step(1);
   }
 
-  /* 通用菜单入口（操作柄等外部调用）：直接给完整命令列表，复用同一面板 */
   function showItems(list, x, y) {
     allItems = list || [];
     filter = "";

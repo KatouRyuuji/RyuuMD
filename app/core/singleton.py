@@ -1,15 +1,7 @@
-"""单实例守护：第二个进程启动时把打开请求转发给已运行实例，由其开新窗口。
+"""单实例守护：第二个进程把打开请求转发给已运行实例，由其开新窗口。
 
-机制（VSCode / Obsidian 同款思路，跨平台零依赖实现）：
-- 主实例监听 127.0.0.1 随机端口，端口、随机 token、pid 写入
-  %APPDATA%/RyuuMD/instance.json；
-- 新进程启动先读该文件：若记录了 pid 且进程已死，直接删锁接管；
-  否则尝试连接转发（0.4 秒超时），成功即退出自身，由已运行实例开新窗口；
-- 主实例收到请求立即应答，再异步建窗（应答与建窗耗时解耦）；
-- 连接失败（残留文件/主实例已死）则删锁并接管成为新的主实例。
-- token 校验防止本机其他程序伪造请求。
-- 老格式锁文件（无 pid）保持兼容：跳过存活检查，按连接超时处理。
-"""
+主实例监听 127.0.0.1 随机端口，端口/token/pid 写入用户数据目录 instance.json；
+新进程读锁后尝试连接转发（0.4 秒超时），失败则删锁接管；token 校验防本机伪造请求。"""
 
 from __future__ import annotations
 
@@ -35,7 +27,7 @@ def _unlink_lock(lock) -> None:
 
 
 def _pid_alive(pid: int) -> bool:
-    """进程是否仍在。权限异常当作存活，避免误删锁把仍在跑的实例挤掉。"""
+    """权限异常当作存活，避免误删锁把仍在跑的实例挤掉。"""
     if pid <= 0:
         return False
     if os.name == "nt":
@@ -61,10 +53,6 @@ def _pid_alive(pid: int) -> bool:
 
 
 def try_forward(config: Config, path: str) -> bool:
-    """尝试把「打开 path」请求转发给已运行实例。成功返回 True（调用方应退出）。
-
-    path 为空表示「唤起一个新窗口（首页）」。
-    """
     lock = _lock_path(config)
     if not lock.is_file():
         return False
@@ -100,7 +88,6 @@ def try_forward(config: Config, path: str) -> bool:
 
 
 class InstanceServer:
-    """主实例的请求接收端。收到合法 open 请求时回调 on_open(path)。"""
 
     def __init__(self, config: Config, on_open: Callable[[str], Any]) -> None:
         self.config = config
@@ -158,7 +145,6 @@ class InstanceServer:
                             name="ryuumd-open-window",
                         ).start()
             except Exception:  # noqa: BLE001
-                # 单条坏请求不影响服务循环
                 continue
 
     def stop(self) -> None:

@@ -2,7 +2,7 @@
 # RyuuMD macOS 打包：生成 icns → 单测门禁 → PyInstaller .app → zip
 # 只能在 macOS 上运行（GitHub Actions macos-latest / 本机 Mac）。
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "[错误] build-mac.sh 只能在 macOS 上运行" >&2
@@ -35,13 +35,13 @@ echo "[1/6] 安装依赖 / PyInstaller ..."
 
 echo
 echo "[2/6] 单元测试门禁 ..."
-"$PY" run_tests.py --unit
+"$PY" scripts/run_tests.py --unit
 
 echo
 echo "[3/6] 从 icon.png / icon-small.png 生成 icon.icns ..."
 for f in assets/icon.png assets/icon-small.png; do
   if [[ ! -f "$f" ]]; then
-    echo "[错误] 缺少 $f（python make_icon.py 生成）" >&2
+    echo "[错误] 缺少 $f（python packaging/make_icon.py 生成）" >&2
     exit 1
   fi
 done
@@ -62,8 +62,8 @@ sips -z 1024 1024 assets/icon.png --out "$ICONSET/icon_512x512@2x.png" >/dev/nul
 iconutil -c icns "$ICONSET" -o assets/icon.icns
 
 echo
-echo "[4/6] PyInstaller RyuuMD-mac.spec ..."
-"$PY" -m PyInstaller --noconfirm --clean RyuuMD-mac.spec
+echo "[4/6] PyInstaller packaging/RyuuMD-mac.spec ..."
+"$PY" -m PyInstaller --noconfirm --clean packaging/RyuuMD-mac.spec
 
 if [[ ! -d dist/RyuuMD.app ]]; then
   echo "[错误] 未生成 dist/RyuuMD.app" >&2

@@ -1,12 +1,5 @@
 """RyuuMD —— 轻量、全本地、极速的 Markdown 编辑/阅读工具。
-
-技术栈：pywebview（Windows WebView2 / macOS WKWebView）+ Vditor 即时渲染编辑器。
-- 全本地，无需联网
-- 拖入 md 文件或文件夹即可打开
-- 以仓库形式管理笔记目录，首页快速切换，支持多窗口
-- 单实例：双击 md 文件复用已运行实例，在新窗口中秒开
-- 五套色板（霜靛 / 藤色 / 柳染 / 水浅葱 / 樱花，各带明暗），可换正文/等宽字体
-"""
+pywebview（Windows WebView2 / macOS WKWebView）+ Vditor 即时渲染编辑器。"""
 
 from __future__ import annotations
 
@@ -25,7 +18,6 @@ _CHROME_PALETTES = frozenset({"a1", "a3", "a4", "a5", "a6"})
 
 
 def chrome_attrs(config: Config) -> tuple[str, str]:
-    """当前窗口的明暗与色板 id（非法值回退 a1 / light）。"""
     theme = "dark" if config.get("theme") == "dark" else "light"
     pal = str(config.get("palette") or "a1")
     if pal not in _CHROME_PALETTES:
@@ -34,29 +26,23 @@ def chrome_attrs(config: Config) -> tuple[str, str]:
 
 
 def window_background(config: Config) -> str:
-    """原生窗口底色，与色板 --sys-bg 对齐，避免先闪霜靛蓝。"""
+    """与色板 --sys-bg 对齐，避免窗口先闪默认色。"""
     theme, pal = chrome_attrs(config)
     return chrome_background(pal, theme)
 
 
 def resource_path(*parts: str) -> str:
-    """兼容 PyInstaller 打包后的资源路径。"""
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, *parts)
 
 
 def webview_gui() -> str | None:
-    """Windows 使用 Edge WebView2；其它平台由 pywebview 选默认后端（macOS 为 Cocoa）。
-
-    start() 的 gui 合法值为 cef/qt/gtk/mshtml/edgechromium。
-    """
     if sys.platform == "win32":
         return "edgechromium"
     return None
 
 
 def start_webview(*args, **kwargs):
-    """webview.start 的平台包装：补 GUI 后端，其余参数原样透传。"""
     import webview
 
     gui = webview_gui()
@@ -66,20 +52,16 @@ def start_webview(*args, **kwargs):
 
 
 def _app_icon() -> str | None:
-    """pywebview：Windows 用 .ico，macOS 用 .icns（源码态若尚未生成则省略）。"""
     name = "icon.icns" if sys.platform == "darwin" else "icon.ico"
     path = resource_path("assets", name)
     return path if os.path.isfile(path) else None
 
 
 def purge_stale_web_cache(storage: Path) -> bool:
-    """程序换版后清掉 WebView2 的 HTTP 缓存，返回是否清理。
+    """程序换版后清掉 WebView2 的 HTTP 缓存。
 
-    持久模式下 pywebview 固定端口伺服前端，页面 URL 跨版本不变；旧版缓存的
-    index.html / css / js 会被启发式缓存直接复用，升级后仍显示旧界面。
-    以程序本体（打包 exe / 源码 index.html）的 mtime+size 作构建指纹，变了即清。
-    只动 HTTP 缓存与脚本字节码缓存，localStorage 等用户状态不受影响。
-    """
+    持久模式下页面 URL 跨版本不变，旧版缓存的 index.html / css / js 会被直接复用；
+    以程序本体 mtime+size 作构建指纹，变了即清。只动 HTTP 与字节码缓存，localStorage 不受影响。"""
     import shutil
 
     build = Path(sys.executable if getattr(sys, "frozen", False) else resource_path("app", "web", "index.html"))
@@ -103,7 +85,6 @@ def purge_stale_web_cache(storage: Path) -> bool:
 
 
 def _initial_path_from_argv() -> str:
-    """支持「右键用 RyuuMD 打开」「拖到 exe 图标上」传入路径。"""
     for arg in sys.argv[1:]:
         p = Path(arg)
         if p.is_dir() or (p.is_file() and p.suffix.lower() in MD_EXTS):
@@ -112,11 +93,6 @@ def _initial_path_from_argv() -> str:
 
 
 class WindowManager:
-    """应用窗口管理：每个窗口一个独立 Api 实例（各自初始路径），共享同一 Config。
-
-    pywebview 支持在 GUI 主循环启动后从任意线程动态 create_window ——
-    「新窗口打开仓库」「单实例转发」都走同一个 create()。
-    """
 
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -150,7 +126,6 @@ class WindowManager:
             return window
 
     def focus_first(self) -> bool:
-        """激活已有窗口（「再次启动程序 = 激活当前窗口」时由转发触发）。"""
         try:
             import webview
 
@@ -164,22 +139,13 @@ class WindowManager:
         except Exception:  # noqa: BLE001
             return False
 
-    # ------------------------------------------------------------------
-    # 拖放（每个窗口独立注册）
-    # ------------------------------------------------------------------
     def _bind_drop(self, window: Any) -> None:
         def _on_drop(event: dict) -> None:
-            """拖入文件 / 文件夹（兜底通道）。
+            """拖入兜底通道：Vditor 面板 drop 首行 stopPropagation，本监听实际收不到事件；
+            主通道是前端捕获阶段转发 api.open_dropped_files。
 
-            注意（2026-07-28 起）：Vditor 编辑器面板的 drop 处理器首行即
-            stopPropagation，事件冒泡被截断，本 document 级监听实际收不到 drop。
-            主通道已改为前端捕获阶段接管（app.js bindDragDrop）→ 转发
-            api.open_dropped_files 打开。本处理器仅作前端 JS 失效时的最后防线。
-
-            本注册必须保留：pywebview 仅在「通过 DOM 事件注册的 drop 监听」存在
-            （_dnd_state['num_listeners']>0）时，原生层才会捕获拖入路径（FilesDropped
-            消息 → _dnd_state['paths']），前端捕获转发同样依赖该通道。
-            """
+            本注册必须保留：pywebview 仅在存在 DOM drop 监听时，原生层才回传 FilesDropped 路径，
+            前端捕获转发同样依赖该通道。"""
             try:
                 data = (event or {}).get("dataTransfer") or {}
                 files = data.get("files") or []
@@ -195,17 +161,10 @@ class WindowManager:
                         )
                         return
             except Exception:
-                # 拖放解析失败不应影响主流程
                 pass
 
         def _bind() -> None:
-            """注册原生 drop 监听。
-
-            必须经 pywebview 的 DOM 事件通道注册，原生层才会回传本地完整路径
-            （作为 FilesDropped 通道的开关，见 _on_drop 注释）；在 events.loaded
-            时注册，确保 document 已就绪。prevent_default 阻止 WebView2 默认
-            「导航到被拖入文件」的行为。
-            """
+            """必须经 pywebview 的 DOM 事件通道注册，原生层才会回传本地完整路径（见 _on_drop 注释）。"""
             try:
                 from webview.dom import DOMEventHandler
 
@@ -217,9 +176,6 @@ class WindowManager:
 
         window.events.loaded += _bind
 
-    # ------------------------------------------------------------------
-    # 窗口尺寸记忆（最后关闭的窗口生效）
-    # ------------------------------------------------------------------
     def _bind_size_memory(self, window: Any) -> None:
         def _remember() -> None:
             try:
@@ -241,13 +197,11 @@ def main() -> None:
     initial = _initial_path_from_argv()
     config = Config()
 
-    # 单实例：已有实例在运行时，把路径转发给它开新窗口，本进程退出。
     if try_forward(config, initial):
         return
 
     manager = WindowManager(config)
 
-    # 接管为主实例：监听后续进程的转发请求。
     # 空路径（再次启动程序）且用户设为「激活当前窗口」时只置前已有窗口；
     # 带路径（双击 md 文件）是明确打开意图，始终开新窗口。
     def _on_open(path: str) -> None:

@@ -1,15 +1,7 @@
-"""Windows 下的 Markdown 文件关联：注册应用 + 一键唤起系统默认应用确认。
+"""Windows Markdown 文件关联：HKCU 注册 ProgID + SHOpenWithDialog 弹系统对话框设默认。
 
-Win10/11 合规做法（与 VSCode / Typora 一致）：
-1. register()：把 RyuuMD 注册为 HKCU 下的 Markdown 处理程序
-   （ProgID + 各扩展名 OpenWithProgids + Capabilities），无需管理员权限，
-   注册后即出现在「打开方式」列表与系统「默认应用」设置页；
-2. prompt_set_default()：弹出系统「打开方式」对话框（SHOpenWithDialog），
-   用户选择 RyuuMD 并勾选「始终」即完成 —— Win10 起 UserChoice 受哈希保护，
-   程序不能静默改默认，弹系统对话框让用户确认一次是唯一合规路径。
-   对话框以一个本地「验证文档」为目标，确认后立即用默认应用打开它，
-   用户在 RyuuMD 中看到该文档即确认设置成功，形成闭环。
-"""
+Win10 起 UserChoice 受哈希保护，程序不能静默改默认，弹系统对话框让用户确认是唯一合规路径；
+全部写 HKCU，无需管理员权限。"""
 
 from __future__ import annotations
 
@@ -24,7 +16,6 @@ PROG_ID = "RyuuMD.Document"
 APP_REG_KEY = r"Software\RyuuMD"
 DOC_FRIENDLY_NAME = "Markdown 文档 (RyuuMD)"
 
-# SHOpenWithDialog 标志位
 _OAIF_ALLOW_REGISTRATION = 0x01  # 显示「始终使用此应用」
 _OAIF_REGISTER_EXT = 0x02        # 用户确认后写入关联
 _OAIF_EXEC = 0x04                # 确认后立即用所选应用打开文件
@@ -47,7 +38,6 @@ def supported() -> bool:
 
 
 def _launch_command() -> str:
-    """构造「打开方式」注册命令行。打包 exe 与源码运行（开发态）均可用。"""
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}" "%1"'
     py = Path(sys.executable)
@@ -65,14 +55,12 @@ def _icon_source() -> str:
 
 
 def register() -> dict[str, Any]:
-    """注册 ProgID / OpenWithProgids / Capabilities（全部 HKCU，无需管理员）。"""
     if not supported():
         return {"ok": False, "error": "仅支持 Windows"}
     import winreg
 
     try:
         classes = r"Software\Classes"
-        # ProgID：文档类型 + 图标 + 打开命令
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"{classes}\{PROG_ID}") as k:
             winreg.SetValueEx(k, None, 0, winreg.REG_SZ, DOC_FRIENDLY_NAME)
         icon = _icon_source()
@@ -84,7 +72,6 @@ def register() -> dict[str, Any]:
         ) as k:
             winreg.SetValueEx(k, None, 0, winreg.REG_SZ, _launch_command())
 
-        # 各 md 扩展名挂到「打开方式」候选
         for ext in sorted(MD_EXTS):
             with winreg.CreateKey(
                 winreg.HKEY_CURRENT_USER, rf"{classes}\{ext}\OpenWithProgids"
@@ -117,7 +104,6 @@ def register() -> dict[str, Any]:
 
 
 def _notify_assoc_changed() -> None:
-    """通知 Shell 关联已变（刷新资源管理器图标/打开方式缓存）。"""
     try:
         import ctypes
 
@@ -129,7 +115,6 @@ def _notify_assoc_changed() -> None:
 
 
 def current_default_progid(ext: str = ".md") -> str:
-    """查询扩展名当前生效的 ProgID（UserChoice 优先，系统解析）。"""
     if not supported():
         return ""
     try:
@@ -139,7 +124,6 @@ def current_default_progid(ext: str = ".md") -> str:
         ASSOCF_NONE = 0
         ASSOCSTR_PROGID = 20
         buf_len = wintypes.DWORD(0)
-        # 先取长度，再取值
         ctypes.windll.shlwapi.AssocQueryStringW(
             ASSOCF_NONE, ASSOCSTR_PROGID, ext, None, None, ctypes.byref(buf_len)
         )
@@ -155,7 +139,6 @@ def current_default_progid(ext: str = ".md") -> str:
 
 
 def status() -> dict[str, Any]:
-    """当前关联状态：是否已注册（打开方式可选）/ 是否已是默认应用。"""
     if not supported():
         return {"ok": True, "supported": False, "registered": False, "is_default": False}
     import winreg
@@ -177,18 +160,13 @@ def status() -> dict[str, Any]:
 
 
 def prompt_set_default(config: Config) -> dict[str, Any]:
-    """一键设为默认：注册 + 弹系统「打开方式」对话框（含「始终」选项）。
-
-    确认后系统会立即用所选应用打开验证文档（OAIF_EXEC），RyuuMD 的单实例
-    机制会把它接进新窗口，用户看到「设置成功」页面即完成闭环。
-    """
+    """确认后系统会立即用所选应用打开验证文档（OAIF_EXEC），单实例机制把它接进新窗口，形成闭环。"""
     if not supported():
         return {"ok": False, "error": "仅支持 Windows"}
     reg = register()
     if not reg["ok"]:
         return reg
 
-    # 验证文档：对话框的目标文件，确认后被默认应用打开
     verify = config.data_dir / "默认应用验证.md"
     try:
         verify.write_text(_VERIFY_DOC, encoding="utf-8")

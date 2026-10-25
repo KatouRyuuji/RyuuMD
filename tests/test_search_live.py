@@ -1,13 +1,4 @@
-# -*- coding: utf-8 -*-
-"""真实窗口：按用户路径点工具栏「搜索」，验证标题 / 内容 / 语义。
-
-不走 Computer Use 桌面键鼠（本会话无该接口），而是启动真实 WebView2，
-用 click / input / mousedown 驱动与人手相同的 DOM 事件，并走 pywebview 桥。
-隔离 APPDATA，不碰用户配置。
-
-运行: python tests/test_search_live.py
-退出码: 0 = 全部通过; 1 = 有失败。
-"""
+"""真实窗口：按用户路径构造工作副本，人工验证搜索 / 语义 / 链接。隔离 APPDATA。"""
 
 from __future__ import annotations
 

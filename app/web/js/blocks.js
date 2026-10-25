@@ -12,9 +12,6 @@
 
    sv 模式无块级 DOM，用 locateLine(行号) 直接定位顶层块。 */
 (function () {
-  // ---------------------------------------------------------------
-  // 行模式
-  // ---------------------------------------------------------------
 
   const RE = {
     fence: /^\s{0,3}(```+|~~~+)/,
@@ -43,11 +40,9 @@
     return false;
   }
 
-  // ---------------------------------------------------------------
   // scanDoc：行扫描 → 块树。节点 {type,start,end,...}，行号为绝对行号（[start,end)）
   //   h{level} / p / list{items} / quote{children} / code / math / table / hr / html
   //   list.items: [{start,end,indent,contentCol,ordered,todo,items:[嵌套项]}]
-  // ---------------------------------------------------------------
 
   function scanDoc(lines) { return scanRange(lines, 0); }
 
@@ -217,9 +212,7 @@
     return rootItems;
   }
 
-  // ---------------------------------------------------------------
   // domTree：IR 面板镜像（顶层块 → 递归容器），节点 {el,type,...}
-  // ---------------------------------------------------------------
 
   function isTopEl(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
@@ -255,11 +248,9 @@
     return [...panel.children].filter(isTopEl).map(domNodeFor);
   }
 
-  // ---------------------------------------------------------------
   // align：逐层平行对齐 DOM 镜像与扫描块树，成功后在 DOM 节点上挂 .md 反查。
   // 数量相等且类型相容（h 校验 level；ul/ol/todo 同为 list 相容）；
   // 任一不符返回 false——调用方放弃操作。
-  // ---------------------------------------------------------------
 
   function compat(d, m) {
     if (!d || !m || d.type !== m.type) return false;
@@ -308,9 +299,7 @@
     return true;
   }
 
-  // ---------------------------------------------------------------
   // locate：DOM 元素 → 源码区间；locateLine：行号 → 顶层块
-  // ---------------------------------------------------------------
 
   function panel() {
     return window.Editor && window.Editor.panel ? window.Editor.panel() : null;
@@ -383,12 +372,10 @@
     return { type: md.type, start: md.start, end: md.end, md, node: dom || null };
   }
 
-  // ---------------------------------------------------------------
   // commit：结构操作事务通道
   //   前置撤销边界 → 行区间替换 → setValue → notifyChange（脏标记/大纲）→
   //   后置撤销边界 → 滚动比例恢复 → 可选光标安置。
   //   probe(segLines) 可选：替换前校验区间与目标确为同一块，不符整体放弃。
-  // ---------------------------------------------------------------
 
   function commit(start, end, newLines, opts) {
     const E = window.Editor;
@@ -544,9 +531,7 @@
     return commit(loc.start, loc.end, repl, Object.assign({ probe: probe || probeFirstLine(el) }, opts || {}));
   }
 
-  // ---------------------------------------------------------------
   // 整节：顶层 h 到下一个同级或更高级顶层 h 之前
-  // ---------------------------------------------------------------
 
   function sectionRange(mdNodes, hNode) {
     const idx = mdNodes.indexOf(hNode);
@@ -617,9 +602,6 @@
     return commit(loc.start, loc.end, [], { probe });
   }
 
-  // ---------------------------------------------------------------
-  // 列表项与容器归属操作
-  // ---------------------------------------------------------------
 
   /* 在项树中按 start 找 item，返回 {item, siblings, parent}（parent 为父项或 null） */
   function findItemIn(items, start, parent) {

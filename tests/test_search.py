@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""仓库检索 / 双向链接 / 贴图 / 每日笔记 / HTML 导出包装 单元测试。"""
+"""仓库索引 / 双链图谱 / 模板 / 每日笔记 / HTML 导出封装 单元测试。"""
 
 from __future__ import annotations
 

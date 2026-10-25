@@ -1,10 +1,4 @@
-# -*- coding: utf-8 -*-
-"""RyuuMD Python API 层单元测试（unittest，零三方依赖）。
-
-覆盖:文件读写、文件夹树（过滤/截断/排序）、open_path、会话恢复、配置容错，
-以及资源存在性（hljs 主题、二维码）。
-运行: python -m unittest discover -s tests -v   或根目录 run_tests.py
-"""
+"""Python API 层单元测试：文件读写、文件夹树、open_path、会话恢复、配置容错、资源存在性。"""
 
 from __future__ import annotations
 
@@ -18,7 +12,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-# 测试全程使用临时 APPDATA,隔离用户真实配置(%APPDATA%/RyuuMD/config.json)
 _TMP_APPDATA = tempfile.TemporaryDirectory(prefix="ryuumd-test-appdata-")
 os.environ["APPDATA"] = _TMP_APPDATA.name
 
@@ -34,7 +27,6 @@ except Exception:  # noqa: BLE001
 
 
 def _case_insensitive_fs(path: Path) -> bool:
-    """Windows / 默认 macOS 卷大小写不敏感；Linux 敏感。"""
     return Path(str(path).upper()).exists() and Path(str(path).lower()).exists()
 
 
@@ -70,7 +62,6 @@ class TestFileIO(unittest.TestCase):
 
     def test_read_file_missing(self):
         self.assertFalse(self.api.read_file(str(self.root / "nope.md"))["ok"])
-        # 目录不是文件
         (self.root / "adir").mkdir()
         self.assertFalse(self.api.read_file(str(self.root / "adir"))["ok"])
 
@@ -81,7 +72,6 @@ class TestFileIO(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "内容")
 
     def test_save_file_atomic_leaves_no_tmp(self):
-        # 原子写：临时文件写完即 os.replace 收走，目录不留 .tmp 残片
         target = self.root / "a.md"
         res = self.api.save_file(str(target), "内容")
         self.assertTrue(res["ok"])
@@ -92,7 +82,6 @@ class TestFileIO(unittest.TestCase):
         res = self.api.new_file(str(self.root), "新建文档")
         self.assertTrue(res["ok"])
         self.assertTrue(res["name"].endswith(".md"))
-        # 同名拒绝
         dup = self.api.new_file(str(self.root), "新建文档")
         self.assertFalse(dup["ok"])
         self.assertIn("已存在", dup["error"])
@@ -128,7 +117,6 @@ class TestFolderTree(unittest.TestCase):
         res = self.api.list_folder(str(self.root))
         self.assertTrue(res["ok"])
         names = [n["name"] for n in res["tree"]]
-        # 目录在前(按名排序),文件在后(按名排序);txt 不出现
         self.assertEqual(names, ["adir", "zdir", "a.md", "b.md"])
         self.assertEqual(res["tree"][0]["type"], "dir")
         self.assertEqual(res["tree"][0]["children"][0]["name"], "inner.md")
@@ -150,14 +138,12 @@ class TestFolderTree(unittest.TestCase):
         res = self.api.list_folder(str(self.root))
         names = [n["name"] for n in res["tree"]]
         self.assertEqual(names, ["keep.md"])
-        # 过滤的不计入截断
         self.assertFalse(res["truncated"])
         # IGNORE_DIRS 常量与实现一致(防误删)
         for d in ["node_modules", "__pycache__", "venv", "dist", "build"]:
             self.assertIn(d, IGNORE_DIRS)
 
     def test_depth_truncation(self):
-        # 建 MAX_TREE_DEPTH+3 层嵌套,每层放 md
         deep = self.root
         for i in range(MAX_TREE_DEPTH + 3):
             deep = deep / f"d{i}"
@@ -165,7 +151,6 @@ class TestFolderTree(unittest.TestCase):
         res = self.api.list_folder(str(self.root))
         self.assertTrue(res["ok"])
         self.assertTrue(res["truncated"])
-        # 树实际深度不超过上限
         def depth(node, cur=0):
             m = cur
             for n in node:
@@ -191,8 +176,6 @@ class TestFolderTree(unittest.TestCase):
 
 @unittest.skipUnless(HAS_WEBVIEW, "需要 pywebview（拖放状态在 webview.dom 内）")
 class TestOpenDroppedFiles(unittest.TestCase):
-    """拖入打开（前端捕获转发通道）:open_dropped_files 从 _dnd_state['paths']
-    按文件名匹配真实路径,取首个可打开项(md 文件或文件夹)注入前端。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-drop-")
@@ -217,7 +200,6 @@ class TestOpenDroppedFiles(unittest.TestCase):
         self.dir.cleanup()
 
     def _seed(self, full_path: str) -> None:
-        """模拟 FilesDropped 通道写入:(basename, fullpath)。"""
         self.dnd["paths"].append((os.path.basename(full_path), full_path))
 
     def test_open_md_file(self):
@@ -226,7 +208,6 @@ class TestOpenDroppedFiles(unittest.TestCase):
         res = self.api.open_dropped_files(["笔记.md"])
         self.assertTrue(res["ok"])
         self.assertEqual(res["path"], str(f))
-        # 匹配项已消费,且向前端注入了打开调用
         self.assertEqual(len(self.dnd["paths"]), 0)
         self.assertEqual(len(self.js_calls), 1)
         self.assertIn("__openDroppedPath", self.js_calls[0])
@@ -270,13 +251,10 @@ class TestOpenPathAndSession(unittest.TestCase):
         touch(self.root / "doc.md", "hi")
         touch(self.root / "sub" / "inner.md")
         touch(self.root / "skip.txt")
-        # 目录 -> 树
         r1 = self.api.open_path(str(self.root / "sub"))
         self.assertTrue(r1["ok"] and "tree" in r1)
-        # md -> 文件
         r2 = self.api.open_path(str(self.root / "doc.md"))
         self.assertTrue(r2["ok"] and "content" in r2)
-        # 其他类型 -> 拒绝
         r3 = self.api.open_path(str(self.root / "skip.txt"))
         self.assertFalse(r3["ok"])
 
@@ -300,7 +278,6 @@ class TestOpenPathAndSession(unittest.TestCase):
         self.assertTrue(res["ok"])
         self.assertTrue(res["folder"]["ok"])
         self.assertEqual(res["file"]["content"], "上次内容")
-        # 失效路径被忽略
         self.api.config.set("last_file", str(self.root / "gone.md"))
         self.api.config.set("last_folder", str(self.root / "gone_dir"))
         res2 = self.api.restore_session()
@@ -309,7 +286,6 @@ class TestOpenPathAndSession(unittest.TestCase):
 
 
 class TestRecentFiles(unittest.TestCase):
-    """最近打开列表：记录（去重/置顶/限长）、查询（exists）、移除、清空。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-recent-")
@@ -347,7 +323,6 @@ class TestRecentFiles(unittest.TestCase):
             self.api.read_file(str(touch(self.root / f"f{i:02d}.md")))
         items = self.api.get_recent()["items"]
         self.assertEqual(len(items), RECENT_MAX)
-        # 最新打开的排在最前
         self.assertTrue(items[0]["path"].endswith(f"f{RECENT_MAX + 4:02d}.md"))
 
     def test_exists_flag(self):
@@ -374,7 +349,6 @@ class TestRecentFiles(unittest.TestCase):
 
 
 class TestFileOps(unittest.TestCase):
-    """文件管理：重命名/移动/删除真实磁盘文件（删除走回收站）+ 配置路径同步。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-ops-")
@@ -398,7 +372,6 @@ class TestFileOps(unittest.TestCase):
         res = self.api.rename_file(str(p), "不带扩展")
         self.assertTrue(res["ok"])
         self.assertEqual(res["name"], "不带扩展.md")
-        # 空名 / 含路径分隔符 / 源缺失 / 非 md 一律拒绝
         self.assertFalse(self.api.rename_file(res["path"], "  ")["ok"])
         self.assertFalse(self.api.rename_file(res["path"], "sub/x.md")["ok"])
         self.assertFalse(self.api.rename_file(str(self.root / "nope.md"), "y.md")["ok"])
@@ -446,7 +419,6 @@ class TestFileOps(unittest.TestCase):
         touch(sub / "m.md")  # 目标处同名
         self.assertFalse(self.api.move_file(str(p), str(sub))["ok"])
         self.assertFalse(self.api.move_file(str(p), str(self.root / "nope"))["ok"])
-        # 移到当前所在文件夹 = 无操作拒绝，原文件不动
         res = self.api.move_file(str(p), str(self.root))
         self.assertFalse(res["ok"])
         self.assertTrue(p.exists())
@@ -491,7 +463,6 @@ class TestFileOps(unittest.TestCase):
 
 
 class TestProjects(unittest.TestCase):
-    """仓库（项目）管理：添加/去重/重命名/置顶/排序/移除/打开计时。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-proj-")
@@ -542,9 +513,7 @@ class TestProjects(unittest.TestCase):
         res = self.api.rename_project(pid, "生活笔记")
         self.assertTrue(res["ok"])
         self.assertEqual(self.api.list_projects()["items"][0]["name"], "生活笔记")
-        # 空名拒绝
         self.assertFalse(self.api.rename_project(pid, "  ")["ok"])
-        # 不存在的 id
         self.assertFalse(self.api.rename_project("nope", "x")["ok"])
 
     def test_pin_and_sort_order(self):
@@ -553,15 +522,12 @@ class TestProjects(unittest.TestCase):
         a = self.api.add_project(str(self._mkrepo("a")), "")["project"]["id"]
         b = self.api.add_project(str(self._mkrepo("b")), "")["project"]["id"]
         c = self.api.add_project(str(self._mkrepo("c")), "")["project"]["id"]
-        # b 最近打开过 → 非置顶组内应排最前
         self.api.projects.touch(b)
-        # c 置顶 → 全局最前
         self.api.pin_project(c, True)
         names = [it["id"] for it in self.api.list_projects()["items"]]
         self.assertEqual(names[0], c)
         self.assertEqual(names[1], b)
         self.assertEqual(names[2], a)
-        # 取消置顶后 c 无打开记录 → 落到最后（按名称）
         self.api.pin_project(c, False)
         _ = _t  # 保留导入占位（touch 已覆盖时间戳路径）
         ids = [it["id"] for it in self.api.list_projects()["items"]]
@@ -575,7 +541,6 @@ class TestProjects(unittest.TestCase):
         self.assertIn("tree", res)
         item = self.api.list_projects()["items"][0]
         self.assertGreater(item["last_opened_at"], 0)
-        # 不存在的仓库
         self.assertFalse(self.api.open_project("nope")["ok"])
 
     def test_remove_project(self):
@@ -597,7 +562,6 @@ class TestProjects(unittest.TestCase):
 
 
 class TestFsutil(unittest.TestCase):
-    """count_md_files：计数、忽略目录、预算截断。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-fsu-")
@@ -629,14 +593,12 @@ class TestFsutil(unittest.TestCase):
 
 
 class TestFileAssoc(unittest.TestCase):
-    """文件关联：命令行构造与状态查询（不实际写注册表/弹系统对话框）。"""
 
     def test_launch_command_quotes_and_placeholder(self):
         from app.core import file_assoc
 
         cmd = file_assoc._launch_command()
         self.assertIn('"%1"', cmd)
-        # 开发态：解释器与 main.py 都要带引号（路径可能含空格）
         self.assertTrue(cmd.startswith('"'))
         self.assertIn("main.py", cmd)
 
@@ -652,7 +614,6 @@ class TestFileAssoc(unittest.TestCase):
 
 
 class TestMultiWindowApi(unittest.TestCase):
-    """多窗口 API：经 window_manager 转发；无 manager 环境下明确报错。"""
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory(prefix="ryuumd-mw-")
@@ -701,19 +662,15 @@ class TestMultiWindowApi(unittest.TestCase):
         pid = api.add_project(str(d), "")["project"]["id"]
         self.assertTrue(api.open_project_new_window(pid)["ok"])
         self.assertEqual(calls, [str(d)])
-        # 打开即视为使用过：last_opened_at 更新
         self.assertGreater(api.list_projects()["items"][0]["last_opened_at"], 0)
-        # 目录被删除后拒绝并报错
         import shutil
 
         shutil.rmtree(d)
         self.assertFalse(api.open_project_new_window(pid)["ok"])
-        # 不存在的 id
         self.assertFalse(api.open_project_new_window("nope")["ok"])
 
 
 class TestSingleton(unittest.TestCase):
-    """单实例：server 启停、转发成功/失败、token 校验。"""
 
     def test_forward_roundtrip(self):
         from app.core.config import Config as _C
@@ -738,7 +695,6 @@ class TestSingleton(unittest.TestCase):
             self.assertEqual(received, ["C:/some/path.md", ""])
         finally:
             server.stop()
-        # server 停止（lock 移除）后转发失败
         self.assertFalse(try_forward(cfg, "x.md"))
 
     def test_forward_no_instance(self):
@@ -804,7 +760,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg.get("theme"), "light")
         self.assertEqual(cfg.get("startup_page"), "home")
         cfg.update({"theme": "dark", "custom": 1})
-        # 新实例读到持久化值(同一 APPDATA 目录)
         cfg2 = Config()
         self.assertEqual(cfg2.get("theme"), "dark")
         self.assertEqual(cfg2.get("custom"), 1)
@@ -818,7 +773,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg2.get("display_mode"), "ir")
 
     def test_atomic_save_leaves_no_tmp(self):
-        # 原子写：临时文件写完后 os.replace 收走，目录不留 .tmp 残片，内容完整可读
         cfg = Config()
         cfg.set("theme", "dark")
         self.assertFalse((cfg.data_dir / "config.json.tmp").exists())
@@ -925,15 +879,12 @@ class TestConfig(unittest.TestCase):
             local = storage / "EBWebView" / "Default" / "Local Storage"
             cache.mkdir(parents=True)
             local.mkdir(parents=True)
-            # 首次（无指纹）视为换版：清缓存、保留 localStorage
             self.assertTrue(purge_stale_web_cache(storage))
             self.assertFalse(cache.exists())
             self.assertTrue(local.exists())
-            # 同一构建再启动：不清
             cache.mkdir(parents=True)
             self.assertFalse(purge_stale_web_cache(storage))
             self.assertTrue(cache.exists())
-            # 指纹变了（换版）：再清
             (storage / ".build").write_text("old", encoding="utf-8")
             self.assertTrue(purge_stale_web_cache(storage))
             self.assertFalse(cache.exists())
@@ -973,7 +924,6 @@ class TestAssets(unittest.TestCase):
         self.assertGreater(qr.stat().st_size, 10 * 1024)
 
     def test_tutorial_vault_complete(self):
-        """内置学习仓库资源完整：导读 + 6 章 + example + 模板。"""
         t = ROOT / "app" / "web" / "tutorial"
         self.assertTrue(t.is_dir(), "tutorial 目录缺失")
         expected = [
@@ -988,7 +938,6 @@ class TestAssets(unittest.TestCase):
 
 
 class TestTutorial(unittest.TestCase):
-    """open_tutorial：幂等复制（不覆盖用户改动、补回缺失）+ 注册置顶仓库。"""
 
     def setUp(self) -> None:
         self.api = make_api()
@@ -1020,13 +969,11 @@ class TestTutorial(unittest.TestCase):
         self.assertTrue(res["ok"])
         self.assertEqual(target.read_text(encoding="utf-8"), "用户的涂鸦", "已有文件不应被覆盖")
         self.assertTrue(example.is_file(), "缺失文件应被补回")
-        # 重复调用不重复注册
         projs = self.api.projects.list(with_stats=False)
         self.assertEqual(len([p for p in projs if Path(p["path"]) == self.dst]), 1)
 
 
 class TestJsApiSurface(unittest.TestCase):
-    """pywebview 会递归暴露 js_api 公开属性；配置/仓库对象不得进桥。"""
 
     def test_config_and_projects_not_serializable(self):
         import inspect

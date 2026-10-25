@@ -4,16 +4,12 @@ name: CI
 on:
   pull_request:
     paths-ignore:
-      - "docs/**"
       - "README.md"
-      - "AI_GUIDE.md"
       - "LICENSE"
   push:
     branches: [master]
     paths-ignore:
-      - "docs/**"
       - "README.md"
-      - "AI_GUIDE.md"
       - "LICENSE"
   workflow_dispatch:
 
@@ -47,7 +43,7 @@ jobs:
         run: python scripts/check_version.py
 
       - name: Python 语法编译
-        run: python -m compileall -q main.py run_tests.py make_icon.py app tests scripts
+        run: python -m compileall -q main.py app tests scripts packaging
 
       - name: Ruff（只拦真实错误：语法错误、未定义名称等）
         run: |
@@ -64,7 +60,7 @@ jobs:
         # 装上 pywebview 让拖放通道等依赖其内部结构的测试真正跑起来（只 import，不起 GUI）
         run: |
           python -m pip install -r requirements.txt
-          python run_tests.py --unit
+          python scripts/run_tests.py --unit
 
       - name: 工作流配置检查（actionlint）
         run: |
@@ -77,4 +73,4 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       release: false
-      retention-days: 7
+      retention-days: 3

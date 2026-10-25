@@ -1,12 +1,4 @@
-# -*- coding: utf-8 -*-
-"""RyuuMD UI 截图验证工具。
-
-启动真实 pywebview 窗口（隔离 APPDATA，不污染用户配置），用 evaluate_js
-依次切换界面状态，PowerShell PrintWindow(PW_RENDERFULLCONTENT) 截图，
-输出到 tests/ui-shots/。用于设计系统/主题改动的视觉回归。
-
-运行: python tests/ui_shots.py
-"""
+"""UI 截图验证工具：真实窗口渲染各界面状态，PowerShell PrintWindow 截图输出 tests/ui-shots/。"""
 
 from __future__ import annotations
 
@@ -42,9 +34,6 @@ OTHER_THEME = "dark" if SHOT_THEME == "light" else "light"
 PS1 = ROOT / "tests" / "ui_shot.ps1"
 TITLE = "RyuuMD UIShot"
 
-# ----------------------------------------------------------------------------
-# 夹具：仓库目录 + 对齐参考图的主文档（标题1-6/加粗/代码块/引用/列表/todo）
-# ----------------------------------------------------------------------------
 _TMP = tempfile.TemporaryDirectory(prefix="ryuumd-uishot-files-")
 TMP = Path(_TMP.name)
 REPO = TMP / "shot-repo"
@@ -60,15 +49,10 @@ MAIN_MD = REPO / "样式总览.md"
 MAIN_MD.write_text(
     r"""# 标题1
 
-## 标题2
 
-### 标题3
 
-#### 标题4
 
-##### 标题5
 
-###### 标题6
 
 普通字体
 
@@ -93,7 +77,6 @@ MAIN_MD.write_text(
 - [ ] 这是todo1
 - [x] 这是todo2
 
-## 表格、公式与链接
 
 | 字段 | 示例 |
 | --- | --- |
@@ -107,14 +90,12 @@ $$
 
 双链 [[入门指南]] 与 [外部链接](https://example.com)。
 
-## 图表
 
 ```mermaid
 flowchart LR
   A[开始] --> B[完成]
 ```
 
-#工作流 #设计评审
 """,
     encoding="utf-8",
 )
@@ -124,9 +105,6 @@ def J(s: str) -> str:
     return json.dumps(str(s), ensure_ascii=True)
 
 
-# ----------------------------------------------------------------------------
-# 截图
-# ----------------------------------------------------------------------------
 def shot(name: str) -> None:
     out = OUT_DIR / f"{SHOT_PREFIX}-{name}.png"
     r = subprocess.run(
@@ -142,7 +120,6 @@ def step(window, name: str, js: str = "", sleep: float = 0.7) -> None:
     if js:
         window.evaluate_js(js)
     time.sleep(sleep)
-    # 截图前回读真实状态，便于核对「截图内容 = 预期状态」
     try:
         st = window.evaluate_js(
             "JSON.stringify({theme:document.documentElement.dataset.theme,"
@@ -158,7 +135,6 @@ def step(window, name: str, js: str = "", sleep: float = 0.7) -> None:
 
 
 def _run(window) -> None:
-    # 等待 JS 桥与应用就绪
     for _ in range(60):
         try:
             if window.evaluate_js("!!(window.App && window.App.openPath && window.Home)"):
@@ -170,24 +146,20 @@ def _run(window) -> None:
     main_js = J(MAIN_MD)
     repo_js = J(REPO)
 
-    # —— 首页 ——
     step(window, f"01-home-{SHOT_THEME}-card", sleep=1.2)
     step(window, f"02-home-{SHOT_THEME}-list",
          'document.querySelector("#repo-view-toggle [data-view=\\"list\\"]").click()')
 
-    # —— 编辑器：亮色 sky（先开文件夹让文件树有内容，再开主文档） ——
     step(window, f"03-editor-{SHOT_THEME}-files",
          f"window.App.openPath({repo_js});window.App.openPath({main_js})", sleep=3.0)
     step(window, f"04-editor-{SHOT_THEME}-outline",
          'document.querySelector(".side-tab[data-panel=\\"outline\\"]").click()', sleep=1.0)
 
-    # —— 编辑器：深色 vampire ——
     step(window, f"05-editor-{OTHER_THEME}-outline",
          'document.getElementById("btn-theme").click()', sleep=1.5)
     step(window, f"06-editor-{OTHER_THEME}-files",
          'document.querySelector(".side-tab[data-panel=\\"files\\"]").click()')
 
-    # —— 回到亮色，浮层类 ——
     step(window, f"07-ctx-editor-{SHOT_THEME}",
          'document.getElementById("btn-theme").click();', sleep=1.5)
     window.evaluate_js(
@@ -236,7 +208,6 @@ def _run(window) -> None:
          "document.getElementById('find-toggle-replace').click();"
          "document.getElementById('find-input').value='这是';"
          "document.getElementById('find-input').dispatchEvent(new Event('input'))")
-    # 探针：find-row 子元素布局
     try:
         probe = window.evaluate_js(
             "JSON.stringify(Array.from(document.querySelectorAll('#find-bar .find-row:first-child > *'))"
@@ -268,20 +239,16 @@ def _run(window) -> None:
          'window.App.confirm({title:"移入回收站", message:"确定要把「样式总览.md」移入回收站吗？", okText:"移入回收站", danger:true})',
          sleep=0.8)
 
-    # —— 首页深色 ——
     step(window, f"13-home-{OTHER_THEME}",
          'document.getElementById("cf-cancel").click();'
          'document.getElementById("btn-theme").click();window.Home.show()', sleep=1.4)
 
-    # —— 首页亮色（有最近记录，验证最近区布局） ——
     step(window, f"13b-home-{SHOT_THEME}-recent",
          'document.getElementById("btn-theme").click()', sleep=1.4)
 
-    # —— 欢迎弹窗（亮色） ——
     step(window, f"14-welcome-modal-{SHOT_THEME}",
          'window.App.showWelcome()', sleep=1.2)
 
-    # —— AI：设置 AI 标签页 ——
     step(window, f"15-settings-ai-{SHOT_THEME}",
          'window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));'
          'document.getElementById("btn-settings").click();'
@@ -295,7 +262,6 @@ def _run(window) -> None:
          'i.value="ask 什么是 WebDAV";'
          'i.dispatchEvent(new Event("input"))', sleep=1.6)
 
-    # —— AI：右侧 AI 侧栏（编辑器态，未配置 Key 时空态） ——
     step(window, f"17-ai-sidebar-{SHOT_THEME}",
          'window.Palette.close();window.Home.hide();'
          'document.getElementById("btn-ai").click()', sleep=0.8)
@@ -320,7 +286,6 @@ def _run(window) -> None:
          "clientX:r.x+Math.min(500,r.width/2),clientY:r.y+180,button:2}));})();"
          "document.dispatchEvent(new KeyboardEvent('keydown',{key:'t',bubbles:true}));", sleep=0.8)
 
-    # —— 结构操作柄（blockui.js）：悬停列表项出柄（先滚入视口，柄按块坐标定位） ——
     step(window, f"18-block-handle-{SHOT_THEME}",
          'document.getElementById("btn-ai").click();'
          'window.SlashMenu.close();'
@@ -330,12 +295,10 @@ def _run(window) -> None:
          'li.dispatchEvent(new MouseEvent("mousemove",{bubbles:true,clientX:r.left+120,clientY:r.top+8}));'
          'return true;})()', sleep=1.0)
 
-    # —— 柄菜单：点击开菜单 + 范围高亮 ——
     step(window, f"19-block-menu-{SHOT_THEME}",
          '(function(){var h=document.querySelector(".block-handle.on");'
          'if(h)h.click();return true;})()', sleep=0.8)
 
-    # —— 拖拽落点：拖到柄下方 120px 的块（插入线 + 归属提示），截图后松手还原 ——
     step(window, f"20-block-drag-{SHOT_THEME}", "")
     window.evaluate_js(
         "window.SlashMenu.close();"

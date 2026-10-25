@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 """RyuuMD 测试统一入口。
 
-用法:
-  python run_tests.py              # 单测 + E2E
-  python run_tests.py --unit       # 仅单测（打包门禁）
-  python run_tests.py --unit --quiet
+用法（仓库根目录）:
+  python scripts/run_tests.py              # 单测 + E2E
+  python scripts/run_tests.py --unit       # 仅单测（打包门禁）
+  python scripts/run_tests.py --unit --quiet
 退出码: 0 = 全部通过; 1 = 任一失败。
-测试计划与手动验证清单见 docs/TEST_PLAN.md。
 """
 
 from __future__ import annotations
@@ -15,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 UNIT_MODULES = [
     "tests.test_api",

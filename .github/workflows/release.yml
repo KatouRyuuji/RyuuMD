@@ -1,5 +1,5 @@
 # 发版：推送 v* tag → 校验版本号 → 双平台完整打包 → 生成校验和 → 发布 GitHub Release。
-# 发版步骤：同步 version_info.txt 与 RyuuMD-mac.spec 的版本号 → 合入 master → git tag vX.Y.Z && git push origin vX.Y.Z
+# 发版步骤：同步 packaging/version_info.txt 与 packaging/RyuuMD-mac.spec 的版本号 → 合入 master → git tag vX.Y.Z && git push origin vX.Y.Z
 # 手动运行（workflow_dispatch）只构建全部产物，不发布 Release。
 name: 发版
 
@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       release: true
-      retention-days: 30
+      retention-days: 3
 
   publish:
     name: 发布 Release

@@ -1,9 +1,4 @@
-"""仓库（项目）管理：把不同的笔记目录注册为仓库，支持置顶、重命名、快速切换。
-
-参考 Obsidian 的 vault 模型：仓库 = 用户显式收藏的目录，与「最近打开」
-（自动记录）互不混淆。数据持久化在 config["projects"]，结构：
-[{id, name, path, pinned, created_at, last_opened_at}]
-"""
+"""仓库（项目）管理：把笔记目录注册为仓库（参考 Obsidian vault），持久化在 config["projects"]。"""
 
 from __future__ import annotations
 
@@ -19,11 +14,7 @@ from .fsutil import count_md_files
 
 
 def _norm(path: str) -> str:
-    """路径规范化，用于同仓库去重。
-
-    Windows：normcase 折叠大小写。macOS：normcase 是空操作，且 /var 与
-    /private/var 是同一目录，需 resolve + casefold。
-    """
+    """macOS 的 normcase 是空操作，且 /var 与 /private/var 是同一目录，需 resolve + casefold。"""
     p = os.path.normpath(str(path))
     if sys.platform == "darwin":
         try:
@@ -35,7 +26,6 @@ def _norm(path: str) -> str:
 
 
 class ProjectStore:
-    """仓库列表的增删改查。所有写操作立即持久化到 config。"""
 
     # 与 Config 相同：只给 Python 用，不要被 pywebview 扫成 JS API。
     _serializable = False
@@ -43,9 +33,6 @@ class ProjectStore:
     def __init__(self, config: Config) -> None:
         self.config = config
 
-    # ------------------------------------------------------------------
-    # 内部
-    # ------------------------------------------------------------------
     def _all(self) -> list[dict[str, Any]]:
         items = self.config.get("projects", []) or []
         return [it for it in items if isinstance(it, dict) and it.get("path") and it.get("id")]
@@ -53,15 +40,7 @@ class ProjectStore:
     def _save(self, items: list[dict[str, Any]]) -> None:
         self.config.set("projects", items)
 
-    # ------------------------------------------------------------------
-    # 查询
-    # ------------------------------------------------------------------
     def list(self, with_stats: bool = True) -> list[dict[str, Any]]:
-        """返回展示用仓库列表：置顶在前，其余按最后打开时间倒序。
-
-        with_stats 时附带 md 文件计数（有预算上限，大仓库显示 N+）。
-        失效仓库（目录被移动/删除）保留展示，由前端灰显。
-        """
         out: list[dict[str, Any]] = []
         for it in self._all():
             info = dict(it)
@@ -91,7 +70,7 @@ class ProjectStore:
         return None
 
     def find_by_containing_path(self, path: str) -> Optional[dict[str, Any]]:
-        """找包含该文件/目录的仓库（最长前缀，避免父子目录误匹配）。"""
+        """最长前缀匹配，避免父子目录误匹配。"""
         target = _norm(path)
         best: Optional[dict[str, Any]] = None
         best_len = -1
@@ -103,9 +82,6 @@ class ProjectStore:
                     best, best_len = it, len(root)
         return best
 
-    # ------------------------------------------------------------------
-    # 变更
-    # ------------------------------------------------------------------
     def add(self, path: str, name: str = "") -> dict[str, Any]:
         p = Path(path)
         if not p.is_dir():
@@ -129,7 +105,6 @@ class ProjectStore:
         return {"ok": True, "project": project, "existed": False}
 
     def create(self, parent: str, name: str) -> dict[str, Any]:
-        """在父目录下新建文件夹并注册为仓库。"""
         parent_p = Path(parent)
         if not parent_p.is_dir():
             return {"ok": False, "error": "父目录不存在"}
@@ -183,7 +158,6 @@ class ProjectStore:
         return {"ok": False, "error": "仓库不存在"}
 
     def touch(self, project_id: str) -> None:
-        """记录一次打开（更新 last_opened_at，用于排序）。"""
         items = self._all()
         for it in items:
             if it["id"] == project_id:

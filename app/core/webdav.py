@@ -1,8 +1,4 @@
-"""轻量 WebDAV 客户端（仅标准库）。
-
-覆盖 PROPFIND / GET / PUT / MKCOL / DELETE，Basic + Digest 认证。
-面向 坚果云 / Nextcloud / 群晖 / AList / Seafile 等用户自建或第三方 WebDAV。
-"""
+"""轻量 WebDAV 客户端（仅标准库）：PROPFIND / GET / PUT / MKCOL / DELETE，Basic + Digest 认证。"""
 
 from __future__ import annotations
 
@@ -52,7 +48,6 @@ def _parse_mtime(raw: str) -> float:
 
 
 def _href_path(href: str) -> str:
-    """把 PROPFIND 的 href（可能是绝对 URL 或百分号编码）收成解码后的路径。"""
     raw = (href or "").strip()
     if not raw:
         return "/"
@@ -65,7 +60,6 @@ def _href_path(href: str) -> str:
 
 
 class WebDavClient:
-    """对单个 WebDAV 根目录操作。relpath 一律 posix、不以 / 开头。"""
 
     def __init__(
         self,
@@ -162,7 +156,6 @@ class WebDavClient:
             raise DavError(f"无法连接 WebDAV：{e}") from e
 
     def probe(self) -> None:
-        """探测根目录可读（Depth 0 PROPFIND）。404 时尝试 MKCOL 再建。"""
         try:
             self.propfind("", depth=0)
         except DavError as e:
@@ -228,7 +221,6 @@ class WebDavClient:
         return self._parse_propfind(xml)
 
     def list_files(self, prefix: str = "") -> dict[str, DavEntry]:
-        """递归列出 prefix 下的文件（不含目录）。key 为相对 WebDAV 根的 posix 路径。"""
         out: dict[str, DavEntry] = {}
         stack = [prefix.strip("/")]
         seen_dirs: set[str] = set()
@@ -246,7 +238,6 @@ class WebDavClient:
             for ent in entries:
                 rel = ent.relpath.strip("/")
                 if ent.is_dir:
-                    # 跳过自身
                     if rel == current.strip("/"):
                         continue
                     stack.append(rel)
@@ -263,7 +254,6 @@ class WebDavClient:
         except ET.ParseError as e:
             raise DavError(f"WebDAV 响应不是合法 XML：{e}") from e
         entries: list[DavEntry] = []
-        # 兼容默认命名空间与 d: 前缀
         for resp in root.findall(".//{DAV:}response") or root.findall(".//d:response", DAV_NS):
             href_el = resp.find("{DAV:}href")
             if href_el is None:
