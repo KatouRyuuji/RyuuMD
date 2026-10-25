@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       release: true
-      retention-days: 30
+      retention-days: 3
 
   publish:
     name: 发布 Release

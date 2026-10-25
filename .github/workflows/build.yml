@@ -13,7 +13,7 @@ on:
       retention-days:
         description: 构建产物保留天数
         type: number
-        default: 7
+        default: 3
 
 permissions:
   contents: read
