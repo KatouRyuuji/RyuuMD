@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: tag 与代码版本一致
         if: startsWith(github.ref, 'refs/tags/')
@@ -51,7 +51,7 @@ jobs:
       contents: write
     steps:
       - name: 下载产物
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: release
           merge-multiple: true
